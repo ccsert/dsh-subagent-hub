@@ -10,8 +10,10 @@ window.__ModuleLoader__.load({
 
     const NS = 'subagentHub'
     const ROW_CONFIG_KEY = 'dsh-subagent-hub#subagent-hub'
+    const ENTRY_ID = 'subagent-hub'
 
     const zh = {
+      'nav': '子代理中枢',
       'summary': '{routes} 条模型路由 · {agents} 个具名子 agent · 官方设置：{managed}',
       'summary.managedOn': '由本插件托管',
       'summary.managedOff': '未托管',
@@ -46,6 +48,7 @@ window.__ModuleLoader__.load({
       'common.remove': '-',
     }
     const en = {
+      'nav': 'Subagent Hub',
       'summary': '{routes} model routes · {agents} named subagents · official settings: {managed}',
       'summary.managedOn': 'managed',
       'summary.managedOff': 'not managed',
@@ -208,6 +211,14 @@ window.__ModuleLoader__.load({
       const value = form?.state?.value ?? {}
       const initial = React.useMemo(() => draftsOf(value), [])
       const [drafts, setDrafts] = React.useState(initial)
+      // A settings-section page may mount while the Host values are still loading;
+      // hydrate the drafts once the first accepted section arrives.
+      const hydrated = React.useRef(form?.state?.status !== 'loading')
+      React.useEffect(() => {
+        if (hydrated.current || form?.state?.status !== 'ready') return
+        hydrated.current = true
+        setDrafts(draftsOf(form.state.value))
+      }, [form?.state?.status, form?.state?.revision])
       const [status, setStatus] = React.useState(undefined)
       const [busy, setBusy] = React.useState(false)
       const writable = form !== undefined && form.state?.writable !== false
@@ -294,27 +305,49 @@ window.__ModuleLoader__.load({
           status === undefined ? null : h('span', { className: status.kind === 'ok' ? 'sah-ok' : 'sah-error' }, status.text)))
     }
 
+    /** Settings-section page sharing the row form; the namespace is served only with a profile. */
+    function SectionPage({ ctx, t }) {
+      const form = React.useMemo(() => ctx.configForms.get(ENTRY_ID), [ctx])
+      const [snapshot, setSnapshot] = React.useState(() => form.getSnapshot())
+      React.useEffect(() => form.subscribe(() => setSnapshot(form.getSnapshot())), [form])
+      const view = snapshot.status === 'unavailable'
+        ? undefined
+        : { state: snapshot, mutate: (ops, revision) => form.mutate(ops, revision) }
+      return h(SettingsPage, { view: 'page', form: view, t })
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'subagent-hub: dictionaries')
       const t = ctx.locale.bind(NS)
-      ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
+      // The same form is reachable from the Plugins page row and from a top-level
+      // Settings section, which is where people expect plugin configuration.
+      ctx.effect(() => ctx.configForms.whileServed([ENTRY_ID], () => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
         name: 'plugins.row.config',
         key: ROW_CONFIG_KEY,
         locale: NS,
-      }, props => h(SettingsPage, { ...props, t: props.t ?? t })))
+      }, props => h(SettingsPage, { ...props, t: props.t ?? t })))), 'subagent-hub: row config page')
+      ctx.effect(() => ctx.configForms.whileServed([ENTRY_ID], () => ctx.slots.inject('settings.section', () => ctx.slots.register({
+        name: 'settings.section',
+        id: ENTRY_ID,
+        order: 30,
+        label: () => t('nav'),
+        locale: NS,
+      }, props => h(SectionPage, { ...props, ctx, t: props.t ?? t })))), 'subagent-hub: settings section')
     }
 
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'configForms'],
       apply,
       // Pure helpers, exported for tests only.
       SettingsPage,
+      SectionPage,
       draftsOf,
       valuesOf,
       saveOps,
       draftProblem,
       NS,
       ROW_CONFIG_KEY,
+      ENTRY_ID,
     }
   },
 })

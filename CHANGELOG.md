@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.2 — 同一张配置表单也放进“设置”导航
+
+0.4.1 的配置卡片只在 Plugins 页的 `subagent-hub` 行里，入口不够直观（用户会去“设置 → 内置插件”，而那里是官方只读清单）。
+
+- 额外通过官方 `settings.section` 槽位注册一个设置页面“子代理中枢”，与 Plugins 页的行配置共用同一张表单和同一份 volatile 配置；入口在 **设置 → 子代理中枢**，与“Our Free Model / 插件市场”同级。
+- 页面在 Host 配置命名空间可用时才出现（`configForms.whileServed`），表单首次加载时会 hydrate 到最新值。
+- 两处入口保存的都是同一组字段（`routes` / `agents` / `manageOfficialSettings`），保存即时生效，行为完全一致。
+- 测试：44 项单元测试 + 16 项 e2e；客户端测试覆盖 `settings.section` 注册、导航标签与设置页渲染。
+
 ## 0.4.1 — 官方 Plugins 页配置卡片，保存即时生效
 
 0.4.0 删掉了 v1 的侧栏路由页和自建设置页，配置只能手改 profile patch。这一版把**配置卡片**加回来，但不恢复任何独立界面：它挂在官方 Plugins 页，通过官方 `plugins.row.config` 槽位与 `settings` 配置表单工作。

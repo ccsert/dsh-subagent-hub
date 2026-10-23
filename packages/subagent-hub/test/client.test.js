@@ -100,24 +100,46 @@ test('page without a Host form explains itself instead of offering a dead save',
   assert.match(html, /disabled=""[^>]*>page.save/)
 })
 
-test('apply registers the dictionary and the row configuration slot', () => {
-  const { apply, inject, ROW_CONFIG_KEY } = loadClient()
-  assert.deepEqual(plain(inject), ['slots', 'locale'])
+const formMock = (value = saved(), status = 'ready') => {
+  const form = {
+    getSnapshot: () => ({ status, value: status === 'ready' ? value : undefined, base: undefined, user: undefined, revision: 3, writable: true }),
+    subscribe: () => () => {},
+    mutate: async () => true,
+  }
+  return form
+}
+
+test('apply registers the dictionary, the row page, and a Settings section', () => {
+  const { apply, inject, ROW_CONFIG_KEY, ENTRY_ID } = loadClient()
+  assert.deepEqual(plain(inject), ['slots', 'locale', 'configForms'])
   assert.equal(ROW_CONFIG_KEY, 'dsh-subagent-hub#subagent-hub')
-  const calls = {}
+  assert.equal(ENTRY_ID, 'subagent-hub')
+  const calls = { slots: [] }
   const ctx = {
     effect: fn => { calls.effects = (calls.effects ?? 0) + 1; return fn() },
     locale: { register: (ns, dicts) => { calls.locale = [ns, Object.keys(dicts)] }, bind: () => t },
+    configForms: {
+      whileServed: (namespaces, register) => { calls.served = namespaces; return register(new Set(namespaces)) },
+      get: () => formMock(),
+    },
     slots: {
       inject: (owner, fn) => { calls.owner = owner; return fn() },
-      register: (options, body) => { calls.slot = options; calls.body = body },
+      register: (options, body) => { calls.slots.push({ options, body }); return () => {} },
     },
   }
   apply(ctx)
   assert.deepEqual(plain(calls.locale), ['subagentHub', ['en', 'zh']])
-  assert.equal(calls.owner, 'plugins.row.config')
-  assert.deepEqual(plain(calls.slot), { name: 'plugins.row.config', key: 'dsh-subagent-hub#subagent-hub', locale: 'subagentHub' })
-  const element = calls.body({ view: 'page', form: undefined })
-  assert.equal(typeof element.type, 'function')
-  assert.match(renderToStaticMarkup(element), /page\.noForm/)
+  assert.deepEqual(plain(calls.served), ['subagent-hub'])
+  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['plugins.row.config', 'settings.section'])
+  const row = calls.slots.find(slot => slot.options.name === 'plugins.row.config')
+  assert.deepEqual(plain(row.options), { name: 'plugins.row.config', key: 'dsh-subagent-hub#subagent-hub', locale: 'subagentHub' })
+  const section = calls.slots.find(slot => slot.options.name === 'settings.section')
+  assert.equal(section.options.id, 'subagent-hub')
+  assert.equal(section.options.order, 30)
+  assert.equal(section.options.label(), 'nav')
+  // Row page without a Host form explains itself; the Settings section page renders the form.
+  assert.match(renderToStaticMarkup(calls.slots.find(slot => slot.options.name === 'plugins.row.config').body({ view: 'page', form: undefined })), /page\.noForm/)
+  const sectionHtml = renderToStaticMarkup(section.body({ close() {} }))
+  assert.match(sectionHtml, /page\.save/)
+  assert.match(sectionHtml, /value="reviewer"/)
 })

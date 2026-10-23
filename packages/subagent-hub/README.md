@@ -13,11 +13,11 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 - **选择目录**：新增一段 system prompt，列出“具名 agent → 用途 / 标签 / 限定路由”和“可用模型 → 标签”，并告诉主 agent 哪个任务配哪个。参数没被官方工具暴露时，段落会明确说“目录仅供参考”，而不会诱导一次失败的调用。
 - **路由约束守卫**：当官方调用带 `agent_preset` 指向声明了 `routes` 的具名 agent，而实际子路由（显式 `provider`/`model`，或继承的父路由）不在其中时，`tools/pre-execute` 在派发前拒绝，并给出允许的路由列表。
 - **可选的官方配置托管**：`manageOfficialSettings: true` 时，通过 `configEditor` 幂等写入官方工具行的 `allowedAgentPresets` 和 Host 的 `subagent-model-selection` 设置。默认 `false`，不替用户改别人的配置。
-- **配置卡片**：官方 Plugins 页里 `dsh-subagent-hub` 的 `subagent-hub` 行有 **Configure** 页，可视化增删模型路由、具名子 agent 和托管开关；保存即时生效，不需要重启，也不用再手改 YAML。
+- **配置界面**：同一张表单放在两个官方入口——**设置 → 子代理中枢**（推荐）和官方 Plugins 页的 `subagent-hub` 行 **Configure**；保存即时生效，不需要重启，也不用再手改 YAML。
 
 ## 在界面上配置
 
-打开 **Plugins → dsh-subagent-hub → subagent-hub → Configure**：
+打开 **设置 → 子代理中枢**，或 **Plugins → dsh-subagent-hub → 子代理中枢行 → Configure**（两处是同一张表单）：
 
 | 区块 | 可编辑 |
 |---|---|

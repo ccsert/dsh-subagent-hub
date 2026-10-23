@@ -38,7 +38,7 @@ v0.4.0 不提供任何界面，也不注册派发工具；它只注册具名 Age
 
 ## 使用
 
-- **配置**：打开 **Plugins → dsh-subagent-hub → subagent-hub → Configure**，在卡片里增删模型路由、具名子 agent，并决定是否托管官方委派配置。保存即时生效（配置字段 volatile），不用重启；新会话立即用上新配置。
+- **配置**：打开 **设置 → 子代理中枢**（或 **Plugins → dsh-subagent-hub → 子代理中枢行 → Configure**），在表单里增删模型路由、具名子 agent，并决定是否托管官方委派配置。保存即时生效（配置字段 volatile），不用重启；新会话立即用上新配置。
   - 也可以不走界面，直接编辑第 3 步的 `cordis.patch.yml`；两边改的是同一份配置。
 - **新会话保持默认预设**（如 `standard`），不需要选任何特殊预设。
 - 官方 `subagent` 工具会多出 `agent_preset` / `provider` / `model` / `reasoning_effort` 参数；system prompt 里多一段“具名 agent / 模型 → 标签”的选择目录。

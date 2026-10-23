@@ -90,7 +90,7 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 ### 4.6 配置卡片与 live 重配置（0.4.1）
 
-`routes` / `agents` / `manageOfficialSettings` 声明为 schemastery **volatile** 字段，官方 `settings` 服务因此为 profile 行 `subagent-hub` 生成配置表单，Client 半侧（`lib/client.js`）通过官方 `plugins.row.config` 槽位（key `dsh-subagent-hub#subagent-hub`）渲染：
+`routes` / `agents` / `manageOfficialSettings` 声明为 schemastery **volatile** 字段，官方 `settings` 服务因此为 profile 行 `subagent-hub` 生成配置表单。Client 半侧（`lib/client.js`）把同一张表单注册到两个官方槽位：`settings.section`（设置左侧导航的“子代理中枢”，推荐入口）和 `plugins.row.config`（Plugins 页 `subagent-hub` 行的 Configure，key `dsh-subagent-hub#subagent-hub`）：
 
 - 路由表、具名 agent、托管开关一次 `mutate` 原子保存（带修订号），Host 逐路径合并进 profile patch；
 - 保存不会重载插件：Loader 把 volatile 值原地提交并发出 `loader/volatile-update`；

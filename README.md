@@ -13,4 +13,4 @@ DeepSeek Harness 插件：子 agent 的定义、模型路由与可视化。
 
 ## 状态
 
-M0（前提验证 spike）进行中。
+M0（前提验证）已完成，见 [`spikes/m0-runtime`](spikes/m0-runtime/README.md)。下一步 M1。

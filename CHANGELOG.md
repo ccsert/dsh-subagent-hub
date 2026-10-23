@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — 配置界面重做：从手填表单到选择器
+
+0.4.2 的页面能用，但每个字段都要手打：provider、model、id、标签、路由引用都得凭记忆输入，页面本身也没有官方设置页的观感。这一版把它换成原生观感的选择器。
+
+- **模型不再手填**：读取 Host 的模型目录（`ctx.remote.session.modelCatalog()`），按 provider 分组列出可用模型，勾选即加入路由；路由 id 由模型名自动建议（可改），provider/model 只读展示。仍保留“手动添加路由”兜底。
+- **标签用胶囊**：能力标签是可增删的胶囊，常用标签一键点击加入，不再是逗号分隔字符串。
+- **具名 agent 的路由改成勾选**：直接勾“允许使用的路由”，不再手填路由 id；基础预设为下拉（取自官方预设列表），id 处实时显示 `hub-agent-<id>`。
+- **目录预览**：页面底部折叠区实时显示主 agent 会看到的“模型 → 标签 / 具名 agent → 用途”目录。
+- **官方 UI 组件**：使用官方 `@deepseek-ai/dsh-client-ui-primitives`（`SettingsForm`、`Switch`、`Checkbox`、`Button`）与官方主题变量，保存/只读/失败提示由官方表单外壳提供；旧 shell 缺组件时自动降级为原生元素。
+- `dsh.client.inject` 补上 locale / ui-settings / ui-plugin-manager / api-remotes，使页面能拿到模型目录与官方预设列表。
+- 测试：49 项单元测试 + 16 项 e2e；新增路由 id 建议、目录过滤、标签胶囊、目录预览与模型选择器的断言。
+
 ## 0.4.2 — 同一张配置表单也放进“设置”导航
 
 0.4.1 的配置卡片只在 Plugins 页的 `subagent-hub` 行里，入口不够直观（用户会去“设置 → 内置插件”，而那里是官方只读清单）。

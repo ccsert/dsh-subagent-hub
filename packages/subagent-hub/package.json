@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.4.2",
+  "version": "0.5.0",
   "description": "Named subagents as official Agent Presets, a capability-tagged child model allowlist, a route guard for the official delegation tools, and a configuration card on the official Plugins page for DeepSeek Harness.",
   "license": "MIT",
   "type": "module",
@@ -30,7 +30,13 @@
     },
     "client": {
       "platform": "web",
-      "immediately": true
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-api-remotes"
+      ]
     }
   },
   "peerDependencies": {

@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.4.1（0.4.0 方向性重构 + 官方 Plugins 页配置卡片）完成，单元测试 44 项 + 真实运行时 e2e 16 项。
+> 状态：0.5.0（0.4.0 方向性重构 + 官方配置界面 + 选择器化重做）完成，单元测试 49 项 + 真实运行时 e2e 16 项。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -96,6 +96,7 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 - 保存不会重载插件：Loader 把 volatile 值原地提交并发出 `loader/volatile-update`；
 - Host 侧的 reconcile worker 在 HMR 事务**之外**启动，串行应用变更：只有 `id` / `description` / `basePreset` / `instructions` 变化时才重建具名预设，任何变更后都重做官方 allowlist 同步；
 - prompt 与 guard 直接读取按需重建的 catalog，因此目录和路由约束立即反映新配置；
+- 客户端只用官方机制取数据：模型目录来自 `ctx.remote.session.modelCatalog()`（按 provider 分组的可用模型），官方预设列表来自 `ctx.remote.agentPresets.list()`；因此路由与具名 agent 的字段是**选择**而不是手填，标签是胶囊，基础预算是下拉；界面使用官方 `@deepseek-ai/dsh-client-ui-primitives` 的表单外壳与控件，旧 shell 缺组件时降级为原生元素；
 - 已有会话保留其 composition（官方行为），新会话拿到新的 `agent_preset` 枚举与 `provider`/`model` 允许列表。
 
 ### 4.7 删除清单（v1 → v2）

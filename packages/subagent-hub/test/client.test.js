@@ -16,6 +16,7 @@ function loadClient() {
   assert.equal(registered.id, 'dsh-subagent-hub', 'factory id equals the package name')
   return registered.factory(id => {
     if (id === 'react') return React
+    if (id === '@deepseek-ai/dsh-client-ui-primitives') return undefined
     throw new Error(`unexpected require ${id}`)
   })
 }
@@ -34,6 +35,11 @@ const saved = () => ({
     { id: 'reviewer', description: 'Reviews diffs', instructions: 'Report only.', routes: ['pro'], needs: ['fast'] },
   ],
 })
+
+const catalogGroups = () => [
+  { id: 'p', name: 'Provider P', models: [{ id: 'flash', name: 'Flash' }, { id: 'pro', name: 'Pro' }] },
+  { id: 'q', name: 'Provider Q', models: [{ id: 'big', name: 'Big' }] },
+]
 
 test('drafts round-trip a saved value, keep note, and drop blank rows', () => {
   const { draftsOf, valuesOf } = loadClient()
@@ -72,32 +78,94 @@ test('blank rows do not fail validation', () => {
   assert.equal(draftProblem(drafts), undefined)
 })
 
+test('route ids are suggested from the model id and stay unique', () => {
+  const { slugForModel, uniqueRouteId } = loadClient()
+  assert.equal(slugForModel('deepseek-flash'), 'deepseek-flash')
+  assert.equal(slugForModel('minimax-cn/MiniMax-M3.1-Flash'), 'mini-max-m3-1-flash')
+  assert.equal(slugForModel(''), 'route')
+  assert.equal(uniqueRouteId('flash', new Set()), 'flash')
+  assert.equal(uniqueRouteId('flash', new Set(['flash'])), 'flash-2')
+  assert.equal(uniqueRouteId('flash', new Set(['flash', 'flash-2'])), 'flash-3')
+})
+
+test('the catalog filter matches provider and model names', () => {
+  const { filterCatalog } = loadClient()
+  assert.deepEqual(plain(filterCatalog(catalogGroups(), '').map(group => group.id)), ['p', 'q'])
+  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'provider q').map(group => group.id)), ['q'])
+  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'flash').map(group => group.models.map(model => model.id))), [['flash']])
+  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'nothing')), [])
+})
+
+test('tags are unique, lowercased, and removable', () => {
+  const { addTag, removeTag, knownTags } = loadClient()
+  assert.deepEqual(plain(addTag(['fast'], 'Cheap')), ['fast', 'cheap'])
+  assert.deepEqual(plain(addTag(['fast'], 'fast')), ['fast'])
+  assert.deepEqual(plain(addTag(['fast'], '  ')), ['fast'])
+  assert.deepEqual(plain(removeTag(['fast', 'cheap'], 'fast')), ['cheap'])
+  assert.deepEqual(plain(knownTags([{ tags: ['b', 'a'] }, { tags: ['a'] }])), ['a', 'b'])
+})
+
+test('the preview mirrors the catalog the main agent receives', () => {
+  const { catalogPreview, draftsOf } = loadClient()
+  const text = catalogPreview(draftsOf(saved()))
+  assert.match(text, /Models:/)
+  assert.match(text, /`p\/flash` — tags: fast; Flash/)
+  assert.match(text, /Capability tags: `fast`\./)
+  assert.match(text, /Named agents:/)
+  assert.match(text, /`hub-agent-reviewer` — Reviews diffs \(tags: fast; routes: pro = p\/pro\)\./)
+  assert.equal(catalogPreview(draftsOf({ routes: [], agents: [] })), '')
+})
+
 test('summary shows counts and the managed state', () => {
-  const { SettingsPage } = loadClient()
-  const html = renderToStaticMarkup(React.createElement(SettingsPage, {
+  const { ConfigPage } = loadClient()
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, {
     view: 'summary', form: { state: { status: 'ready', writable: true, revision: 1, value: saved() } }, t,
   }))
   assert.match(html, /summary.*&quot;routes&quot;:2.*&quot;agents&quot;:1/)
   assert.match(html, /summary\.managedOn/)
 })
 
-test('page renders routes, agents, the official toggle, and a save control', () => {
-  const { SettingsPage } = loadClient()
+test('the page renders the catalog picker, route cards, agent cards, and a save control', () => {
+  const { ConfigPage } = loadClient()
   const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
-  const html = renderToStaticMarkup(React.createElement(SettingsPage, { view: 'page', form, t }))
+  const ctx = {
+    remote: {
+      session: { modelCatalog: async () => ({ ok: true, value: { groups: catalogGroups(), failures: [] } }) },
+      agentPresets: { list: async () => ({ ok: true, value: { presets: [{ id: 'standard', name: 'Standard' }, { id: 'cordis', name: 'Cordis' }] } }) },
+    },
+  }
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx }))
   for (const needle of [
-    'value="flash"', 'value="p"', 'value="pro"', 'value="high"', 'value="Flash"',
-    'value="reviewer"', 'Report only.', 'page.routesHint', 'page.agentsHint', 'page.officialOn',
-    'page.save', 'hub-agent-reviewer',
+    'sah-intro', 'official.switch', 'routes.title', 'routes.search',
+    'value="flash"', 'value="pro"', 'value="high"', 'value="Flash"',
+    'value="reviewer"', 'Report only.', 'agents.title', 'agents.routesLabel',
+    'hub-agent-reviewer', 'preview.title', 'save',
   ]) assert.ok(html.includes(needle), `missing ${needle}`)
-  assert.match(html, /type="checkbox"[^>]*checked=""/)
+  // The route's provider/model come from the catalog, so they are shown, not typed.
+  assert.ok(html.includes('p/flash'), 'route identity missing')
+  // The catalog loads asynchronously; the page says so instead of showing an empty list.
+  assert.ok(html.includes('routes.loading'), 'catalog loading notice missing')
 })
 
-test('page without a Host form explains itself instead of offering a dead save', () => {
-  const { SettingsPage } = loadClient()
-  const html = renderToStaticMarkup(React.createElement(SettingsPage, { view: 'page', form: undefined, t }))
-  assert.ok(html.includes('page.noForm'))
-  assert.match(html, /disabled=""[^>]*>page.save/)
+test('the model picker offers the Host catalog grouped by provider', () => {
+  const { ModelPicker } = loadClient()
+  const html = renderToStaticMarkup(React.createElement(ModelPicker, {
+    catalog: { status: 'ready', groups: catalogGroups(), failures: [], query: '', retry: () => {} },
+    selected: new Set(['p\u0000flash']),
+    onToggle: () => {},
+    t,
+  }))
+  assert.ok(html.includes('Provider P'), 'catalog group missing')
+  assert.ok(html.includes('Provider Q'), 'catalog group missing')
+  assert.ok(html.includes('p/flash'), 'catalog route missing')
+  assert.ok(html.includes('q/big'), 'catalog route missing')
+  assert.match(html, /checked=""/)
+})
+
+test('the page without a Host form explains itself', () => {
+  const { ConfigPage } = loadClient()
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form: undefined, t, ctx: { remote: undefined } }))
+  assert.ok(html.includes('unavailable') || html.includes('sah-empty'))
 })
 
 const formMock = (value = saved(), status = 'ready') => {
@@ -111,7 +179,7 @@ const formMock = (value = saved(), status = 'ready') => {
 
 test('apply registers the dictionary, the row page, and a Settings section', () => {
   const { apply, inject, ROW_CONFIG_KEY, ENTRY_ID } = loadClient()
-  assert.deepEqual(plain(inject), ['slots', 'locale', 'configForms'])
+  assert.deepEqual(plain(inject), ['slots', 'locale', 'configForms', 'remote', 'remote.session'])
   assert.equal(ROW_CONFIG_KEY, 'dsh-subagent-hub#subagent-hub')
   assert.equal(ENTRY_ID, 'subagent-hub')
   const calls = { slots: [] }
@@ -137,9 +205,5 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   assert.equal(section.options.id, 'subagent-hub')
   assert.equal(section.options.order, 30)
   assert.equal(section.options.label(), 'nav')
-  // Row page without a Host form explains itself; the Settings section page renders the form.
-  assert.match(renderToStaticMarkup(calls.slots.find(slot => slot.options.name === 'plugins.row.config').body({ view: 'page', form: undefined })), /page\.noForm/)
-  const sectionHtml = renderToStaticMarkup(section.body({ close() {} }))
-  assert.match(sectionHtml, /page\.save/)
-  assert.match(sectionHtml, /value="reviewer"/)
+  assert.match(renderToStaticMarkup(section.body({ close() {} })), /sah-intro/)
 })

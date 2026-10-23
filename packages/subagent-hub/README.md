@@ -19,11 +19,12 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 打开 **设置 → 子代理中枢**，或 **Plugins → dsh-subagent-hub → 子代理中枢行 → Configure**（两处是同一张表单）：
 
-| 区块 | 可编辑 |
+| 区块 | 交互 |
 |---|---|
-| 官方设置托管 | `manageOfficialSettings` 开关 |
-| 模型路由 | id / provider / model / reasoningEffort / tags / note，按顺序即 `allowedModels` 顺序 |
-| 具名子 agent | id（实时预览 `hub-agent-<id>`）/ description / instructions / routes / needs / basePreset |
+| 官方委派配置 | 一个开关：是否由本插件托管官方 allowlist |
+| 模型路由 | 从 Host 模型目录里**勾选**模型（按 provider 分组、可搜索），id 自动建议、可改；标签是可增删的胶囊；顺序即 `allowedModels` 顺序；另有“手动添加路由”兜底 |
+| 具名子 agent | id（实时显示 `hub-agent-<id>`）/ description / instructions；**勾选**允许使用的路由；能力标签胶囊；基础预设为下拉 |
+| 目录预览 | 折叠区实时显示主 agent 会看到的“模型 → 标签 / 具名 agent → 用途” |
 
 保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
 

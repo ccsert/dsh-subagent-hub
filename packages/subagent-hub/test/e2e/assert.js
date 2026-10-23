@@ -50,7 +50,7 @@ check('full turn: delegate result persists the routing record in tool/result.met
   assert.equal(checks.turn.resultError, undefined)
   assert.equal(checks.turn.resultMeta.subagentHub.model, 'deepseek-v4-pro')
   assert.equal(checks.turn.resultMeta.subagentHub.label, 'turn check')
-  assert.equal(checks.turn.lastText, 'parent done')
+  assert.equal(checks.turn.lastText, 'HUB-E2E-TURN done')
 })
 check('full turn: subagentHub projection folds the run from the log', () => {
   assert.equal(checks.turn.runs.length, 1)

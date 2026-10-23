@@ -15,103 +15,84 @@ const check = (name, fn) => {
 const { checks } = report
 
 check('no fatal error', () => assert.equal(report.fatal, undefined))
-check('derives <base>+hub for every shipped base', () => assert.deepEqual(report.hub.registered, ['standard+hub', 'ptc+hub', 'cordis+hub']))
-check('profile agent preset registered eagerly', () => assert.ok(report.presets.some(id => id.startsWith('hub-agent-reviewer-'))))
-check('+hub root sees delegate and no official delegation tools', () => assert.deepEqual(report.rootTools, { delegate: true, subagent: false, subagent_fork: false, send_message: true }))
-check('prompt section lists profile and workspace agents and tags', () => {
-  for (const needle of ['`reviewer`', '`scout`', '`reasoning`', '`fast`']) assert.ok(report.rootSection.includes(needle), needle)
+check('named agents registered as stable official presets', () => {
+  assert.deepEqual(report.hub.registered, ['hub-agent-reviewer'])
+  assert.ok(report.presets.includes('hub-agent-reviewer'))
+  assert.equal(report.presetDescription, 'Reviews a diff and reports findings')
 })
-check('needs=reasoning falls back past the offline route to a different model than the parent', () => {
-  assert.equal(checks.byTag.request, 'deepseek-official/deepseek-v4-pro')
-  assert.notEqual(checks.byTag.value.model, report.parentModel.model)
-  assert.equal(checks.byTag.value.fallbacks.length, 1)
-  assert.match(checks.byTag.value.fallbacks[0], /^offline:/)
+check('manageOfficialSettings writes the official allowlists', () => {
+  assert.equal(report.official.enabled, true)
+  assert.equal(report.official.modelSettings, 'written')
+  assert.ok(report.official.presets.includes('preset-standard'), report.official.presets.join(','))
+  assert.deepEqual(report.official.presetIds, ['hub-agent-reviewer'])
+  assert.deepEqual(report.official.models, [
+    { provider: 'deepseek-official', model: 'deepseek-flash' },
+    { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+  ])
 })
-check('no constraint inherits the parent route', () => {
-  assert.equal(checks.inherit.value.mode, 'inherit')
-  assert.equal(checks.inherit.request, `${report.parentModel.provider}/${report.parentModel.model}`)
+check('route table mirrors the Host subagent-model-selection setting', () => {
+  assert.deepEqual(report.modelSelection, {
+    enabled: true,
+    allowedModels: [
+      { provider: 'deepseek-official', model: 'deepseek-flash' },
+      { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+    ],
+  })
 })
-check('profile agent: own preset, instructions in prompt, confined route, cannot delegate', () => {
-  assert.match(checks.profileAgent.preset, /^hub-agent-reviewer-/)
-  assert.ok(checks.profileAgent.prompt.includes('HUB-REVIEWER-MARKER'))
-  assert.equal(checks.profileAgent.request, 'deepseek-official/deepseek-flash')
-  assert.equal(checks.profileAgent.hasDelegate, false)
-  assert.equal(checks.profileAgent.hasSubagent, false)
+check('the official spawn row exposes the allowlist; the fork row is untouched', () => {
+  const spawn = report.standardRows.find(row => row.provider === 'spawn')
+  const fork = report.standardRows.find(row => row.provider === 'fork')
+  assert.deepEqual(spawn.allow, ['hub-agent-reviewer'])
+  assert.equal(spawn.models, true)
+  assert.equal(fork.allow, undefined)
+  assert.equal(fork.models, undefined)
 })
-check('workspace agent: loaded from .dsh/subagents with its own needs', () => {
-  assert.match(checks.workspaceAgent.preset, /^hub-agent-scout-/)
-  assert.ok(checks.workspaceAgent.prompt.includes('HUB-SCOUT-MARKER'))
-  assert.equal(checks.workspaceAgent.request, 'deepseek-official/deepseek-flash')
+check('the main agent sees provider/model/agent_preset on the official subagent tool', () => {
+  for (const name of ['agent_preset', 'provider', 'model', 'reasoning_effort']) {
+    assert.ok(report.subagentSchema.parameters.includes(name), `${name} missing from ${report.subagentSchema.parameters.join(',')}`)
+  }
+  assert.deepEqual(report.subagentSchema.presetEnum, ['hub-agent-reviewer'])
 })
-check('unknown agent is rejected with the available list', () => assert.match(checks.unknownAgent.error, /available: reviewer, scout/))
-check('a named agent cannot be routed outside its routes (D2)', () => assert.match(checks.confined.error, /agent "reviewer" routes has all of: vision/))
-
-check('full turn: delegate result persists the routing record in tool/result.meta', () => {
-  assert.equal(checks.turn.resultError, undefined)
-  assert.equal(checks.turn.resultMeta.subagentHub.model, 'deepseek-v4-pro')
-  assert.equal(checks.turn.resultMeta.subagentHub.label, 'turn check')
-  assert.equal(checks.turn.lastText, 'HUB-E2E-TURN done')
+check('the prompt section lists named agents, capability tags, routes, and model tags', () => {
+  const text = report.rootSection ?? ''
+  for (const needle of [
+    '## Choosing a subagent',
+    '`hub-agent-reviewer`',
+    'Reviews a diff and reports findings',
+    'tags: fast',
+    'routes: flash = deepseek-official/deepseek-flash',
+    '`deepseek-official/deepseek-flash` — tags: fast, cheap',
+    '`deepseek-official/deepseek-v4-pro` — tags: reasoning',
+    'Pass `agent_preset` to choose a named agent',
+    'must be one of that agent\'s routes',
+  ]) assert.ok(text.includes(needle), `missing ${needle}`)
 })
-check('full turn: subagentHub projection folds the run from the log', () => {
-  assert.equal(checks.turn.runs.length, 1)
-  assert.equal(checks.turn.runs[0].callId, 'call-hub-e2e')
-  assert.equal(checks.turn.runs[0].subagentId, checks.turn.resultMeta.subagentHub.subagentId)
+check('an out-of-route provider/model is rejected by the guard with a reason', () => {
+  assert.equal(checks.outOfRoute.isError, true)
+  assert.match(checks.outOfRoute.message, /^subagent-hub:/)
+  assert.match(checks.outOfRoute.message, /named agent "reviewer" is limited to routes deepseek-official\/deepseek-flash/)
+  assert.match(checks.outOfRoute.message, /requested deepseek-official\/deepseek-v4-pro is not allowed/)
+  assert.match(checks.outOfRoute.message, /route ids: flash/)
 })
-check('full turn: child projections the panel reads agree with the routing record', () => {
-  assert.equal(checks.turn.childFound, true)
-  assert.equal(checks.turn.childLastUsed.model, 'deepseek-v4-pro')
-  assert.equal(checks.turn.childTokenUsage.outputTokens, 10)
+check('a named agent selected through agent_preset runs its preset with the persona instructions', () => {
+  assert.equal(checks.namedAllowed.isError, false)
+  assert.equal(checks.namedAllowed.preset, 'hub-agent-reviewer')
+  assert.ok(checks.namedAllowed.prompt.includes('HUB-REVIEWER-MARKER'), 'persona instructions missing')
+  assert.equal(checks.namedAllowed.request, 'deepseek-official/deepseek-flash')
 })
-
-check('bundle: client module is scanned and served from lib/client.js', () => {
-  assert.equal(report.client.inGraph, true)
-  assert.match(report.client.clientPath ?? '', /lib\/client\.js$/)
+check('a named agent without provider/model inherits the allowed parent route', () => {
+  assert.equal(checks.namedInherited.isError, false)
+  assert.equal(checks.namedInherited.preset, 'hub-agent-reviewer')
+  assert.equal(checks.namedInherited.request, `${report.parentModel.provider}/${report.parentModel.model}`)
 })
-
-const define = checks.define
-check('define: approved workspace definition lands as a YAML file and in the log', () => {
-  assert.match(define.scribe.text, /defined subagent "scribe" \(workspace:/)
-  assert.match(define.workspaceFile, /id: scribe/)
-  assert.match(define.workspaceFile, /HUB-SCRIBE-MARKER/)
+check('a generic child is not route-confined by the named-agent guard', () => {
+  assert.equal(checks.generic.isError, false)
+  assert.equal(checks.generic.request, 'deepseek-official/deepseek-v4-pro')
 })
-check('define: a rejected promotion stays session-only', () => {
-  assert.match(define.ghost.text, /this session only; saving to profile was not approved \(rejected\)/)
-  assert.equal(define.ghost.meta.subagentHubDefine.persisted, 'session')
-  assert.ok(!define.profileAgentsNow.includes('ghostwriter'))
-})
-check('define: an approved profile promotion writes the profile patch and reloads live', () => {
-  assert.match(define.archivist.text, /defined subagent "archivist" \(profile:/)
-  assert.equal(define.profilePatchHasArchivist, true)
-  assert.ok(define.profileAgentsNow.includes('archivist'))
-})
-check('define: an invalid definition is rejected with the offending route', () => assert.match(define.bad.text, /unknown route "nope"/))
-check('define: exactly three approval asks for three promotions', () => assert.equal(define.approvals.length, 3))
-check('define: the session layer exposes all three agents, and one is delegated with its own preset', () => {
-  assert.deepEqual(define.sessionDefinitions, ['archivist', 'ghostwriter', 'scribe'])
-  assert.match(define.scribeRun.reason, /tagged fast/)
-  assert.match(define.scribeChild.preset, /^hub-agent-scribe-/)
-  assert.equal(define.scribeChild.marker, true)
-  assert.equal(define.scribeChild.request, 'deepseek-official/deepseek-flash')
-  assert.equal(define.lastText, 'HUB-E2E-DEFINE done')
-})
-
-const budget = checks.budget
-check('budget: usage reports no running child and a real token total', () => {
-  assert.equal(budget.usage.running, 0)
-  assert.ok(budget.usage.tokens > 0, `expected tokens > 0, got ${budget.usage.tokens}`)
-  assert.equal(budget.limits.maxConcurrent, 2)
-})
-check('budget: a delegation over the concurrency limit is refused with a model-readable reason', () => {
-  assert.match(budget.budgetError, /delegation budget: 0 of 0 concurrent subagents/)
-})
-check('define sources: a registered source contributes agents, and its disposer removes them', () => {
-  assert.ok(budget.externVisible.some(entry => entry === 'extern:source:central-test'), budget.externVisible.join(','))
-  assert.ok(!budget.afterDispose.includes('extern'))
-})
-check('define sources: a source-contributed agent delegates with its own preset and instructions', () => {
-  assert.equal(budget.extern.value.agent, 'extern')
-  assert.match(budget.extern.preset, /^hub-agent-extern-/)
-  assert.match(budget.extern.prompt, /HUB-EXTERN-MARKER/)
+check('the profile patch keeps the writes as ordinary profile overrides', () => {
+  for (const needle of ['- id: preset-standard', 'allowedAgentPresets', 'subagent-model-selection-settings', 'hub-agent-reviewer']) {
+    assert.ok(report.profilePatch.includes(needle), `profile patch missing ${needle}`)
+  }
 })
 
 console.log(results.join('\n'))

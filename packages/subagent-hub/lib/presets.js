@@ -1,4 +1,4 @@
-// Derive Agent Preset plugin lists from shipped presets (spike S2b).
+// Derive one Agent Preset plugin list from a shipped preset (spike S2b, still valid in v2).
 // Rows are matched by package name only, never by position or id.
 
 export const OFFICIAL_DELEGATION_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
@@ -8,18 +8,15 @@ const isGroup = row => row !== null && typeof row === 'object' && Array.isArray(
 
 /**
  * Remove every official delegation-tool row, recursing into groups.
- * @returns {{ rows: any[], dropped: string[], host: any[] | undefined }} `host` is the
- *   rewritten list that held the first dropped row, so a replacement keeps its isolation.
+ * @returns {{ rows: any[], dropped: string[] }}
  */
 function stripDelegation(rows) {
   const dropped = []
-  let host
   const walk = (list) => {
     const kept = []
     for (const row of list) {
       if (row?.name === OFFICIAL_DELEGATION_PACKAGE) {
         dropped.push(row.id)
-        host ??= kept
         continue
       }
       kept.push(isGroup(row) ? { ...row, config: walk(row.config) } : row)
@@ -27,31 +24,19 @@ function stripDelegation(rows) {
     return kept
   }
   const result = walk(rows)
-  return { rows: result, dropped, host }
+  return { rows: result, dropped }
 }
 
 /**
- * The `<base>+hub` preset: the base composition with the official delegation tools replaced by ours.
+ * A named agent's preset: the base composition without any delegation tool (named-agent
+ * children do not delegate) and with the agent's instructions appended to the persona prefix.
  * @param {any[]} baseRows parsed plugin rows of the base preset.
- * @param {any[]} hubRows rows to insert where the official tools were.
- */
-export function deriveHubPreset(baseRows, hubRows) {
-  const { rows, dropped, host } = stripDelegation(baseRows)
-  if (dropped.length === 0) throw new Error(`no ${OFFICIAL_DELEGATION_PACKAGE} row found; refusing to derive a preset that would silently keep or lose delegation`)
-  host.push(...hubRows)
-  return { plugins: rows, dropped }
-}
-
-/**
- * A named agent's preset: the base composition without any delegation tool (v1 children do not
- * delegate) and with the agent's instructions appended to the persona prefix.
- * @param {any[]} baseRows
  * @param {string} instructions
  */
 export function deriveAgentPreset(baseRows, instructions) {
   const { rows, dropped } = stripDelegation(baseRows)
   let personaFound = false
-  const withPersona = (list) => list.map((row) => {
+  const withPersona = list => list.map((row) => {
     if (row?.name === PERSONA_PACKAGE && !personaFound) {
       personaFound = true
       const prefix = row.config?.prefix ?? ''

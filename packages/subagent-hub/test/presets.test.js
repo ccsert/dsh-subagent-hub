@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { deriveAgentPreset, deriveHubPreset } from '../lib/presets.js'
+import { deriveAgentPreset } from '../lib/presets.js'
 
 // Shape of the shipped `standard` preset, trimmed to the rows that matter.
 const standard = () => [
@@ -20,28 +20,23 @@ const standard = () => [
   },
 ]
 
-test('hub preset swaps official delegation for ours inside the same group', () => {
+test('named agent preset drops delegation rows and appends instructions to the persona', () => {
   const base = standard()
-  const { plugins, dropped } = deriveHubPreset(base, [{ id: 'hub-delegate', name: 'dsh-subagent-hub/delegate' }])
+  const { plugins, dropped } = deriveAgentPreset(base, 'Review code. Report findings only.')
   assert.deepEqual(dropped, ['tool-subagent', 'tool-subagent-fork'])
+  assert.equal(plugins[0].config.prefix, 'You are a coding agent.\n\nReview code. Report findings only.')
   const group = plugins.find(row => row.id === 'delegation')
-  assert.deepEqual(group.config.map(row => row.id), ['tool-subagent-control', 'tool-workflow', 'hub-delegate'])
+  assert.deepEqual(group.config.map(row => row.id), ['tool-subagent-control', 'tool-workflow'])
   assert.deepEqual(group.isolate, { workflowEngine: true })
   assert.equal(base[2].config.length, 4, 'input rows are not mutated')
 })
 
-test('hub preset refuses a base without official delegation rows', () => {
-  assert.throws(() => deriveHubPreset([{ id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' }], []), /refusing/)
-})
-
-test('agent preset drops delegation and appends instructions to the persona', () => {
-  const { plugins } = deriveAgentPreset(standard(), 'Review code. Report findings only.')
-  assert.equal(plugins[0].config.prefix, 'You are a coding agent.\n\nReview code. Report findings only.')
-  const group = plugins.find(row => row.id === 'delegation')
-  assert.ok(!group.config.some(row => row.name === '@deepseek-ai/dsh-tool-subagent'))
-})
-
-test('agent preset without a persona row gains one', () => {
+test('a base without a persona row gains one prefixed with the instructions', () => {
   const { plugins } = deriveAgentPreset([{ id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' }], 'Be terse.')
   assert.deepEqual(plugins[0], { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: 'Be terse.' } })
+})
+
+test('empty instructions keep the base persona unchanged', () => {
+  const { plugins } = deriveAgentPreset(standard(), '')
+  assert.equal(plugins[0].config.prefix, 'You are a coding agent.')
 })

@@ -1,6 +1,7 @@
 # 安装
 
 插件以 **bundle** 形式装进某个 profile。目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
+v0.4.0 不提供任何界面，也不注册派发工具；它只注册具名 Agent Preset、补一段 prompt、加一个路由守卫。
 
 ## 一次性步骤
 
@@ -17,15 +18,15 @@
    { "dsh": { "profile": { "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "...", "dsh-subagent-hub"] } } }
    ```
 
-3. 在 profile 的 `cordis.patch.yml` 里配置路由（`dsh-subagent-hub` 这一行由 bundle 的 patch 插入，这里只补配置）：
+3. 在 profile 的 `cordis.patch.yml` 里配置路由与具名 agent（`subagent-hub` 这一行由 bundle 的 patch 插入，这里只补配置）：
 
    ```yaml
    - id: subagent-hub
      config:
-       maxConcurrent: 4
+       manageOfficialSettings: true   # 让本插件写官方 allowlist；默认 false
        routes:
-         - { id: pro,   provider: deepseek-official, model: deepseek-v4-pro, tags: [reasoning] }
-         - { id: flash, provider: deepseek-official, model: deepseek-flash,  tags: [fast, cheap] }
+         - { id: pro,   provider: <provider>, model: <model>, tags: [reasoning] }
+         - { id: flash, provider: <provider>, model: <model>, tags: [fast, cheap] }
        agents:
          - id: reviewer
            description: Reviews a diff and reports findings
@@ -37,15 +38,13 @@
 
 ## 使用
 
-- **新会话选择带 “+ Hub” 的预设**（例如 `standard+hub`）。只有这种预设里才有 `delegate` / `define_subagent`，官方 `subagent` 工具被替换掉了。
-- 右侧栏「+」→「子代理路由」查看每次派发用的模型与理由。
-- 插件页 → `dsh-subagent-hub` 那一行 → 配置卡片里编辑路由与具名 agent。
-
-## 与人共存
-
-- `dsh-subagent-default-model`：兼容，但它对所有子代理的连接失败故障转移会突破具名 agent 的路由约束；侧栏页会以「实际运行：…」标出。
-- `dsh-subagent-library`：同样提供 `delegate`，建议只启用其一，或改本插件的 `toolName`。
+- **新会话保持默认预设**（如 `standard`），不需要选任何特殊预设。
+- 官方 `subagent` 工具会多出 `agent_preset` / `provider` / `model` / `reasoning_effort` 参数；system prompt 里多一段“具名 agent / 模型 → 标签”的选择目录。
+- `agent_preset` 选具名 agent（`hub-agent-<id>`）；`routes` 限定的具名 agent 若被指定越界模型，派发前会被拒绝并在工具错误里给出允许列表。
+- 不想让插件托管官方配置（`manageOfficialSettings: false`，默认）时：自己把 `allowedAgentPresets` 加到官方工具行，并在官方设置里启用子代理模型选择；插件会检测到参数已暴露并正常给出指引。
 
 ## 回滚
 
-从 `dsh.profile.bundles` 移除 `dsh-subagent-hub`、删掉第 3 步的配置，然后重启。
+- 代码：`git checkout v0.3.0`；profile 依赖指回对应版本的包。
+- profile：把 `cordis.patch.yml` 的 `subagent-hub` 配置换回 v0.3.0 字段（`maxConcurrent` / `routes` / `agents`），并把 `agent-preset-registry.default` 改回 `standard+hub`。
+- 开启过 `manageOfficialSettings` 的话，删除 profile patch 里 `preset-standard`（及 `preset-ptc` / `preset-cordis`）的完整 config override 与 `subagent-model-selection-settings` 行。

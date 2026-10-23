@@ -1,5 +1,8 @@
 # M0 spike：前提验证
 
+> v0.4.0 已反转到官方机制：S2 / S2b 的派生预设方案不再使用（`+hub` 预设已删除），本文件作为 v1 的决策依据与运行时证据保留。
+> v2 依赖的 `configEditor` / `allowedAgentPresets` / `agent_preset` / `tools/pre-execute` 结论已由 `bash test.sh` 的 e2e 覆盖。
+
 **目标运行时**：DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2（npm 全局 `dsh` CLI 同版本）。
 
 > 本地 `deepseek-harness` checkout（0.1.6-alpha.x）比运行时老很多，接口已不同（例如 `persona`/`toolFilter` 已移入 Agent Preset）。

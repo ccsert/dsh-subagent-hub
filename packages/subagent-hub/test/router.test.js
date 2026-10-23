@@ -1,60 +1,58 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { agentOptionsFor, decide, indexRoutes, knownTags, RoutingError } from '../lib/router.js'
+import { allowedModels, indexRoutes, knownTags, routeLabel, routeSummary } from '../lib/router.js'
 
-const routes = indexRoutes([
-  { id: 'flash', provider: 'p', model: 'flash', tags: ['fast', 'cheap'] },
-  { id: 'pro', provider: 'p', model: 'pro', reasoningEffort: 'high', tags: ['reasoning'] },
-  { id: 'pro-backup', provider: 'q', model: 'pro', tags: ['reasoning', 'vision'] },
-])
-const ok = async () => {}
+test('indexing normalizes tags and preserves preference order', () => {
+  const { routes, problems } = indexRoutes([
+    { id: 'flash', provider: 'p', model: 'flash', tags: ['fast', 'fast', 'cheap'] },
+    { id: 'pro', provider: 'p', model: 'pro', reasoningEffort: 'high', tags: ['reasoning'], note: 'Pro' },
+  ])
+  assert.deepEqual(problems, [])
+  assert.deepEqual([...routes.keys()], ['flash', 'pro'])
+  assert.deepEqual(routes.get('flash').tags, ['fast', 'cheap'])
+  assert.equal(routes.get('pro').reasoningEffort, 'high')
+  assert.equal(routes.get('pro').note, 'Pro')
+})
 
-test('index rejects duplicate ids and provider/model pairs', () => {
-  assert.throws(() => indexRoutes([{ id: 'a', provider: 'p', model: 'm', tags: [] }, { id: 'a', provider: 'p', model: 'n', tags: [] }]), /duplicate route id/)
-  assert.throws(() => indexRoutes([{ id: 'a', provider: 'p', model: 'm', tags: [] }, { id: 'b', provider: 'p', model: 'm', tags: [] }]), /repeats/)
+test('unusable rows are reported without dropping the rest', () => {
+  const { routes, problems } = indexRoutes([
+    null,
+    { provider: 'p', model: 'm' },
+    { id: 'good', provider: 'p', model: 'good' },
+    { id: 'good', provider: 'q', model: 'other' },
+    { id: 'twin', provider: 'p', model: 'good' },
+    { id: 'blank', provider: '', model: 'm' },
+  ])
+  assert.deepEqual([...routes.keys()], ['good'])
+  assert.equal(problems.length, 5)
+  assert.match(problems.join('\n'), /route needs an id/)
+  assert.match(problems.join('\n'), /duplicate route id "good"/)
+  assert.match(problems.join('\n'), /repeats p\/good/)
+  assert.match(problems.join('\n'), /provider and model must be non-empty/)
 })
 
 test('known tags are deduplicated and sorted', () => {
-  assert.deepEqual(knownTags(routes), ['cheap', 'fast', 'reasoning', 'vision'])
+  const { routes } = indexRoutes([
+    { id: 'a', provider: 'p', model: 'a', tags: ['vision', 'fast'] },
+    { id: 'b', provider: 'p', model: 'b', tags: ['fast', 'reasoning'] },
+  ])
+  assert.deepEqual(knownTags(routes), ['fast', 'reasoning', 'vision'])
 })
 
-test('no agent and no needs inherits the parent route', async () => {
-  const decision = await decide(routes, undefined, [], ok)
-  assert.equal(decision.mode, 'inherit')
-  assert.equal(agentOptionsFor(decision), undefined)
+test('allowedModels is exactly the official exact-route allowlist in table order', () => {
+  const { routes } = indexRoutes([
+    { id: 'flash', provider: 'deepseek-official', model: 'deepseek-flash' },
+    { id: 'mini', provider: 'magpie', model: 'minimax-cn/MiniMax-M3.1-Flash' },
+  ])
+  assert.deepEqual(allowedModels(routes), [
+    { provider: 'deepseek-official', model: 'deepseek-flash' },
+    { provider: 'magpie', model: 'minimax-cn/MiniMax-M3.1-Flash' },
+  ])
 })
 
-test('needs pick the first route carrying every tag', async () => {
-  const decision = await decide(routes, undefined, ['reasoning'], ok)
-  assert.equal(decision.route.id, 'pro')
-  assert.deepEqual(agentOptionsFor(decision), { provider: 'p', model: 'pro', reasoningEffort: 'high' })
-  assert.equal((await decide(routes, undefined, ['reasoning', 'vision'], ok)).route.id, 'pro-backup')
-})
-
-test('unavailable routes fall back and are recorded', async () => {
-  const decision = await decide(routes, undefined, ['reasoning'], async (route) => {
-    if (route.id === 'pro') throw new Error('no credential')
-  })
-  assert.equal(decision.route.id, 'pro-backup')
-  assert.deepEqual(decision.rejected, [{ route: 'pro', reason: 'no credential' }])
-  assert.match(decision.reason, /after 1 fallback/)
-})
-
-test('a named agent is confined to its own routes (D2)', async () => {
-  const agent = { id: 'reviewer', routes: ['flash'] }
-  assert.equal((await decide(routes, agent, [], ok)).route.id, 'flash')
-  await assert.rejects(decide(routes, agent, ['reasoning'], ok), RoutingError)
-})
-
-test('agent needs combine with call needs', async () => {
-  const agent = { id: 'seer', needs: ['vision'] }
-  assert.equal((await decide(routes, agent, ['reasoning'], ok)).route.id, 'pro-backup')
-})
-
-test('unknown tags, unknown route refs, and exhausted pools are routing errors', async () => {
-  await assert.rejects(decide(routes, undefined, ['telepathy'], ok), /unknown capability tag/)
-  await assert.rejects(decide(routes, { id: 'x', routes: ['nope'] }, [], ok), /unknown route "nope"/)
-  const error = await decide(routes, undefined, ['fast'], async () => { throw new Error('down') }).catch(caught => caught)
-  assert.ok(error instanceof RoutingError)
-  assert.deepEqual(error.rejected, [{ route: 'flash', reason: 'down' }])
+test('route labels and summaries carry provider/model, tags and note', () => {
+  const { routes } = indexRoutes([{ id: 'pro', provider: 'p', model: 'pro', tags: ['reasoning'], note: 'Pro' }])
+  const route = routes.get('pro')
+  assert.equal(routeLabel(route), 'p/pro')
+  assert.equal(routeSummary(route), 'p/pro [reasoning] (Pro)')
 })

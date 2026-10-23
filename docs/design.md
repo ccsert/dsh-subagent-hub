@@ -1,115 +1,159 @@
-# dsh-subagent-hub 设计
+# dsh-subagent-hub 设计（v2）
 
-> 状态：M4 完成（单元 34 项 + 真实运行时 e2e 24 项）。M0–M4 全部达成，剩余是产品化（真实 profile 安装、界面人工验收、发布）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
+> 状态：0.4.0 方向性重构完成（单元测试 36 项 + 真实运行时 e2e 12 项）。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
+> 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
-## 1. 目标
+## 1. 方向
 
-| # | 能力 |
-|---|---|
-| G1 | 每个会话有一个子 agent 面板：树状展示所有后代子 agent、状态、所用 provider/model、token 用量 |
-| G2 | 主 agent 自动为子 agent 选择 provider 与 model |
-| G3 | 用户可自定义具名子 agent |
-| G4 | 主 agent 可在会话中创建新的子 agent 定义 |
+v1 做了四件事：派生 `<base>+hub` 预设、自有 `delegate` / `define_subagent` 工具、右侧栏路由页、设置页。
+结论是这些都不是核心：`+hub` 引入了“模式”概念（新会话要先选对预设），自有工具和 Agent Teams / 其它子代理插件抢派发，界面也打不过官方 `dsh-client-ui-subagent`。
+
+v2 不再替代官方派发，只给官方子代理补“怎么选”的信息：
+
+| 能力 | v1 | v2 |
+|---|---|---|
+| 具名子 agent | 自建 `<base>+hub` 预设 + 自有工具 | 注册成**官方 Agent Preset**，走官方 `agent_preset` 参数 |
+| 模型路由 | 插件自己选模型并写 `agentOptions` | 映射成官方 `subagent-model-selection` 的 `allowedModels` |
+| 能力标签 | 自有 `needs` 参数 | 新增 system prompt 段落，告诉主 agent 什么任务配什么 |
+| 路由约束 | 自有 `delegate` 在执行时限制 | 官方 `agent_preset` + `tools/pre-execute` 守卫 |
+| 界面 | 右侧栏页 + 设置页 | 无界面 |
+| 派发工具 | 自有 `delegate` | 官方 `subagent` / `subagent_fork` |
 
 ## 2. 原则
 
-**不重写子 agent 运行时。** 执行一律走官方 `subagents.startActivation`；本插件只做定义、路由、策略与界面。
+**不注册任何派发工具，不派生任何 `<base>+hub` 预设。** 派发、子 agent 生命周期、模型实际调用全部由官方运行时执行；本插件只做三件事：注册具名 agent 预设、提供选择信息、守住模型路由约束。
 
 ## 3. 已定决策
 
 | # | 问题 | 决策 |
 |---|---|---|
-| D1 | 具名 agent 存在哪一层 | 四层：profile → workspace → 外部 source → session，近的覆盖远的。外部 source 是中央服务下发的挂点 |
-| D2 | 主 agent 能改模型到什么程度 | 只能在具名 agent 声明的 `routes` 范围内选；无声明时落到全局路由表。不允许任意覆盖 |
-| D3 | 用什么工具派发 | 自有工具 `delegate`。~~用 `tools.restrict` 隐藏官方工具~~（S2：默认组合下 `subagent` 注册在 agent 自身作用域，藏不掉）。**改为派生预设**：启动时读取每个内置预设（standard / ptc / cordis），去掉 `@deepseek-ai/dsh-tool-subagent` 行、加上本插件的工具行，注册为 `<id>+hub`（S2b 已验证）。用户在新会话选 `standard+hub` 即启用；官方预设保持原样 |
-| D4 | 界面放哪 | 官方 `dsh-client-ui-subagent` 已提供页头子 agent 目录（树/状态/用量/耗时/续聊/停止），**不重做**。v1 只补它缺的：右侧栏标签页“路由”视图，展示每个子 agent 的模型（`modelSelection` 投影）、选择理由、费用汇总，行内跳转复用官方 `subagentchat` 资源。另加设置页 |
-| D5 | 是否纳入 agentTeams | v1 不纳入；v2 在面板中只读展示队友 |
+| D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
+| D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
+| D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
+| D4 | 界面放哪 | **不做界面**。官方 `dsh-client-ui-subagent` 已有子 agent 目录；官方设置页已有 `subagent-model-selection` 的模型允许列表 |
+| D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
+| D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
 ## 4. 关键设计
 
-### 4.1 能力标签路由
+### 4.1 具名 agent → 官方 Agent Preset
 
-路由表条目：`{ provider, model, tags: ['fast'|'cheap'|'reasoning'|'vision'|'long-context'|…], costTier }`。
+启动时对每个 `agents` 定义：
 
-主 agent 调 `delegate` 时传 `agent`（具名）和/或 `needs: string[]`（标签），插件解析为具体模型：
+1. `agentPresets.readDocument(basePreset)`（默认 `standard`）取出该预设的 plugin 行；
+2. `deriveAgentPreset()`：递归删掉所有官方委派工具行（具名 agent 的子会话不再委派），把 `instructions` 追加到 `@deepseek-ai/dsh-persona` 的 `prefix`；
+3. `agentPresets.register({ id: 'hub-agent-<id>', name: 'Hub agent · <id>', description, order: 10000, plugins })`。
 
-1. 候选 = 具名 agent 的 `routes` ∩ 满足 `needs` 的路由（无具名 agent 则用全局路由表）
-2. 按声明顺序过滤：凭据可用 → 未超预算
-3. 取第一个；全部失败则拒绝并说明原因
+id 稳定、不含指纹：它会被写进 profile patch 的 `allowedAgentPresets`，定义变化时必须保持同一个 id。`description` 会出现在官方工具 `agent_preset` 参数的枚举说明里（官方实现读取预设声明）。
 
-模型永远不需要写出模型名，也就不会编造。
+### 4.2 路由表 → 官方 `allowedModels`
 
-### 4.2 选择理由可观测
+```js
+allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
+```
 
-每次派发在工具结果 `meta` 中记录 `{ chosen, reason, fallbacks: [{route, rejectedBecause}] }`，面板直接展示。
+写入 Host 的 `subagent-model-selection-settings`：`{ enabled: true, allowedModels }`。官方工具在开启该策略的新会话上暴露 `provider` / `model` / `reasoning_effort`，并拒绝不在列表中的精确路由。插件不再有“回退到下一个路由”的逻辑：模型永远由主 agent 或继承决定，越界由官方预检和本插件守卫拒绝。
 
-### 4.3 会话内创建（`define_subagent`）
+### 4.3 system prompt 目录段落
 
-- 默认 scope = `session`，无需审批，会话结束即失效
-- `promote` 为 workspace / profile 级时必须经 `approval.request`（等同于让模型写入长期系统提示词，是注入入口）
+一个 Host 级 system prompt 段落（order = `TOOL_SUBAGENT + 10`），在**官方委派工具可见**的 agent 上输出：
 
-### 4.4 预算
+- 每个具名 agent：preset id、用途、能力标签、限定路由；
+- 每个可用模型：`provider/model`、能力标签、备注；
+- 一段选择指令。根据官方工具当前**实际暴露的参数**调整措辞：`agent_preset` / `provider` / `model` 只有被配置出来时才引导使用；否则明确说明“目录仅供参考、参数未启用”，并提示打开 `manageOfficialSettings`。
 
-每会话：最大并发子 agent 数、可选 token 上限。超限时 `delegate` 拒绝并把原因返回给主 agent。
+段落注入不改变 tool schema，所以不会破坏官方请求前缀以外的缓存结构。
 
-### 4.5 面板数据
+### 4.4 路由约束守卫
 
-全部在客户端完成，不需要 Host Remote 服务（S3）：
+官方 `allowedAgentPresets` 只回答“能选哪些预设”。本插件额外注册 `tools/pre-execute`（waterfall，返回 `{ kind: 'deny', reason }`）：
 
-- 树结构与状态：官方 `subagents.listDescendants` / 现有 session store
-- 模型：持久投影 `projectionsBySession[childId].values.modelSelection.lastUsed`
-- 选择理由：`delegate` 工具结果的 `meta`
-- 用量：官方目录已有的 token 统计；本插件只做会话汇总与费用换算
+1. 调用没有 `agent_preset`，或值不是本次注册的具名 agent → 放行；
+2. 具名 agent 没有 `routes` → 放行；
+3. 取“实际子路由”：显式 `provider` + `model`，否则父 agent 的当前请求路由（与官方 `parentAgentOptionsForDelegation` 同源）；
+4. 不在该 agent 的 `routes` 里 → 拒绝，理由里列出允许的 `provider/model`、路由 id 和“显式传参”的要求；
+5. 半指定（只给 provider 或只给 model）交给官方工具自己的配对错误。
 
-操作（续聊、停止、打开对话）全部交给官方 `subagentchat` 资源与 Remote，不重复实现。
+`subagent_fork` 不可能出现 `agent_preset`：官方 fork provider 的 `agentPreset` capability 为 `false` 且继承父上下文，配置了也加载失败。因此 `manageOfficialSettings` 只改写 spawn 行。
 
-### 4.6 子 agent 的模型由谁决定
+### 4.5 `manageOfficialSettings`（默认关闭）
 
-预设与模型正交（S1）：预设只决定人设和工具，模型 = 父路由 ⊕ `agentOptions`。因此具名 agent 的模型约束（D2）完全由 `delegate` 在计算 `agentOptions` 时执行，不依赖预设。
+为 `true` 时，等具名预设注册完成后，用 `configEditor` 做幂等同步（已一致就不重写，避免每次启动触发预设重载）：
+
+| 目标 | 写入 |
+|---|---|
+| 每个声明了 spawn `@deepseek-ai/dsh-tool-subagent` 行的 Agent Preset（当前发行版是 `preset-standard` / `preset-ptc` / `preset-cordis`） | 该行的 `config.allowedAgentPresets`（保留其它插件写入的 id，替换本插件 `hub-agent-*` 前缀的旧值）与 `config.modelSelectionSettings: true` |
+| `subagent-model-selection-settings` 行 | `{ enabled: true, allowedModels }` |
+
+已知副作用（有意接受）：这份写入是 profile patch 里对预设行的**完整 config override**，该预设的 plugin 列表从此固定在 profile 层，官方后续升级不会自动合并。这正是“替用户管官方配置”的代价，所以默认关闭。关闭开关不会回滚已经写入的内容，只是不再维护。
+
+### 4.6 删除清单（v1 → v2）
+
+| 删除 | 原因 |
+|---|---|
+| `lib/client.js`、locale、`icon.svg`、`package.json` 的 `dsh.client`/UI exports | 不再有界面 |
+| `lib/delegate.js`（`delegate` + `define_subagent`） | 不再有自有派发工具 |
+| `lib/budget.js`、`maxConcurrent` / `maxTokensPerSession` | 预算机制没有落点：不经过本插件派发 |
+| `lib/projection.js`、`subagentHub` / `subagentHubDefine` 投影 | 只服务路由面板与会话层定义 |
+| `deriveHubPreset` | 不再派生 `<base>+hub` |
+| `basePresets` | 只用于派生 `+hub` |
+| workspace / external / session 定义层、`define_subagent` 晋升 | 无法进入静态 `allowedAgentPresets`（见 D1） |
 
 ## 5. 包结构
 
 ```
 packages/subagent-hub
-├─ src/host/registry.ts   定义存储（三层合并）→ 每个具名 agent 注册为 agentPresets
-├─ src/host/presets.ts    从内置预设派生 <id>+hub（去掉官方委派行、加入本插件工具行）
-├─ src/host/router.ts     标签路由 + 回退 + 预算；systemPrompt 段落列出可用具名 agent
-├─ src/host/tools.ts      delegate / define_subagent
-└─ src/client/            右侧栏“路由”标签页 + 设置页
-spikes/
-└─ m0-runtime/            S1 / S2 / S2b 运行时验证（S3 为代码阅读）
+├─ lib/index.js             Host 服务：注册预设、prompt 段落、pre-execute 守卫、官方设置同步
+├─ lib/catalog.js           配置 → 路由表 + 具名 agent + 稳定 preset id + 配置问题
+├─ lib/definitions.js       具名 agent 定义校验
+├─ lib/presets.js           从基础预设派生具名 agent 预设（递归去委派行 + persona 追加）
+├─ lib/router.js            路由索引、标签、allowedModels 映射
+├─ lib/guard.js             路由约束判定（纯函数）
+├─ lib/prompt.js            system prompt 目录段落（纯函数）
+├─ lib/official-settings.js manageOfficialSettings 的计划与配置改写（纯函数）
+└─ test/                    单元测试 + e2e（临时 DSH_HOME + 真实 dsh 0.2.1-rc.2）
 ```
 
-## 6. 前提验证（M0，已完成）
+## 6. 前提验证
+
+v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)）仍保留：S1（预设与 `agentOptions` 正交）、S2（`tools.restrict` 藏不掉官方工具）、S2b（可派生预设）、S3（前端可读子会话模型）。v2 另外在真实运行时里验证了（覆盖进 e2e）：
 
 | # | 问题 | 结论 |
 |---|---|---|
-| S1 | 预设与 `agentOptions` 谁决定模型 | 正交；模型只由 `agentOptions` 决定 |
-| S2 | `tools.restrict` 能否隐藏官方 `subagent` | 默认组合下不能 → D3 改为派生预设 |
-| S2b | 能否派生去掉官方委派工具的预设 | 能，差异恰好为 `-subagent -subagent_fork +自有工具` |
-| S3 | 前端能否拿到子会话模型 | 能，`modelSelection` 投影现成 |
+| V1 | `configEditor` 能否改官方预设行（含嵌套 group 行） | 能；保留 YAML 注释与 `!!js` 条件 |
+| V2 | 写入 `allowedAgentPresets` 后新会话是否出现 `agent_preset` | 能；枚举与描述来自注册的预设 |
+| V3 | `tools/pre-execute` 能否拒绝一次官方派发 | 能，返回 `{kind:'deny', reason}` 即成为模型可见的工具错误 |
+| V4 | 具名预设能否通过 `agent_preset` 生效且带上 instructions | 能；子会话 header 记录 `hub-agent-<id>`，persona 含追加指令 |
 
-细节与证据见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)。
+## 7. 测试与验收
 
-## 7. 里程碑
+`bash test.sh`：36 项单元测试 + 12 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
-| M | 内容 | 验收 |
-|---|---|---|
-| M0 ✅ | S1–S3 spike | 三项均有可复现结论 |
-| M1 ✅ | 派生预设 + registry + router + `delegate` | 选 `standard+hub` 的会话里只有 `delegate`；主 agent 按标签派发，理由写入 meta |
-| M2 ✅ | 右侧栏“路由”标签页 | 每个子 agent 的模型 + 理由 + 费用汇总；点击跳官方子会话 |
-| M3 ✅ | `define_subagent` + 审批晋升 + 设置页 | 会话内创建、审批后持久化 |
-| M4 ✅ | 预算 + 外部 `DefinitionSource` 接口 | 超限拒绝并把原因交给模型；来源注册/释放与优先级已实现 |
+e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制。
 
-## 8. 风险
+## 8. 风险与限制
 
-| 风险 | 应对 |
+| 限制 | 说明 |
 |---|---|
-| 运行时仍是 rc，接口在变（本地 checkout 已与运行时不一致） | 每次升级先跑 `spikes/m0-runtime/run.sh` 作回归 |
-| 派生预设依赖官方预设的 YAML 结构 | 只按包名过滤行，不依赖行位置；过滤结果为空或未命中时拒绝注册并告警 |
-| 用户需手动选 `+hub` 预设 | 设置页提供“设为默认预设”开关（`agent-preset-registry` 的 `default`） |
+| 具名预设会出现在新会话预设选择器里（`Hub agent · <id>`，排最后） | 官方没有隐藏标记；用户照常用 `standard` 即可 |
+| 具名 agent 只来自插件配置 | 这是静态 `allowedAgentPresets` 的硬约束（D1），不是偷懒 |
+| fork 工具不能选具名预设 | 官方 fork provider `agentPreset: false`；具名 agent 只能走 `subagent` |
+| `manageOfficialSettings` 会把被管理的预设 config 固定在 profile 层 | 见 4.5，显式开关 |
+| 子 agent 的模型仍可能被 `dsh-subagent-default-model` 之类的插件在请求期改写 | 守卫管住派发时的路由组合；请求期改写不在本插件职责内，建议此类插件对本插件场景关闭故障转移 |
+| 运行时仍是 rc，接口会变 | `bash test.sh` 的 e2e 是升级回归；spike 记录同版本结论 |
 
-## 9. 共存（M2 期间发现）
+## 9. 回滚
 
-用户的真实 profile 已装有 `dsh-subagent-default-model`（启用）、`dsh-subagent-library` 与 `@aiwayds/dsh-subagent-registry`（已安装未启用）、`dsh-better-sidebar`（启用）。结论见 [`packages/subagent-hub/README.md`](../packages/subagent-hub/README.md#与其他子代理插件共存)。要点：路由选择不会被 default-model 覆盖，但其故障转移会突破 D2，面板以“实际运行”警告呈现；与 subagent-library 的 `delegate` 同名。
+- 代码：`git checkout v0.3.0`（或 revert 0.4.0 的提交）。
+- profile：把 `cordis.patch.yml` 里 `subagent-hub` 的 `config` 换回 v0.3.0 字段（`maxConcurrent` / `routes` / `agents`），并把 `agent-preset-registry.default` 改回 `standard+hub`。
+- 若开启过 `manageOfficialSettings`：删除 profile patch 里 `preset-standard`（以及 `preset-ptc` / `preset-cordis`）的完整 config override，以及 `subagent-model-selection-settings` 行，恢复官方默认。
+
+## 10. 共存
+
+| 插件 | 关系 |
+|---|---|
+| `dsh-subagent-default-model` | 它在请求期改写子 agent 路由，可绕过本插件的守卫（守卫在派发前）。两者都能用时建议关掉它的故障转移 |
+| `dsh-subagent-library` / `@aiwayds/dsh-subagent-registry` | v2 不再提供 `delegate`，工具名不再冲突；它们仍是独立的派发插件 |
+| `dsh-better-sidebar` | 互补：它展示子 agent 树与活动，不做选择信息 |
+| 官方 `dsh-client-ui-subagent` | 使用它做界面；v2 不重复实现 |

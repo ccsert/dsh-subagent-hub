@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 — 反转到官方机制
+
+方向性重构：**不再替代官方派发，只给官方 subagent 补“怎么选”的信息。** 旧方案完整保留在 tag `v0.3.0`。
+
+**为什么不再保留自己的 `delegate`**：它必然与官方工具、Agent Teams 以及其它子代理插件争抢同一个派发入口；为了让它可用，v1 还得派生 `<base>+hub` 预设（把“选对模式”的负担交给用户），再自己维护一套预算、投影、超时与结果传递。这些能力官方已经有，而且官方界面与设置页也在持续演进。v2 把同一份价值拆成四块，全部挂到官方机制上：具名 agent → 官方 Agent Preset；模型路由表 → 官方 `subagent-model-selection.allowedModels`；能力标签 → system prompt 目录；路由约束 → `tools/pre-execute` 守卫。派发工具、子 agent 生命周期、模型调用仍由官方运行时负责。
+
+- 具名 agent 注册为官方 Agent Preset（稳定 id `hub-agent-<id>`，persona 追加 `instructions`），官方 `agent_preset` 参数直接可选；不再派生任何 `<base>+hub` 预设。
+- 路由表映射为官方 `allowedModels`；插件不再选模型、不做回退。
+- 新增 system prompt 目录段落：具名 agent → 用途 / 标签 / 限定路由；可用模型 → 标签；按官方工具实际暴露的参数调整指引。
+- 新增 `tools/pre-execute` 路由约束守卫：`agent_preset` 指向声明了 `routes` 的具名 agent，而显式或继承的子路由不在其中时，派发前拒绝并列出允许的路由。
+- 新增 `manageOfficialSettings`（默认 `false`）：开时通过 `configEditor` 幂等写入官方工具行的 `allowedAgentPresets` 与 `subagent-model-selection` 设置；默认不动其它插件的配置。
+- 删除：右侧栏“子代理路由”页、设置页、`lib/client.js` 与 Client 半侧（`dsh.client`、locale、icon）、`delegate` / `define_subagent` 工具、`lib/budget.js`、`lib/projection.js`、`deriveHubPreset`、`basePresets`、`maxConcurrent`、`maxTokensPerSession`、workspace / external / session 定义层。
+- 测试：36 项单元测试 + 12 项真实运行时 e2e（临时 `DSH_HOME`，脚本化 `llm/stream`）。
+
 ## 0.3.0 — M4: budgets and external definition sources
 
 - 新增 `maxConcurrent`（默认 4）与可选的 `maxTokensPerSession`；超限时 `delegate` 拒绝并说明原因。

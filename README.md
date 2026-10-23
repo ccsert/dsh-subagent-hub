@@ -1,25 +1,19 @@
 # dsh-subagent-hub
 
-DeepSeek Harness 插件：子 agent 的定义、模型路由与可视化。
+DeepSeek Harness 插件：给**官方**子代理派发补上“怎么选”的信息。
 
-- **会话子 agent 面板**：右侧栏展示后代子 agent 树、状态、所用模型、token 用量，可发消息 / 打断
-- **能力标签路由**：主 agent 按 `fast` / `reasoning` / `vision` 等标签选择，插件解析为具体 provider/model 并记录理由
-- **具名子 agent**：profile / workspace / session 三层定义，近的覆盖远的
-- **会话内创建**：`define_subagent` 默认会话级；晋升为持久定义需审批
+- **具名子 agent**：配置里的每个定义注册为官方 Agent Preset（`hub-agent-<id>`），官方 `subagent` 的 `agent_preset` 参数直接可选
+- **能力标签 / 模型目录**：路由表映射成官方 `subagent-model-selection` 的 `allowedModels`，并新增一段 system prompt 告诉主 agent 什么任务配什么
+- **路由约束**：具名 agent 限定 `routes` 时，越界的 `provider/model` 在派发前被 `tools/pre-execute` 守卫拒绝
+- **可选配置托管**：`manageOfficialSettings`（默认 `false`）打开后由插件幂等写入官方 allowlist
 
-执行全部复用官方 `subagents` 服务，不另造运行时。
-
-设计与决策见 [`docs/design.md`](docs/design.md)，安装步骤见 [`docs/install.md`](docs/install.md)，版本变更见 [`CHANGELOG.md`](CHANGELOG.md)。
+v0.4.0 起不再提供自有 `delegate` / `define_subagent`、不再派生 `+hub` 预设、没有右侧栏页与设置页。旧方案保留在 git tag `v0.3.0`。设计与原因见 [`docs/design.md`](docs/design.md)，安装见 [`docs/install.md`](docs/install.md)，变更见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 状态
 
-| 里程碑 | 状态 |
+| 阶段 | 状态 |
 |---|---|
-| M0 前提验证 | ✅ [`spikes/m0-runtime`](spikes/m0-runtime/README.md) |
-| M1 派生预设 + 具名 agent + 标签路由 + `delegate` | ✅ [`packages/subagent-hub`](packages/subagent-hub/README.md) |
-| M2 右侧栏“子代理路由”页 + 路由投影 | ✅ |
-| M3 `define_subagent` + 审批晋升 + 设置页 | ✅ |
-| M4 预算上限 + 外部定义来源 | ✅ |
-| 产品化：装进真实 profile、界面验收、发布 | 待定 |
+| v1（M0–M4）：派生预设、`delegate`、侧栏页、设置页、预算 | ✅ 已归档到 tag `v0.3.0` |
+| v2（0.4.0）：改用官方 Agent Preset / 模型选择 / 守卫 | ✅ 单元 36 项 + e2e 12 项 |
 
 测试：`bash test.sh`（单元测试 + 在临时 `DSH_HOME` 里对真实运行时跑 e2e）。

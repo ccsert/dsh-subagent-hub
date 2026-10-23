@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计
 
-> 状态：M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
+> 状态：M1 完成（[`packages/subagent-hub`](../packages/subagent-hub/README.md)，单元 16 项 + 真实运行时 e2e 11 项）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 
 ## 1. 目标
@@ -97,7 +97,7 @@ spikes/
 | M | 内容 | 验收 |
 |---|---|---|
 | M0 ✅ | S1–S3 spike | 三项均有可复现结论 |
-| M1 | 派生预设 + registry + router + `delegate` | 选 `standard+hub` 的会话里只有 `delegate`；主 agent 按标签派发，理由写入 meta |
+| M1 ✅ | 派生预设 + registry + router + `delegate` | 选 `standard+hub` 的会话里只有 `delegate`；主 agent 按标签派发，理由写入 meta |
 | M2 | 右侧栏“路由”标签页 | 每个子 agent 的模型 + 理由 + 费用汇总；点击跳官方子会话 |
 | M3 | `define_subagent` + 审批晋升 + 设置页 | 会话内创建、审批后持久化 |
 | M4 | 预算 + 中央下发的 `DefinitionSource` 接口 | 超限拒绝；接口有桩实现 |

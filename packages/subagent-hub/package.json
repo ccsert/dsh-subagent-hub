@@ -1,0 +1,21 @@
+{
+  "name": "dsh-subagent-hub",
+  "version": "0.1.0",
+  "description": "DSH plugin: named subagents, capability-based child model routing, and a delegate tool.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js",
+    "./delegate": "./lib/delegate.js"
+  },
+  "files": ["lib"],
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.3"
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}

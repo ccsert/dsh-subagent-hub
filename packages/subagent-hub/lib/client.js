@@ -25,6 +25,11 @@ window.__ModuleLoader__.load({
     const NS = 'subagentHub'
     const ROW_CONFIG_KEY = 'dsh-subagent-hub#subagent-hub'
     const ENTRY_ID = 'subagent-hub'
+    /** The official preset row whose allowlist the page watches (the shipped default). */
+    const OFFICIAL_PRESET_NAMESPACE = 'preset-standard'
+    /** How long the page waits for the Host's official allowlist writes before it gives up. */
+    const SYNC_TIMEOUT_MS = 120000
+    const SYNC_POLL_MS = 1500
 
     const zh = {
       'nav': '子代理中枢',
@@ -61,7 +66,10 @@ window.__ModuleLoader__.load({
       'preview.empty': '配置路由或具名 agent 后，这里会显示主 agent 看到的选择目录。',
       'save': '保存',
       'saving': '保存中…',
-      'saved': '已保存，正在同步官方设置…',
+      'saved': '已保存。',
+      'syncing': '已保存；正在同步官方 allowlist（Host 需要重载官方预设，通常几秒到几十秒）…',
+      'synced': '已保存，官方 allowlist 已同步。',
+      'syncPending': '已保存；官方 allowlist 仍在同步（Host 正在重载官方预设）。稍后刷新本页可确认。',
       'invalid': '未保存：{error}',
       'unavailable': '这个 profile 没有提供配置表单；请直接编辑 profile 的 cordis.patch.yml。',
       'readOnly': '这个 profile 的配置当前不可写。',
@@ -118,7 +126,10 @@ window.__ModuleLoader__.load({
       'preview.empty': 'Configure a route or a named agent to see the selection catalog the main agent receives.',
       'save': 'Save',
       'saving': 'Saving…',
-      'saved': 'Saved; syncing official settings…',
+      'saved': 'Saved.',
+      'syncing': 'Saved; syncing the official allowlist (the Host reloads the official presets — seconds to a minute)…',
+      'synced': 'Saved; the official allowlist is in sync.',
+      'syncPending': 'Saved; the official allowlist is still syncing (the Host is reloading the official presets). Refresh this page in a moment to confirm.',
       'invalid': 'Not saved: {error}',
       'unavailable': 'This profile exposes no configuration form; edit the profile `cordis.patch.yml` directly.',
       'readOnly': 'This profile\'s configuration is not writable right now.',
@@ -287,6 +298,29 @@ window.__ModuleLoader__.load({
       return undefined
     }
 
+    /** The spawn delegation rows of one official preset, with their `allowedAgentPresets`. */
+    function officialAllowlists(plugins) {
+      const lists = []
+      const walk = (rows) => {
+        for (const row of rows ?? []) {
+          if (row === null || typeof row !== 'object') continue
+          if (Array.isArray(row.config)) walk(row.config)
+          if (row.name !== '@deepseek-ai/dsh-tool-subagent') continue
+          if (row.config?.provider !== 'spawn') continue
+          lists.push(row.config?.allowedAgentPresets ?? [])
+        }
+      }
+      walk(plugins)
+      return lists
+    }
+
+    /** Whether the official preset rows already carry every expected named agent. */
+    function allowlistSynced(lists, expected) {
+      if (expected.length === 0) return true
+      const seen = new Set(lists.flat())
+      return expected.every(id => seen.has(id))
+    }
+
     /** The selection catalog the main agent receives, previewed from the draft. */
     function catalogPreview(drafts) {
       const lines = []
@@ -357,6 +391,7 @@ window.__ModuleLoader__.load({
 .sah-footer-left{flex:1;min-width:0}
 .sah-status{flex:1;min-width:0;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:1.5}
 .sah-status-error{color:var(--dsw-alias-label-error,#ef4444)}
+.sah-status-warn{color:var(--dsw-alias-state-warn-primary,#c69026)}
 .sah-notice{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b8b8b8)}
 .sah-warn{grid-column:1/-1;color:var(--dsw-alias-label-error,#ef4444);font-size:12px;line-height:18px}
 .sah-preview{margin:8px 0 0;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-secondary,#b8b8b8);font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow:auto}
@@ -622,6 +657,8 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false)
       const writable = form !== undefined && form.state?.writable !== false
       const hydrated = React.useRef(form?.state?.status !== 'loading')
+      const disposed = React.useRef(false)
+      React.useEffect(() => () => { disposed.current = true }, [])
       React.useEffect(() => {
         if (hydrated.current || form?.state?.status !== 'ready') return
         hydrated.current = true
@@ -701,12 +738,42 @@ window.__ModuleLoader__.load({
         try {
           await form.mutate(saveOps(values), form.state?.revision)
           setStatus({ kind: 'ok', text: t('saved') })
+          watchOfficialSync(values)
         } catch (error) {
           setStatus({ kind: 'error', text: String(error?.message ?? error) })
         } finally {
           setBusy(false)
         }
       }
+
+      /**
+       * Watch the official configuration until the Host has written the allowlists. Every write
+       * is one profile reload, so this takes seconds; the page says so instead of freezing on
+       * "saving" or claiming success it cannot know.
+       */
+      const watchOfficialSync = React.useCallback((savedValues) => {
+        if (ctx.configForms === undefined) return
+        const expected = savedValues.agents.map(agent => `hub-agent-${agent.id}`)
+        if (!savedValues.manageOfficialSettings || expected.length === 0) return
+        setStatus({ kind: 'ok', text: t('syncing') })
+        const deadline = Date.now() + SYNC_TIMEOUT_MS
+        const tick = () => {
+          if (disposed.current) return
+          const form = ctx.configForms.get(OFFICIAL_PRESET_NAMESPACE)
+          const snapshot = form?.getSnapshot?.()
+          const lists = officialAllowlists(snapshot?.value?.plugins)
+          if (allowlistSynced(lists, expected)) {
+            setStatus({ kind: 'ok', text: t('synced') })
+            return
+          }
+          if (Date.now() > deadline) {
+            setStatus({ kind: 'warn', text: t('syncPending') })
+            return
+          }
+          setTimeout(tick, SYNC_POLL_MS)
+        }
+        setTimeout(tick, SYNC_POLL_MS)
+      }, [ctx])
       const discard = () => {
         setDraft(draftsOf(value))
         setStatus(undefined)
@@ -780,7 +847,10 @@ window.__ModuleLoader__.load({
           h('div', { className: 'sah-footer-left' },
             status === undefined
               ? h('span', { className: 'sah-status' }, problem === undefined ? '' : t('invalid', { error: problem }))
-              : h('span', { className: `sah-status${status.kind === 'error' ? ' sah-status-error' : ''}`, role: 'status' }, status.text)),
+              : h('span', {
+                className: `sah-status${status.kind === 'error' ? ' sah-status-error' : status.kind === 'warn' ? ' sah-status-warn' : ''}`,
+                role: 'status',
+              }, status.text)),
           h('button', {
             type: 'button',
             className: 'sah-btn sah-btn-outline',
@@ -830,6 +900,8 @@ window.__ModuleLoader__.load({
       saveOps,
       draftProblem,
       catalogPreview,
+      officialAllowlists,
+      allowlistSynced,
       slugForModel,
       uniqueRouteId,
       filterCatalog,

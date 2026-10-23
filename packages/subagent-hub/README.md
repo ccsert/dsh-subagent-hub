@@ -28,6 +28,8 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
 
+保存之后页面会显示同步进度：官方 allowlist 写在官方预设行里，每写一行就是一次 profile 重载（你的 profile 有多个预设，重建整棵预设树需要几秒到几十秒），所以状态会从「已保存」→「正在同步官方 allowlist」→「已同步」依次变化；如果超过两分钟还没同步完，会提示稍后刷新确认。
+
 不想用界面时，下面这些字段仍然可以直接写在 profile 的 `cordis.patch.yml` 里，效果相同。
 
 ## 配置

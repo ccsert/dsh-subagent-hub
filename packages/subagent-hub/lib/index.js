@@ -83,9 +83,9 @@ export default class SubagentHub extends Service {
     this.reconcileWaiters = []
     this.reconcileWorker = undefined
     /** Settles once every named agent preset is registered or reported missing. */
-    this.ready = Promise.resolve({ registered: [], skipped: [] })
+    this.ready = new Promise((resolve) => { this.resolveReady = resolve })
     /** Settles once the official settings write (or its deliberate skip) is complete. */
-    this.officialSettingsReady = Promise.resolve({ enabled: false })
+    this.officialSettingsReady = new Promise((resolve) => { this.resolveOfficial = resolve })
   }
 
   /**
@@ -112,18 +112,11 @@ export default class SubagentHub extends Service {
     // The Plugins page form writes volatile fields; the Loader commits them in place and announces
     // the changed paths on this plugin's own fiber.
     this.disposers.push(this.ctx.on('loader/volatile-update', paths => this.onVolatileUpdate(paths)))
+    // Registration and the official allowlist sync both belong to the worker: this init may run
+    // inside an HMR transaction, and a config write there would be refused as nested. The
+    // worker's first pass registers the named presets and syncs the official allowlists.
     this.reconcileWorker = this.runReconcileWorker()
-
-    this.ready = this.registerAgentPresets().then((report) => {
-      this.presetSignature = agentSignature(this.catalog.agents)
-      return report
-    })
-    this.officialSettingsReady = this.ready
-      .then(() => this.syncOfficialSettings())
-      .catch((error) => {
-        this.ctx.logger?.warn?.(`${PACKAGE}: official settings sync failed: ${String(error?.message ?? error)}`)
-        return { enabled: read(this.config.manageOfficialSettings) === true, error: String(error?.message ?? error) }
-      })
+    this.signalReconcile()
 
     yield async () => {
       this.disposed = true
@@ -258,8 +251,15 @@ export default class SubagentHub extends Service {
       report = { registered: [...this.registered.keys()], skipped: [] }
     }
     this.ready = Promise.resolve(report)
-    this.officialSettingsReady = this.syncOfficialSettings()
-    await this.officialSettingsReady
+    this.resolveReady(report)
+    const sync = this.syncOfficialSettings()
+      .catch((error) => {
+        this.ctx.logger?.warn?.(`${PACKAGE}: official settings sync failed: ${String(error?.message ?? error)}`)
+        return { enabled: read(this.config.manageOfficialSettings) === true, error: String(error?.message ?? error) }
+      })
+    this.officialSettingsReady = sync
+    const outcome = await sync
+    this.resolveOfficial(outcome)
     return report
   }
 
@@ -321,23 +321,11 @@ export default class SubagentHub extends Service {
     }
     const presetIds = plan.presetIds
     const models = plan.models
-    const report = { enabled: true, presets: [], modelSettings: 'unchanged', presetIds, models }
+    const report = { enabled: true, presets: [], modelSettings: 'unchanged', presetIds, models, durationMs: 0 }
+    const startedAt = Date.now()
 
-    const presetEntryIds = editor.entries()
-      .filter(entry => entry.options.name === PRESET_PLUGIN)
-      .map(entry => entry.options.id)
-    for (const id of presetEntryIds) {
-      const entry = editor.entries().find(candidate => candidate.options.id === id)
-      if (entry === undefined) continue
-      const snapshot = new Map(editor.configuration().map(row => [row.entry, row]))
-      const base = { ...(snapshot.get(entry)?.inherited ?? {}), ...(entry.options.config ?? {}) }
-      if (!Array.isArray(base.plugins)) continue
-      const { plugins, changed } = patchPresetRows(base.plugins, { presetIds, exposeModels: models.length > 0 })
-      if (!changed) continue
-      await editor.edit(entry, () => ({ ...base, plugins }))
-      report.presets.push(id)
-    }
-
+    // The model allowlist lands first: it is the setting that makes `provider`/`model` show up,
+    // and it costs one profile reload on its own.
     if (models.length > 0) {
       const entry = editor.entries().find(candidate => candidate.options.id === MODEL_SETTINGS_ID)
       if (entry !== undefined) {
@@ -353,8 +341,26 @@ export default class SubagentHub extends Service {
       }
     }
 
+    // Then each official preset that carries a spawn delegation row. Every write is one profile
+    // reload, so only the rows that actually differ are touched.
+    const presetEntryIds = editor.entries()
+      .filter(entry => entry.options.name === PRESET_PLUGIN)
+      .map(entry => entry.options.id)
+    for (const id of presetEntryIds) {
+      const entry = editor.entries().find(candidate => candidate.options.id === id)
+      if (entry === undefined) continue
+      const snapshot = new Map(editor.configuration().map(row => [row.entry, row]))
+      const base = { ...(snapshot.get(entry)?.inherited ?? {}), ...(entry.options.config ?? {}) }
+      if (!Array.isArray(base.plugins)) continue
+      const { plugins, changed } = patchPresetRows(base.plugins, { presetIds, exposeModels: models.length > 0 })
+      if (!changed) continue
+      await editor.edit(entry, () => ({ ...base, plugins }))
+      report.presets.push(id)
+    }
+
+    report.durationMs = Date.now() - startedAt
     if (report.presets.length > 0 || report.modelSettings !== 'unchanged') {
-      this.ctx.logger?.info?.(`${PACKAGE}: managed official settings: presets=[${report.presets.join(', ')}] modelSettings=${report.modelSettings}`)
+      this.ctx.logger?.info?.(`${PACKAGE}: managed official settings in ${report.durationMs}ms: presets=[${report.presets.join(', ')}] modelSettings=${report.modelSettings}`)
     }
     return report
   }

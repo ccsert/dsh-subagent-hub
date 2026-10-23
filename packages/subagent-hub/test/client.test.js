@@ -150,6 +150,25 @@ test('the page renders route rows as dropdowns, agent cards, and a save footer',
   assert.ok(html.includes('routes.loading'), 'catalog loading notice missing')
 })
 
+test('the official allowlist is read out of the preset rows', () => {
+  const { officialAllowlists, allowlistSynced } = loadClient()
+  const plugins = [
+    { id: 'persona', name: '@deepseek-ai/dsh-persona' },
+    {
+      id: 'delegation',
+      name: 'cordis:group',
+      config: [
+        { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', allowedAgentPresets: ['hub-agent-reviewer'] } },
+        { id: 'tool-subagent-fork', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'fork' } },
+      ],
+    },
+  ]
+  assert.deepEqual(plain(officialAllowlists(plugins)), [['hub-agent-reviewer']])
+  assert.equal(allowlistSynced([['hub-agent-reviewer']], ['hub-agent-reviewer']), true)
+  assert.equal(allowlistSynced([['hub-agent-reviewer']], ['hub-agent-reviewer', 'hub-agent-scribe']), false)
+  assert.equal(allowlistSynced([], []), true)
+})
+
 test('the page without a Host form explains itself', () => {
   const { ConfigPage } = loadClient()
   const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form: undefined, t, ctx: { remote: undefined } }))

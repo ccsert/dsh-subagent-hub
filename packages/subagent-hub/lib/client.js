@@ -45,7 +45,7 @@ window.__ModuleLoader__.load({
       'routes.loading': '正在读取模型目录…',
       'routes.selected': '已选路由',
       'routes.none': '还没有选模型。',
-      'routes.addManual': '手动添加路由',
+      'routes.addManual': '添加路由',
       'routes.tagPlaceholder': '标签，回车添加',
       'routes.suggestions': '常用标签：{tags}',
       'agents.title': '具名子 agent',
@@ -70,12 +70,18 @@ window.__ModuleLoader__.load({
       'common.moveUp': '上移',
       'common.moveDown': '下移',
       'route.id': 'id',
-      'route.reasoningEffort': 'reasoningEffort',
+      'route.provider': 'Provider',
+      'route.model': 'Model',
+      'route.effort': '推理强度',
+      'route.effortDefault': '模型默认',
+      'route.pickProvider': '选择 Provider',
+      'route.pickModel': '选择 Model',
       'route.note': 'note',
       'route.tags': '能力标签',
       'agent.id': 'id',
       'agent.description': 'description',
       'agent.instructions': 'instructions',
+      'discard': '放弃修改',
     }
     const en = {
       'nav': 'Subagent Hub',
@@ -121,12 +127,18 @@ window.__ModuleLoader__.load({
       'common.moveUp': 'Move up',
       'common.moveDown': 'Move down',
       'route.id': 'id',
-      'route.reasoningEffort': 'reasoningEffort',
+      'route.provider': 'Provider',
+      'route.model': 'Model',
+      'route.effort': 'Reasoning effort',
+      'route.effortDefault': 'model default',
+      'route.pickProvider': 'Choose a provider',
+      'route.pickModel': 'Choose a model',
       'route.note': 'note',
       'route.tags': 'Capability tags',
       'agent.id': 'id',
       'agent.description': 'description',
       'agent.instructions': 'instructions',
+      'discard': 'Discard',
     }
 
     // ── pure helpers ────────────────────────────────────────────────────────────────────────────
@@ -308,44 +320,70 @@ window.__ModuleLoader__.load({
     // ── presentation ──────────────────────────────────────────────────────────────────────────────
 
     const CSS = `
-.sah{display:flex;flex-direction:column;gap:24px;font-size:13px;line-height:20px;color:var(--dsw-alias-label-primary)}
-.sah-intro{margin:0;color:var(--dsw-alias-label-secondary);font-size:12.5px;line-height:19px;max-width:72ch}
+.sah{display:flex;flex-direction:column;gap:14px;margin:0;padding:0;font-size:13px;line-height:1.5;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.sah-intro{margin:0;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:18px}
 .sah-section{display:flex;flex-direction:column;gap:10px}
 .sah-head{display:flex;flex-direction:column;gap:2px}
-.sah-title{margin:0;font-size:14px;font-weight:600;line-height:20px}
-.sah-hint{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px;line-height:17px;max-width:72ch}
-.sah-card{border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);padding:12px 14px;display:flex;flex-direction:column;gap:10px}
-.sah-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.sah-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 14px}
-.sah-field{display:flex;flex-direction:column;gap:4px;min-width:0}
-.sah-label{color:var(--dsw-alias-label-secondary);font-size:11.5px;line-height:16px}
-.sah-input{width:100%;box-sizing:border-box;padding:6px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px}
-.sah-input:focus{outline:none;border-color:var(--dsw-alias-state-business-primary);box-shadow:inset 0 0 0 1px var(--dsw-alias-state-business-primary)}
-.sah-textarea{width:100%;box-sizing:border-box;padding:6px 9px;border:.5px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-sm,6px);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12.5px;resize:vertical;min-height:64px}
-.sah-mono{font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:12px}
-.sah-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sah-title{margin:0;font-size:13px;font-weight:600;line-height:20px;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.sah-hint{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-muted{font-size:12px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-list{display:flex;flex-direction:column;gap:10px}
+.sah-card{border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:10px;background:var(--dsw-alias-bg-layer-3,#202126);padding:10px;display:flex;flex-direction:column;gap:8px}
+.sah-route{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) auto;gap:8px;align-items:end}
+.sah-meta{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) minmax(0,1fr);gap:8px;align-items:end}
+.sah-agent{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:8px;align-items:end}
+.sah-field{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-select,.sah-input{width:100%;max-width:220px;height:32px;padding:0 28px 0 10px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-primary,#e6e6e6);font:inherit;font-size:13px;line-height:1.5;box-sizing:border-box}
+.sah-input{padding:0 10px}
+.sah-select:focus,.sah-input:focus{outline:2px solid var(--dsw-alias-state-business-primary,#5686fe);outline-offset:1px}
+.sah-select:disabled{color:var(--dsw-alias-label-tertiary,#999);cursor:default}
+.sah-textarea{width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-primary,#e6e6e6);font:inherit;font-size:13px;line-height:1.5;resize:vertical;min-height:64px}
+.sah-remove{height:32px;min-width:32px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary,#b8b8b8);cursor:pointer;font-size:16px;line-height:1}
+.sah-remove:hover{color:var(--dsw-alias-state-error-primary,#ef4444);background:var(--dsw-alias-interactive-bg-hover-danger,rgba(242,90,90,.15))}
+.sah-btn{appearance:none;font:inherit;cursor:pointer;border:1px solid transparent;border-radius:8px;padding:5px 14px;font-size:13px;line-height:1.5}
+.sah-btn:disabled{opacity:.4;cursor:default}
+.sah-btn-outline{border-color:var(--dsw-alias-border-l2,#36373b);color:var(--dsw-alias-label-secondary,#b8b8b8);background:transparent;font-weight:500}
+.sah-btn-outline:hover:not(:disabled){color:var(--dsw-alias-label-primary,#e6e6e6);background:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.04))}
+.sah-btn-primary{background:var(--dsw-alias-label-primary,#e6e6e6);color:var(--dsw-alias-bg-layer-3,#202126);font-weight:500}
+.sah-btn-primary:hover:not(:disabled){opacity:.9}
+.sah-options{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .sah-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.sah-chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;border:.5px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);font-size:11.5px;line-height:18px}
-.sah-chip button{appearance:none;border:0;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;padding:0 2px;font:inherit;line-height:1}
-.sah-chip button:hover{color:var(--dsw-alias-state-error-primary)}
-.sah-picker{display:flex;flex-direction:column;gap:8px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,10px);background:var(--dsw-alias-bg-layer-2);padding:12px 14px;max-height:320px;overflow:auto}
-.sah-group{display:flex;flex-direction:column;gap:4px}
-.sah-groupName{color:var(--dsw-alias-label-secondary);font-size:11.5px;font-weight:500}
-.sah-model{display:flex;align-items:baseline;gap:8px;padding:2px 0}
-.sah-modelRoute{color:var(--dsw-alias-label-tertiary);font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11px}
-.sah-notice{margin:0;color:var(--dsw-alias-label-secondary);font-size:12px}
-.sah-error{color:var(--dsw-alias-state-error-primary)}
-.sah-preview{margin:8px 0 0;padding:10px 12px;border:.5px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md,8px);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow:auto}
-.sah-details summary{cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px}
-.sah-empty{padding:14px;border:.5px dashed var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md,8px);color:var(--dsw-alias-label-tertiary);font-size:12px;text-align:center}
+.sah-chip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:999px;background:var(--dsw-alias-bg-layer-2,#232529);font-size:12px;line-height:1;cursor:pointer;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-chip:hover{color:var(--dsw-alias-label-primary,#e6e6e6);border-color:var(--dsw-alias-label-dimmed,#777)}
+.sah-chip-on{border-color:var(--dsw-alias-state-business-primary,#5686fe);color:var(--dsw-alias-label-primary,#e6e6e6)}
+.sah-chip-static{cursor:default}
+.sah-chip-static:hover{color:var(--dsw-alias-label-secondary,#b8b8b8);border-color:var(--dsw-alias-border-l2,#36373b)}
+.sah-footer{border-top:1px solid var(--dsw-alias-border-l2,#36373b);display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 0 4px}
+.sah-footer-left{flex:1;min-width:0}
+.sah-status{flex:1;min-width:0;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:1.5}
+.sah-status-error{color:var(--dsw-alias-label-error,#ef4444)}
+.sah-notice{font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-warn{grid-column:1/-1;color:var(--dsw-alias-label-error,#ef4444);font-size:12px;line-height:18px}
+.sah-preview{margin:8px 0 0;padding:10px 12px;border:1px solid var(--dsw-alias-border-l2,#36373b);border-radius:8px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-secondary,#b8b8b8);font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow:auto}
+.sah-details summary{cursor:pointer;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px}
+.sah-switch{display:flex;align-items:center;gap:8px;font-size:12px;line-height:18px;color:var(--dsw-alias-label-secondary,#b8b8b8);cursor:pointer}
+.sah-switch input{width:14px;height:14px;accent-color:var(--dsw-alias-brand-primary,#5686fe);cursor:pointer}
+.sah-monospace{font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:12px}
 `
 
     const style = () => h('style', { key: 'css' }, CSS)
 
+    /** A labelled field: the label sits above its control, as in the official cards. */
     const Field = (label, key, control) => h('label', { className: 'sah-field', key },
-      h('span', { className: 'sah-label' }, label),
+      h('span', null, label),
       control)
 
+    /** Native select, styled like the official settings selects. */
+    function Select({ value, options, onChange, ...extra }) {
+      return h('select', {
+        className: 'sah-select',
+        value,
+        onChange: event => onChange(event.target.value),
+        ...extra,
+      }, options.map(option => h('option', { key: option.value, value: option.value }, option.label)))
+    }
+
+    /** Native text input, styled like the official settings inputs. */
     const TextInput = (value, onChange, extra = {}) => h('input', {
       className: 'sah-input',
       value,
@@ -353,11 +391,16 @@ window.__ModuleLoader__.load({
       ...extra,
     })
 
-    /** A tag chip with a remove control. */
-    function Chip({ tag, onRemove }) {
-      return h('span', { className: 'sah-chip' },
+    /** A removable tag chip. */
+    function Chip({ tag, onRemove, active }) {
+      return h('span', { className: `sah-chip${active ? ' sah-chip-on' : ''}${onRemove === undefined ? ' sah-chip-static' : ''}` },
         tag,
-        onRemove === undefined ? null : h('button', { type: 'button', onClick: () => onRemove(tag), 'aria-label': `remove ${tag}` }, '×'))
+        onRemove === undefined ? null : h('button', {
+          type: 'button',
+          style: { appearance: 'none', border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer', font: 'inherit', padding: 0 },
+          onClick: () => onRemove(tag),
+          'aria-label': `remove ${tag}`,
+        }, '×'))
     }
 
     /** Text input that adds a tag on Enter. */
@@ -374,7 +417,7 @@ window.__ModuleLoader__.load({
         tags.map(tag => h(Chip, { key: tag, tag, onRemove: value => onChange(removeTag(tags, value)) })),
         h('input', {
           className: 'sah-input',
-          style: { flex: '1 1 120px', minWidth: '120px' },
+          style: { maxWidth: '160px' },
           value: text,
           placeholder,
           onChange: event => setText(event.target.value),
@@ -387,113 +430,114 @@ window.__ModuleLoader__.load({
         }))
     }
 
-    /** The official switch, or a plain checkbox when the shell lacks the primitive. */
-    function Toggle({ checked, onChange, label, disabled }) {
-      if (P.Switch !== undefined) return h(P.Switch, { checked, onChange, label, disabled })
-      return h('label', { className: 'sah-model' },
-        h('input', { type: 'checkbox', checked, disabled, onChange: event => onChange(event.target.checked) }),
-        h('span', null, label))
-    }
-
-    /** The official checkbox, or a plain one. */
-    function Check({ checked, onChange, label, disabled }) {
-      if (P.Checkbox !== undefined) return h(P.Checkbox, { checked, onChange, label, disabled })
-      return h('label', { className: 'sah-model' },
-        h('input', { type: 'checkbox', checked, disabled, onChange: event => onChange(event.target.checked) }),
-        h('span', null, label))
-    }
-
-    /** A small text button. */
-    function SmallButton({ title, onClick, disabled, children }) {
-      if (P.Button !== undefined) {
-        return h(P.Button, { variant: 'ghost', size: 'sm', title, onClick, disabled, 'aria-label': title }, children)
-      }
-      return h('button', {
-        type: 'button',
-        title,
-        'aria-label': title,
-        disabled,
-        onClick,
-        style: {
-          appearance: 'none',
-          cursor: disabled ? 'default' : 'pointer',
-          border: '.5px solid var(--dsw-alias-border-l2)',
-          borderRadius: 'var(--dsw-radius-sm,6px)',
-          background: 'transparent',
-          color: 'inherit',
-          font: 'inherit',
-          fontSize: '11.5px',
-          padding: '2px 8px',
-        },
-      }, children)
-    }
-
-    /** The official form shell (save button, read-only notice) or a plain footer. */
-    function FormShell({ state, labels, onSave, onDiscard, children }) {
-      if (P.SettingsForm !== undefined) {
-        return h(P.SettingsForm, { state, labels, onSave, onDiscard, children })
-      }
-      return h('div', { className: 'sah-section' },
-        children,
-        h('div', { className: 'sah-actions' },
-          h('button', { type: 'button', onClick: onSave, disabled: !state.writable || state.saving }, state.saving ? labels.saving : labels.save)))
-    }
-
     // ── sections ─────────────────────────────────────────────────────────────────────────────────
 
-    /** The catalog picker: every model the Host advertises, grouped by provider. */
-    function ModelPicker({ catalog, selected, onToggle, t }) {
-      const groups = filterCatalog(catalog.groups, catalog.query)
-      if (catalog.status === 'loading') return h('p', { className: 'sah-notice' }, t('routes.loading'))
-      if (catalog.status === 'error') {
-        return h('div', { className: 'sah-row' },
-          h('p', { className: 'sah-notice sah-error' }, t('routes.catalogError')),
-          h(SmallButton, { title: t('routes.retry'), onClick: catalog.retry }, t('routes.retry')))
+    /** Provider choices from the catalog, keeping a stored provider the catalog no longer lists. */
+    function providerChoices(groups, provider) {
+      const choices = groups.map(group => ({ value: group.id, label: `${group.name || group.id} (${group.id})` }))
+      if (provider && !choices.some(choice => choice.value === provider)) {
+        choices.unshift({ value: provider, label: `${provider} (不在当前目录)` })
       }
-      if (groups.length === 0) return h('p', { className: 'sah-notice' }, t('routes.empty'))
-      return h('div', { className: 'sah-picker' },
-        groups.map(group => h('div', { className: 'sah-group', key: group.id },
-          h('div', { className: 'sah-groupName' }, group.name || group.id),
-          group.models.map(model => h('div', { className: 'sah-model', key: `${group.id}/${model.id}` },
-            h(Check, {
-              checked: selected.has(routeKey(group.id, model.id)),
-              label: model.name || model.id,
-              onChange: () => onToggle(group.id, model.id),
-            }),
-            h('span', { className: 'sah-modelRoute' }, `${group.id}/${model.id}`))))))
+      return choices
     }
 
-    /** One selected route: identity, capability tags, note, order. */
-    function RouteCard({ route, index, total, onChange, onRemove, onMove, known, t }) {
+    /** Model choices of one provider, keeping a stored model the catalog no longer lists. */
+    function modelChoices(groups, provider, model) {
+      const group = groups.find(item => item.id === provider)
+      const choices = group === undefined ? [] : group.models.map(item => ({ value: item.id, label: item.name || item.id }))
+      if (model && !choices.some(choice => choice.value === model)) {
+        choices.unshift({ value: model, label: `${model} (不在当前目录)` })
+      }
+      return choices
+    }
+
+    /** Reasoning efforts one model advertises, keeping a stored effort it no longer lists. */
+    function effortChoices(groups, provider, model, effort) {
+      const group = groups.find(item => item.id === provider)
+      const found = group?.models.find(item => item.id === model)
+      const efforts = found?.reasoning?.efforts ?? []
+      const choices = efforts.map(item => ({ value: item.id, label: item.name || item.id }))
+      if (effort && !choices.some(choice => choice.value === effort)) {
+        choices.unshift({ value: effort, label: `${effort} (不在当前目录)` })
+      }
+      return choices
+    }
+
+    /** One model route: provider, model and effort as dropdowns, then its identity and tags. */
+    function RouteCard({ route, index, groups, known, onChange, onRemove, onMove, total, t }) {
       const set = patch => onChange({ ...route, ...patch })
+      const models = modelChoices(groups, route.provider, route.model)
+      const efforts = effortChoices(groups, route.provider, route.model, route.reasoningEffort)
+      const pickProvider = provider => {
+        const next = { ...route, provider, model: '', reasoningEffort: '' }
+        // The id follows the model only while it was derived from it.
+        if (route.id === '' || route.id === slugForModel(route.model)) next.id = ''
+        onChange(next)
+      }
+      const pickModel = model => {
+        const next = { ...route, model, reasoningEffort: '' }
+        if (route.id === '' || route.id === slugForModel(route.model)) next.id = slugForModel(model)
+        onChange(next)
+      }
       return h('div', { className: 'sah-card' },
-        h('div', { className: 'sah-row' },
-          h('span', { className: 'sah-mono' }, `${route.provider || '—'}/${route.model || '—'}`),
-          h('div', { className: 'sah-actions' },
-            h(SmallButton, { title: t('common.moveUp'), onClick: () => onMove(index, -1), disabled: index === 0 }, '↑'),
-            h(SmallButton, { title: t('common.moveDown'), onClick: () => onMove(index, 1), disabled: index === total - 1 }, '↓'),
-            h(SmallButton, { title: t('common.remove'), onClick: onRemove }, '×'))),
-        h('div', { className: 'sah-grid' },
+        h('div', { className: 'sah-route' },
+          Field(t('route.provider'), `route-provider-${index}`, h(Select, {
+            value: route.provider,
+            options: [{ value: '', label: t('route.pickProvider') }, ...providerChoices(groups, route.provider)],
+            onChange: pickProvider,
+          })),
+          Field(t('route.model'), `route-model-${index}`, h(Select, {
+            value: route.model,
+            disabled: route.provider === '',
+            options: [{ value: '', label: t('route.pickModel') }, ...models],
+            onChange: pickModel,
+          })),
+          Field(t('route.effort'), `route-effort-${index}`, h(Select, {
+            value: route.reasoningEffort,
+            disabled: route.model === '',
+            options: [{ value: '', label: t('route.effortDefault') }, ...efforts],
+            onChange: value => set({ reasoningEffort: value }),
+          })),
+          h('button', {
+            className: 'sah-remove',
+            type: 'button',
+            'aria-label': t('common.remove'),
+            title: t('common.remove'),
+            onClick: onRemove,
+          }, '×')),
+        h('div', { className: 'sah-meta' },
           Field(t('route.id'), `route-id-${index}`, TextInput(route.id, value => set({ id: value }), { placeholder: 'flash' })),
-          Field(t('route.reasoningEffort'), `route-effort-${index}`, TextInput(route.reasoningEffort, value => set({ reasoningEffort: value }), { placeholder: 'high' })),
-          Field(t('route.note'), `route-note-${index}`, TextInput(route.note, value => set({ note: value }), { placeholder: 'DeepSeek Flash' })),
           Field(t('route.tags'), `route-tags-${index}`, h(TagInput, {
             tags: route.tags,
             placeholder: t('routes.tagPlaceholder'),
             onChange: tags => set({ tags }),
-          }))),
-        known.length > 0 ? h('div', { className: 'sah-tags' },
-          h('span', { className: 'sah-label' }, t('routes.suggestions', { tags: known.join(', ') })),
-          known.map(tag => h('button', {
-            key: tag,
+          })),
+          Field(t('route.note'), `route-note-${index}`, TextInput(route.note, value => set({ note: value }), { placeholder: 'DeepSeek Flash' }))),
+        known.some(tag => !route.tags.includes(tag))
+          ? h('div', { className: 'sah-tags' },
+            known.filter(tag => !route.tags.includes(tag)).map(tag => h(Chip, {
+              key: tag,
+              tag,
+              onRemove: () => set({ tags: addTag(route.tags, tag) }),
+            })))
+          : null,
+        total > 1 ? h('div', { className: 'sah-options' },
+          h('button', {
+            className: 'sah-btn sah-btn-outline',
             type: 'button',
-            className: 'sah-chip',
-            onClick: () => set({ tags: route.tags.includes(tag) ? removeTag(route.tags, tag) : addTag(route.tags, tag) }),
-          }, tag))) : null)
+            disabled: index === 0,
+            onClick: () => onMove(index, -1),
+          }, '↑ ' + t('common.moveUp')),
+          h('button', {
+            className: 'sah-btn sah-btn-outline',
+            type: 'button',
+            disabled: index === total - 1,
+            onClick: () => onMove(index, 1),
+          }, '↓ ' + t('common.moveDown'))) : null)
     }
 
     /** One named agent: identity, purpose, persona, allowed routes, tags, base preset. */
-    function AgentCard({ agent, index, routes, presets, onChange, onRemove, known, t }) {
+    function AgentCard({ agent, index, routes, presets, known, onChange, onRemove, t }) {
       const set = patch => onChange({ ...agent, ...patch })
       const toggleRoute = id => {
         const next = agent.routes.includes(id)
@@ -502,48 +546,56 @@ window.__ModuleLoader__.load({
         set({ routes: next })
       }
       return h('div', { className: 'sah-card' },
-        h('div', { className: 'sah-row' },
-          h('span', { className: 'sah-mono' }, t('agents.presetId', { id: agent.id ? `hub-agent-${agent.id}` : 'hub-agent-<id>' })),
-          h(SmallButton, { title: t('common.remove'), onClick: onRemove }, '×')),
-        h('div', { className: 'sah-grid' },
+        h('div', { className: 'sah-agent' },
           Field(t('agent.id'), `agent-id-${index}`, TextInput(agent.id, value => set({ id: value }), { placeholder: 'reviewer' })),
-          Field(t('agent.description'), `agent-desc-${index}`, TextInput(agent.description, value => set({ description: value }), { placeholder: 'Reviews a diff and reports findings' }))),
-        Field(t('agent.instructions'), `agent-instructions-${index}`, h('textarea', {
-          className: 'sah-textarea',
-          rows: 3,
-          value: agent.instructions,
-          placeholder: 'Report findings only; never edit files.',
-          onChange: event => set({ instructions: event.target.value }),
-        })),
+          Field(t('agent.description'), `agent-desc-${index}`, TextInput(agent.description, value => set({ description: value }), { placeholder: 'Reviews a diff and reports findings' })),
+          h('button', {
+            className: 'sah-remove',
+            type: 'button',
+            'aria-label': t('common.remove'),
+            title: t('common.remove'),
+            onClick: onRemove,
+          }, '×')),
         h('div', { className: 'sah-field' },
-          h('span', { className: 'sah-label' }, t('agents.routesLabel')),
+          h('span', null, t('agent.instructions')),
+          h('textarea', {
+            className: 'sah-textarea',
+            rows: 3,
+            value: agent.instructions,
+            placeholder: 'Report findings only; never edit files.',
+            onChange: event => set({ instructions: event.target.value }),
+          })),
+        h('div', { className: 'sah-field' },
+          h('span', null, t('agents.routesLabel')),
           routes.length === 0
-            ? h('p', { className: 'sah-notice' }, t('agents.anyModel'))
-            : h('div', { className: 'sah-tags' }, routes.map(route => h(Check, {
+            ? h('div', { className: 'sah-muted' }, t('agents.anyModel'))
+            : h('div', { className: 'sah-tags' }, routes.map(route => h(Chip, {
               key: route.id,
-              checked: agent.routes.includes(route.id),
-              label: `${route.id} = ${route.provider}/${route.model}`,
-              onChange: () => toggleRoute(route.id),
+              tag: `${route.id} = ${route.provider}/${route.model}`,
+              active: agent.routes.includes(route.id),
+              onRemove: () => toggleRoute(route.id),
             })))),
-        h('div', { className: 'sah-grid' },
+        h('div', { className: 'sah-meta' },
           Field(t('agents.needs'), `agent-needs-${index}`, h(TagInput, {
             tags: agent.needs,
             placeholder: t('routes.tagPlaceholder'),
             onChange: needs => set({ needs }),
           })),
-          Field(t('agents.basePreset'), `agent-preset-${index}`, h('select', {
-            className: 'sah-input',
+          Field(t('agents.basePreset'), `agent-preset-${index}`, h(Select, {
             value: agent.basePreset,
-            onChange: event => set({ basePreset: event.target.value }),
-          }, presets.map(preset => h('option', { key: preset.id, value: preset.id }, preset.name ?? preset.id))))),
-        known.length > 0 ? h('div', { className: 'sah-tags' },
-          h('span', { className: 'sah-label' }, t('routes.suggestions', { tags: known.join(', ') })),
-          known.map(tag => h('button', {
-            key: tag,
-            type: 'button',
-            className: 'sah-chip',
-            onClick: () => set({ needs: agent.needs.includes(tag) ? removeTag(agent.needs, tag) : addTag(agent.needs, tag) }),
-          }, tag))) : null)
+            options: presets.map(preset => ({ value: preset.id, label: `${preset.name ?? preset.id} (${preset.id})` })),
+            onChange: value => set({ basePreset: value }),
+          })),
+          Field(t('agents.presetId', { id: agent.id ? `hub-agent-${agent.id}` : 'hub-agent-<id>' }), `agent-preset-id-${index}`,
+            h('span', { className: 'sah-monospace' }, `hub-agent-${agent.id || '<id>'}`))),
+        known.some(tag => !agent.needs.includes(tag))
+          ? h('div', { className: 'sah-tags' },
+            known.filter(tag => !agent.needs.includes(tag)).map(tag => h(Chip, {
+              key: tag,
+              tag,
+              onRemove: () => set({ needs: addTag(agent.needs, tag) }),
+            })))
+          : null)
     }
 
     // ── page ─────────────────────────────────────────────────────────────────────────────────────
@@ -559,12 +611,12 @@ window.__ModuleLoader__.load({
       return h(ConfigPage, { view: 'page', form: view, t, ctx })
     }
 
-    /** The page itself: the draft editor plus the save footer. */
+    /** The page itself: the route table, the named agents, and the save footer. */
     function ConfigPage({ view = 'page', form, t, ctx }) {
       const value = form?.state?.value ?? {}
       const initial = React.useMemo(() => draftsOf(value), [])
       const [draft, setDraft] = React.useState(initial)
-      const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [], query: '' })
+      const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [] })
       const [presets, setPresets] = React.useState([{ id: 'standard', name: 'standard' }])
       const [status, setStatus] = React.useState(undefined)
       const [busy, setBusy] = React.useState(false)
@@ -600,7 +652,7 @@ window.__ModuleLoader__.load({
             setPresets(list.length > 0 ? list : [{ id: 'standard', name: 'standard' }])
           }).catch(() => {})
         } catch {
-          // the preset roster is optional; the base preset list stays in place
+          // the preset roster is optional; the built-in list stays in place
         }
       }, [ctx, loadCatalog])
 
@@ -612,7 +664,6 @@ window.__ModuleLoader__.load({
         }))
       }
 
-      const selected = new Set(draft.routes.map(route => routeKey(route.provider, route.model)))
       const known = knownTags(draft.routes)
       const values = valuesOf(draft)
       const problem = draftProblem(draft)
@@ -629,16 +680,9 @@ window.__ModuleLoader__.load({
         routes.splice(target, 0, row)
         return { ...current, routes }
       })
-      const toggleModel = (provider, model) => setDraft(current => {
-        const key = routeKey(provider, model)
-        const index = current.routes.findIndex(route => routeKey(route.provider, route.model) === key)
-        if (index >= 0) {
-          const routes = current.routes.filter((_, at) => at !== index)
-          return { ...current, routes }
-        }
+      const addRoute = () => setDraft(current => {
         const taken = new Set(current.routes.map(route => route.id))
-        const route = { id: uniqueRouteId(model, taken), provider, model, reasoningEffort: '', tags: [], note: '' }
-        return { ...current, routes: [...current.routes, route] }
+        return { ...current, routes: [...current.routes, { id: uniqueRouteId('route', taken), provider: '', model: '', reasoningEffort: '', tags: [], note: '' }] }
       })
       const updateAgent = (index, agent) => setDraft(current => ({ ...current, agents: current.agents.map((item, at) => at === index ? agent : item) }))
       const removeAgent = index => setDraft(current => ({ ...current, agents: current.agents.filter((_, at) => at !== index) }))
@@ -663,81 +707,58 @@ window.__ModuleLoader__.load({
           setBusy(false)
         }
       }
-
-      const shellState = {
-        available: form !== undefined,
-        writable,
-        dirty,
-        invalid: problem !== undefined,
-        saving: busy,
-        failed: status?.kind === 'error',
-      }
-      const labels = {
-        unavailable: t('unavailable'),
-        readOnly: t('readOnly'),
-        saveFailed: t('saveFailed'),
-        save: t('save'),
-        saving: t('saving'),
+      const discard = () => {
+        setDraft(draftsOf(value))
+        setStatus(undefined)
       }
 
-      return h('div', { className: 'sah' },
+      return h('section', { className: 'sah' },
         style(),
+        form === undefined ? h('p', { className: 'sah-notice sah-status-error' }, t('unavailable')) : null,
         h('p', { className: 'sah-intro' }, t('intro')),
-        h('section', { className: 'sah-section' },
-          h('div', { className: 'sah-head' }, h('h3', { className: 'sah-title' }, t('official.title'))),
+        h('div', { className: 'sah-section' },
+          h('h3', { className: 'sah-title' }, t('official.title')),
           h('p', { className: 'sah-hint' }, t('official.hint')),
-          h('div', { className: 'sah-row' },
-            h(Toggle, {
+          h('label', { className: 'sah-switch' },
+            h('input', {
+              type: 'checkbox',
               checked: draft.manageOfficialSettings,
               disabled: !writable,
-              label: t('official.switch'),
-              onChange: value => setDraft(current => ({ ...current, manageOfficialSettings: value })),
-            }))),
-        h('section', { className: 'sah-section' },
-          h('div', { className: 'sah-head' }, h('h3', { className: 'sah-title' }, t('routes.title'))),
+              onChange: event => setDraft(current => ({ ...current, manageOfficialSettings: event.target.checked })),
+            }),
+            h('span', null, t('official.switch')))),
+        h('div', { className: 'sah-section' },
+          h('h3', { className: 'sah-title' }, t('routes.title')),
           h('p', { className: 'sah-hint' }, t('routes.hint')),
-          h('input', {
-            className: 'sah-input',
-            value: catalog.query,
-            placeholder: t('routes.search'),
-            onChange: event => setCatalog(current => ({ ...current, query: event.target.value })),
-          }),
-          h(ModelPicker, {
-            catalog: { ...catalog, retry: loadCatalog },
-            selected,
-            onToggle: toggleModel,
-            t,
-          }),
-          catalog.failures?.length > 0 ? h('p', { className: 'sah-notice' },
+          catalog.status === 'error'
+            ? h('p', { className: 'sah-notice sah-status-error' }, t('routes.catalogError'))
+            : null,
+          catalog.status === 'loading' ? h('p', { className: 'sah-notice' }, t('routes.loading')) : null,
+          catalog.status === 'ready' && catalog.groups.length === 0 ? h('p', { className: 'sah-notice' }, t('routes.empty')) : null,
+          catalog.failures.length > 0 ? h('p', { className: 'sah-notice' },
             t('routes.unavailable', { names: catalog.failures.map(failure => failure.id ?? failure.name).join(', ') })) : null,
-          h('div', { className: 'sah-head' }, h('h4', { className: 'sah-title' }, t('routes.selected'))),
           draft.routes.length === 0
-            ? h('div', { className: 'sah-empty' }, t('routes.none'))
-            : h('div', { className: 'sah-section' }, draft.routes.map((route, index) => h(RouteCard, {
+            ? h('p', { className: 'sah-hint' }, t('routes.none'))
+            : h('div', { className: 'sah-list' }, draft.routes.map((route, index) => h(RouteCard, {
               key: `${route.provider}/${route.model}/${index}`,
               route,
               index,
               total: draft.routes.length,
+              groups: catalog.groups,
               known,
               t,
               onChange: value => updateRoute(index, value),
               onRemove: () => removeRoute(index),
               onMove: moveRoute,
             }))),
-          h('div', { className: 'sah-actions' },
-            h(SmallButton, {
-              title: t('routes.addManual'),
-              onClick: () => setDraft(current => {
-                const taken = new Set(current.routes.map(route => route.id))
-                return { ...current, routes: [...current.routes, { id: uniqueRouteId('route', taken), provider: '', model: '', reasoningEffort: '', tags: [], note: '' }] }
-              }),
-            }, t('routes.addManual')))),
-        h('section', { className: 'sah-section' },
-          h('div', { className: 'sah-head' }, h('h3', { className: 'sah-title' }, t('agents.title'))),
+          h('div', { className: 'sah-options' },
+            h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: !writable, onClick: addRoute }, t('routes.addManual')))),
+        h('div', { className: 'sah-section' },
+          h('h3', { className: 'sah-title' }, t('agents.title')),
           h('p', { className: 'sah-hint' }, t('agents.hint')),
           draft.agents.length === 0
-            ? h('div', { className: 'sah-empty' }, t('agents.none'))
-            : h('div', { className: 'sah-section' }, draft.agents.map((agent, index) => h(AgentCard, {
+            ? h('p', { className: 'sah-hint' }, t('agents.none'))
+            : h('div', { className: 'sah-list' }, draft.agents.map((agent, index) => h(AgentCard, {
               key: `${agent.id}/${index}`,
               agent,
               index,
@@ -748,16 +769,30 @@ window.__ModuleLoader__.load({
               onChange: value => updateAgent(index, value),
               onRemove: () => removeAgent(index),
             }))),
-          h('div', { className: 'sah-actions' },
-            h(SmallButton, { title: t('agents.add'), onClick: addAgent }, t('agents.add')))),
+          h('div', { className: 'sah-options' },
+            h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: !writable, onClick: addAgent }, t('agents.add')))),
         h('details', { className: 'sah-details' },
           h('summary', null, t('preview.title')),
           catalogPreview(draft) === ''
             ? h('p', { className: 'sah-notice' }, t('preview.empty'))
             : h('pre', { className: 'sah-preview' }, catalogPreview(draft))),
-        status === undefined ? null : h('p', { className: status.kind === 'ok' ? 'sah-notice' : 'sah-notice sah-error' }, status.text),
-        h(FormShell, { state: shellState, labels, onSave: save, onDiscard: () => setDraft(draftsOf(value)) },
-          h('span', { className: 'sah-notice' })))
+        h('div', { className: 'sah-footer' },
+          h('div', { className: 'sah-footer-left' },
+            status === undefined
+              ? h('span', { className: 'sah-status' }, problem === undefined ? '' : t('invalid', { error: problem }))
+              : h('span', { className: `sah-status${status.kind === 'error' ? ' sah-status-error' : ''}`, role: 'status' }, status.text)),
+          h('button', {
+            type: 'button',
+            className: 'sah-btn sah-btn-outline',
+            disabled: !dirty || busy,
+            onClick: discard,
+          }, t('discard')),
+          h('button', {
+            type: 'button',
+            className: 'sah-btn sah-btn-primary',
+            disabled: !writable || !dirty || busy || problem !== undefined,
+            onClick: save,
+          }, busy ? t('saving') : t('save'))))
     }
 
     function apply(ctx) {
@@ -785,9 +820,11 @@ window.__ModuleLoader__.load({
       // Pure helpers, exported for tests only.
       ConfigPage,
       SectionPage,
-      ModelPicker,
       RouteCard,
       AgentCard,
+      providerChoices,
+      modelChoices,
+      effortChoices,
       draftsOf,
       valuesOf,
       saveOps,

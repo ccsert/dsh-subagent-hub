@@ -88,12 +88,16 @@ test('route ids are suggested from the model id and stay unique', () => {
   assert.equal(uniqueRouteId('flash', new Set(['flash', 'flash-2'])), 'flash-3')
 })
 
-test('the catalog filter matches provider and model names', () => {
-  const { filterCatalog } = loadClient()
-  assert.deepEqual(plain(filterCatalog(catalogGroups(), '').map(group => group.id)), ['p', 'q'])
-  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'provider q').map(group => group.id)), ['q'])
-  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'flash').map(group => group.models.map(model => model.id))), [['flash']])
-  assert.deepEqual(plain(filterCatalog(catalogGroups(), 'nothing')), [])
+test('provider, model and effort choices come from the Host catalog', () => {
+  const { providerChoices, modelChoices, effortChoices } = loadClient()
+  const groups = [{ id: 'p', name: 'Provider P', models: [{ id: 'flash', name: 'Flash', reasoning: { efforts: [{ id: 'high', name: 'High' }] } }] }]
+  assert.deepEqual(plain(providerChoices(groups, '')), [{ value: 'p', label: 'Provider P (p)' }])
+  assert.deepEqual(plain(modelChoices(groups, 'p', '')), [{ value: 'flash', label: 'Flash' }])
+  assert.deepEqual(plain(effortChoices(groups, 'p', 'flash', '')), [{ value: 'high', label: 'High' }])
+  // A stored value the catalog no longer lists stays selectable and is labelled as such.
+  assert.match(providerChoices(groups, 'gone')[0].label, /gone \(不在当前目录\)/)
+  assert.match(modelChoices(groups, 'p', 'old')[0].label, /old \(不在当前目录\)/)
+  assert.match(effortChoices(groups, 'p', 'flash', 'max')[0].label, /max \(不在当前目录\)/)
 })
 
 test('tags are unique, lowercased, and removable', () => {
@@ -125,7 +129,7 @@ test('summary shows counts and the managed state', () => {
   assert.match(html, /summary\.managedOn/)
 })
 
-test('the page renders the catalog picker, route cards, agent cards, and a save control', () => {
+test('the page renders route rows as dropdowns, agent cards, and a save footer', () => {
   const { ConfigPage } = loadClient()
   const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
   const ctx = {
@@ -136,30 +140,14 @@ test('the page renders the catalog picker, route cards, agent cards, and a save 
   }
   const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx }))
   for (const needle of [
-    'sah-intro', 'official.switch', 'routes.title', 'routes.search',
+    'sah-intro', 'official.switch', 'routes.title', 'sah-route', 'sah-select',
     'value="flash"', 'value="pro"', 'value="high"', 'value="Flash"',
     'value="reviewer"', 'Report only.', 'agents.title', 'agents.routesLabel',
-    'hub-agent-reviewer', 'preview.title', 'save',
+    'hub-agent-reviewer', 'preview.title', 'save', 'discard',
   ]) assert.ok(html.includes(needle), `missing ${needle}`)
-  // The route's provider/model come from the catalog, so they are shown, not typed.
-  assert.ok(html.includes('p/flash'), 'route identity missing')
-  // The catalog loads asynchronously; the page says so instead of showing an empty list.
+  // The route identity is a dropdown, not a typed provider/model pair.
+  assert.match(html, /<select[^>]*class="sah-select"/)
   assert.ok(html.includes('routes.loading'), 'catalog loading notice missing')
-})
-
-test('the model picker offers the Host catalog grouped by provider', () => {
-  const { ModelPicker } = loadClient()
-  const html = renderToStaticMarkup(React.createElement(ModelPicker, {
-    catalog: { status: 'ready', groups: catalogGroups(), failures: [], query: '', retry: () => {} },
-    selected: new Set(['p\u0000flash']),
-    onToggle: () => {},
-    t,
-  }))
-  assert.ok(html.includes('Provider P'), 'catalog group missing')
-  assert.ok(html.includes('Provider Q'), 'catalog group missing')
-  assert.ok(html.includes('p/flash'), 'catalog route missing')
-  assert.ok(html.includes('q/big'), 'catalog route missing')
-  assert.match(html, /checked=""/)
 })
 
 test('the page without a Host form explains itself', () => {

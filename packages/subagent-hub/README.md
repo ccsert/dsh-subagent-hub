@@ -22,8 +22,8 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 | 区块 | 交互 |
 |---|---|
 | 官方委派配置 | 一个开关：是否由本插件托管官方 allowlist |
-| 模型路由 | 从 Host 模型目录里**勾选**模型（按 provider 分组、可搜索），id 自动建议、可改；标签是可增删的胶囊；顺序即 `allowedModels` 顺序；另有“手动添加路由”兜底 |
-| 具名子 agent | id（实时显示 `hub-agent-<id>`）/ description / instructions；**勾选**允许使用的路由；能力标签胶囊；基础预设为下拉 |
+| 模型路由 | 每条一行：Provider / Model / 推理强度三个**下拉**（取自 Host 模型目录）；id 自动跟随模型名、可改；标签是可增删的胶囊；顺序即 `allowedModels` 顺序 |
+| 具名子 agent | id + description；instructions 文本域；允许使用的路由为**胶囊**（点击切换）；能力标签胶囊；基础预设为下拉；显示最终的 `hub-agent-<id>` |
 | 目录预览 | 折叠区实时显示主 agent 会看到的“模型 → 标签 / 具名 agent → 用途” |
 
 保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
@@ -98,7 +98,7 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 ## 测试
 
 ```sh
-bash test.sh   # 44 项单元测试 + 16 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 48 项单元测试 + 16 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
 e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新。

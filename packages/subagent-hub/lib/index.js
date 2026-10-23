@@ -1,21 +1,35 @@
-// `subagentHub` Host service: route table, layered named agents, derived presets, and planning.
+// `subagentHub` Host service: route table, layered named agents, derived presets, planning,
+// and session-level definitions with approval-gated promotion.
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { load } from 'js-yaml'
+import { dump, load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
-import { agentOptionsFor, decide, indexRoutes, knownTags, RoutingError } from './router.js'
+import { agentOptionsFor, candidates, decide, indexRoutes, knownTags, RoutingError } from './router.js'
 import { deriveAgentPreset, deriveHubPreset } from './presets.js'
 import { fingerprint, mergeLayers, normalizeDefinition, readWorkspaceDefinitions } from './definitions.js'
-import { definition as projection } from './projection.js'
+import { definition as projection, PROJECTION_KEY } from './projection.js'
 
 export { RoutingError }
 
 const PACKAGE = 'dsh-subagent-hub'
 const HUB_SUFFIX = '+hub'
 const PRESET_WAIT_MS = 30_000
+export const PERSIST_SCOPES = ['session', 'workspace', 'profile']
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+/** A volatile field arrives as a cell with `get()`; tolerate a plain value too. */
+const read = field => (field !== null && typeof field === 'object' && typeof field.get === 'function' ? field.get() : field)
+/** Plain JSON copy of a definition for config writes and files. */
+const portable = ({ id, description, instructions, routes, needs, basePreset }) => ({
+  id, description,
+  ...(instructions ? { instructions } : {}),
+  ...(routes?.length ? { routes } : {}),
+  ...(needs?.length ? { needs } : {}),
+  ...(basePreset && basePreset !== 'standard' ? { basePreset } : {}),
+})
 
 export default class SubagentHub extends Service {
   static inject = ['agentPresets', 'subagents']
@@ -23,6 +37,8 @@ export default class SubagentHub extends Service {
   static Config = z.object({
     basePresets: z.array(z.string()).default(['standard', 'ptc', 'cordis'])
       .description('Shipped presets to derive a `<id>+hub` variant from.'),
+    // Volatile: edited from the Settings page and by approved `define_subagent` promotions
+    // without reloading the plugin under a running tool call.
     routes: z.array(z.object({
       id: z.string().required(),
       provider: z.string().required(),
@@ -30,7 +46,7 @@ export default class SubagentHub extends Service {
       reasoningEffort: z.string(),
       tags: z.array(z.string()).default([]),
       note: z.string(),
-    })).default([]).description('Child routes in preference order, tagged by capability.'),
+    })).default([]).volatile().description('Child routes in preference order, tagged by capability.'),
     agents: z.array(z.object({
       id: z.string().required(),
       description: z.string().required(),
@@ -38,7 +54,7 @@ export default class SubagentHub extends Service {
       routes: z.array(z.string()),
       needs: z.array(z.string()),
       basePreset: z.string().default('standard'),
-    })).default([]).description('Profile-level named agents.'),
+    })).default([]).volatile().description('Profile-level named agents.'),
     workspaceDir: z.string().default('.dsh/subagents')
       .description('Workspace-relative directory of named agent YAML files.'),
   })
@@ -46,19 +62,19 @@ export default class SubagentHub extends Service {
   constructor(ctx, config) {
     super(ctx, 'subagentHub')
     this.config = config
-    this.routes = indexRoutes(config.routes)
-    this.profileAgents = config.agents.map((raw, index) => normalizeDefinition(raw, `profile:agents[${index}]`))
+    this.entry = ctx.fiber?.entry
     /** @type {Map<string, Promise<any[]>>} parsed rows per base preset */
     this.baseRows = new Map()
     /** @type {Map<string, Promise<string>>} named agent preset id per fingerprinted definition */
     this.agentPresets = new Map()
     this.disposers = []
+    this.cache = { routesRaw: undefined, routes: undefined, agentsRaw: undefined, agents: undefined }
     /** Settles once every `<base>+hub` preset is registered or reported missing. */
     this.ready = undefined
   }
 
   async *[Service.init]() {
-    // Global so every Session (parent and child) folds its own delegate results.
+    // Global so every Session (parent and child) folds its own delegate and define results.
     this.ctx.inject(['sessionProjections'], (scope) => {
       scope.sessionProjections.register(projection)
     })
@@ -68,6 +84,26 @@ export default class SubagentHub extends Service {
       const disposers = this.disposers.splice(0).reverse()
       for (const dispose of disposers) await dispose()
     }
+  }
+
+  /** Current route table, re-indexed only when the volatile value changes. */
+  get routes() {
+    const raw = read(this.config.routes) ?? []
+    if (raw !== this.cache.routesRaw) {
+      this.cache.routes = indexRoutes(raw)
+      this.cache.routesRaw = raw
+    }
+    return this.cache.routes
+  }
+
+  /** Current profile-level agents, re-normalized only when the volatile value changes. */
+  get profileAgents() {
+    const raw = read(this.config.agents) ?? []
+    if (raw !== this.cache.agentsRaw) {
+      this.cache.agents = raw.map((item, index) => normalizeDefinition(item, `profile:agents[${index}]`))
+      this.cache.agentsRaw = raw
+    }
+    return this.cache.agents
   }
 
   async waitForPreset(id) {
@@ -88,6 +124,7 @@ export default class SubagentHub extends Service {
         const document = await this.ctx.agentPresets.readDocument(base)
         return load(document.content, { schema: entryListSchema })
       })()
+      rows.catch(() => this.baseRows.delete(base))
       this.baseRows.set(base, rows)
     }
     return rows
@@ -150,11 +187,18 @@ export default class SubagentHub extends Service {
     return this.ctx.get('workingDirectory')?.get(agent.session) ?? agent.session.header.cwd
   }
 
-  /** Named agents visible to one calling Agent: profile < workspace. */
+  /** Definitions recorded in one Session's own log through `define_subagent`. */
+  sessionAgents(agent) {
+    const state = this.ctx.get('sessionProjections')?.stateOf(agent.session, PROJECTION_KEY)
+    return Object.values(state?.definitions ?? {}).map(item => ({ ...item, source: `session:${agent.id}` }))
+  }
+
+  /** Named agents visible to one calling Agent: profile < workspace < session. */
   definitionsFor(agent) {
     const cwd = agent === undefined ? undefined : this.cwdOf(agent)
     const workspace = cwd === undefined ? { agents: [], errors: [] } : readWorkspaceDefinitions(cwd, this.config.workspaceDir)
-    return { agents: mergeLayers(this.profileAgents, workspace.agents), errors: workspace.errors }
+    const session = agent === undefined ? [] : this.sessionAgents(agent)
+    return { agents: mergeLayers(this.profileAgents, workspace.agents, session), errors: workspace.errors }
   }
 
   /**
@@ -189,22 +233,83 @@ export default class SubagentHub extends Service {
     }
   }
 
+  /**
+   * Validate and prepare a definition authored by the model, then promote it when asked and approved.
+   * The session layer always records it (through the tool result meta), so a rejected promotion
+   * still leaves the agent usable for this Session.
+   * @returns {Promise<{ definition: object, persisted: string, promotion?: { scope: string, outcome: string, target?: string } }>}
+   */
+  async define({ raw, persist = 'session', caller, callId, signal }) {
+    if (!PERSIST_SCOPES.includes(persist)) throw new RoutingError(`persist must be one of: ${PERSIST_SCOPES.join(', ')}`)
+    const definition = normalizeDefinition(raw, `session:${caller.id}`)
+    // Route refs and tags must resolve against today's table; this throws a model-readable error.
+    if ((definition.routes?.length ?? 0) > 0 || (definition.needs?.length ?? 0) > 0) {
+      const { pool, wanted } = candidates(this.routes, definition, [])
+      if (pool.length === 0) throw new RoutingError(`no route satisfies agent "${definition.id}" (routes ${definition.routes?.join(', ') || 'any'}, needs ${wanted.join(', ') || 'none'})`)
+    }
+    await this.ensureAgentPreset(definition)
+    if (persist === 'session') return { definition, persisted: 'session' }
+
+    const approval = this.ctx.get('approval')
+    const target = persist === 'workspace'
+      ? join(this.cwdOf(caller), this.config.workspaceDir, `${definition.id}.yaml`)
+      : 'profile configuration (subagent-hub agents)'
+    const reason = `Save named subagent "${definition.id}" to ${persist} (${target}). Its instructions become a standing system prompt for every child started as "${definition.id}":\n\n${definition.instructions || '(no instructions)'}`
+    const outcome = approval === undefined
+      ? 'unavailable'
+      : await approval.request({
+        agent: caller,
+        toolName: 'define_subagent',
+        ...(callId === undefined ? {} : { callId }),
+        reason,
+        displayReason: {
+          en: `Save subagent "${definition.id}" to ${persist}`,
+          zh: `将子代理「${definition.id}」保存到${persist === 'workspace' ? '工作区' : 'profile 配置'}`,
+        },
+        signal,
+      })
+    if (outcome !== 'allowed-once') return { definition, persisted: 'session', promotion: { scope: persist, outcome } }
+
+    if (persist === 'workspace') {
+      mkdirSync(join(this.cwdOf(caller), this.config.workspaceDir), { recursive: true })
+      writeFileSync(target, dump(portable(definition), { lineWidth: -1 }))
+    } else {
+      const editor = this.ctx.get('configEditor')
+      if (editor === undefined || this.entry === undefined) {
+        return { definition, persisted: 'session', promotion: { scope: persist, outcome: 'unavailable', target: 'configEditor or plugin entry missing' } }
+      }
+      try {
+        await editor.edit(this.entry, (current) => {
+          const agents = Array.isArray(current.agents) ? current.agents.filter(item => item?.id !== definition.id) : []
+          return { ...current, agents: [...agents, portable(definition)] }
+        })
+      } catch (error) {
+        // e.g. the row's config is pinned by a home patch or command-line overlay.
+        return { definition, persisted: 'session', promotion: { scope: persist, outcome: 'failed', target: String(error?.message ?? error) } }
+      }
+    }
+    return { definition, persisted: persist, promotion: { scope: persist, outcome, target } }
+  }
+
   /** Model-facing catalog for the calling Agent. */
-  promptSection(scope, toolName) {
+  promptSection(scope, toolName, defineToolName) {
     const { agents, errors } = this.definitionsFor(scope)
     const lines = [`## Delegation with \`${toolName}\``]
     lines.push(`Pass \`agent\` to use a named agent, and/or \`needs\` to request capabilities; the harness picks the concrete model. Never name a model yourself. Omit both to run the child on your own model.`)
     if (agents.length > 0) {
       lines.push('', 'Named agents:')
-      for (const agent of agents) lines.push(`- \`${agent.id}\`: ${agent.description}`)
+      for (const agent of agents) lines.push(`- \`${agent.id}\`: ${agent.description}${agent.source.startsWith('session:') ? ' (defined in this session)' : ''}`)
     }
     const tags = this.tags()
     if (tags.length > 0) {
-      lines.push('', 'Capability tags:')
+      lines.push('', 'Capability tags for `needs`:')
       for (const tag of tags) {
         const routes = [...this.routes.values()].filter(route => route.tags.includes(tag)).map(route => route.note ?? route.id)
         lines.push(`- \`${tag}\` (${routes.join(', ')})`)
       }
+    }
+    if (defineToolName !== undefined) {
+      lines.push('', `Use \`${defineToolName}\` to create a reusable named agent for this session when the same role will be delegated more than once. Ask to persist it (\`workspace\` or \`profile\`) only when the user wants it kept; that requires the user's approval.`)
     }
     if (errors.length > 0) lines.push('', `Some workspace agent files failed to load and are unavailable: ${errors.join('; ')}`)
     return lines.join('\n')

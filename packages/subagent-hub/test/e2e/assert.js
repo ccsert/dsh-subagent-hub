@@ -68,5 +68,32 @@ check('bundle: client module is scanned and served from lib/client.js', () => {
   assert.match(report.client.clientPath ?? '', /lib\/client\.js$/)
 })
 
+const define = checks.define
+check('define: approved workspace definition lands as a YAML file and in the log', () => {
+  assert.match(define.scribe.text, /defined subagent "scribe" \(workspace:/)
+  assert.match(define.workspaceFile, /id: scribe/)
+  assert.match(define.workspaceFile, /HUB-SCRIBE-MARKER/)
+})
+check('define: a rejected promotion stays session-only', () => {
+  assert.match(define.ghost.text, /this session only; saving to profile was not approved \(rejected\)/)
+  assert.equal(define.ghost.meta.subagentHubDefine.persisted, 'session')
+  assert.ok(!define.profileAgentsNow.includes('ghostwriter'))
+})
+check('define: an approved profile promotion writes the profile patch and reloads live', () => {
+  assert.match(define.archivist.text, /defined subagent "archivist" \(profile:/)
+  assert.equal(define.profilePatchHasArchivist, true)
+  assert.ok(define.profileAgentsNow.includes('archivist'))
+})
+check('define: an invalid definition is rejected with the offending route', () => assert.match(define.bad.text, /unknown route "nope"/))
+check('define: exactly three approval asks for three promotions', () => assert.equal(define.approvals.length, 3))
+check('define: the session layer exposes all three agents, and one is delegated with its own preset', () => {
+  assert.deepEqual(define.sessionDefinitions, ['archivist', 'ghostwriter', 'scribe'])
+  assert.match(define.scribeRun.reason, /tagged fast/)
+  assert.match(define.scribeChild.preset, /^hub-agent-scribe-/)
+  assert.equal(define.scribeChild.marker, true)
+  assert.equal(define.scribeChild.request, 'deepseek-official/deepseek-flash')
+  assert.equal(define.lastText, 'HUB-E2E-DEFINE done')
+})
+
 console.log(results.join('\n'))
 if (results.some(line => line.startsWith('FAIL'))) process.exit(1)

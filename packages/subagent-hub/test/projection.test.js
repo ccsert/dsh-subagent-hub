@@ -23,6 +23,18 @@ test('unrelated events and foreign or malformed meta keep the same reference', (
   assert.equal(apply(state, result({ subagentHub: record }, { error: { name: 'E', code: 'X' } })), state)
 })
 
+test('define_subagent results fold into session definitions; a later one replaces by id', () => {
+  const def = { id: 'scribe', description: 'Writes docs', instructions: 'Be clear.', basePreset: 'standard', persisted: 'session' }
+  let state = apply(init(), result({ subagentHubDefine: def }))
+  assert.deepEqual(state.definitions.scribe, { ...def, seq: 7 })
+  assert.deepEqual(state.runs, [])
+  state = apply(state, { ...result({ subagentHubDefine: { ...def, instructions: 'Be terse.', persisted: 'workspace' } }), seq: 12 })
+  assert.equal(state.definitions.scribe.instructions, 'Be terse.')
+  assert.equal(state.definitions.scribe.seq, 12)
+  assert.ok(definition.stateSchema.safeParse(state).success)
+  assert.equal(apply(state, result({ subagentHubDefine: { id: 'broken' } })), state)
+})
+
 test('runs accumulate in log order', () => {
   let state = init()
   state = apply(state, result({ subagentHub: record }))

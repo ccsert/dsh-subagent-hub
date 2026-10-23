@@ -42,12 +42,55 @@ export function apply(ctx, config) {
   // Scripted model for the full-turn check: the root asks for one `delegate` call, every other
   // request answers with text. Intercepting `llm/stream` before `next()` means no adapter runs.
   const textOf = message => (message.content ?? []).filter(block => block.type === 'text').map(block => block.text).join('')
+  // Scripted turns keyed by a marker in the user message; the step index is the number of tool
+  // results already answered in this turn.
+  const scripts = {
+    'HUB-E2E-TURN': [
+      [toolCall('call-hub-e2e', 'delegate', { description: 'turn check', prompt: 'HUB-E2E-CHILD do it', needs: ['reasoning'] })],
+    ],
+    'HUB-E2E-DEFINE': [
+      [
+        toolCall('def-scribe', 'define_subagent', { id: 'scribe', description: 'Writes release notes', instructions: 'HUB-SCRIBE-MARKER Write crisp notes.', needs: ['fast'], persist: 'workspace' }),
+        toolCall('def-ghost', 'define_subagent', { id: 'ghostwriter', description: 'Ghost writes', instructions: 'HUB-GHOST-MARKER', persist: 'profile' }),
+        toolCall('def-archivist', 'define_subagent', { id: 'archivist', description: 'Files things away', instructions: 'HUB-ARCHIVIST-MARKER', routes: ['flash'], persist: 'profile' }),
+        toolCall('def-bad', 'define_subagent', { id: 'broken', description: 'Bad routes', instructions: 'x', routes: ['nope'] }),
+      ],
+      [toolCall('call-scribe', 'delegate', { description: 'scribe run', prompt: 'HUB-E2E-CHILD notes', agent: 'scribe' })],
+    ],
+  }
   ctx.on('llm/stream', function (options) {
     const messages = options.messages ?? []
-    if (!messages.some(message => message.role === 'user' && textOf(message).includes('HUB-E2E-TURN'))) return scripted([text('child done')])
-    const delegated = messages.some(message => message.role === 'tool')
-    return scripted(delegated ? [text('parent done')] : [toolCall('call-hub-e2e', 'delegate', { description: 'turn check', prompt: 'HUB-E2E-CHILD do it', needs: ['reasoning'] })])
+    // The runtime appends its own `user`-role context on every step, so the scripted prompt is
+    // located by its marker text, never by "the last user message".
+    let promptIndex = -1
+    let marker
+    messages.forEach((message, index) => {
+      if (message.role !== 'user') return
+      const text = textOf(message)
+      const found = Object.keys(scripts).find(key => text.includes(key))
+      if (found !== undefined) {
+        marker = found
+        promptIndex = index
+      }
+    })
+    if (marker === undefined) return scripted([text('child done')])
+    const steps = scripts[marker]
+    const answered = messages.slice(promptIndex + 1).filter(message => message.role === 'tool').length
+    let step = 0
+    for (let consumed = 0; step < steps.length && consumed + steps[step].length <= answered; step++) consumed += steps[step].length
+    return scripted(step < steps.length ? steps[step] : [text(`${marker} done`)])
   })
+
+  // Approval answerer ahead of the shipped ones: approve scribe and archivist, reject the rest.
+  const approvals = []
+  ctx.on('approval/request', async function (request, next) {
+    if (request.toolName !== 'define_subagent') return next()
+    const approve = /"(scribe|archivist)"/.test(request.reason ?? '')
+    approvals.push({ toolName: request.toolName, display: request.displayReason?.en, approve })
+    report.approvalsLive = approvals
+    flush()
+    return approve ? 'allowed-once' : 'rejected'
+  }, true) // prepend: the web profile's browser answerer would otherwise wait for a click
 
   ctx.on('agent/request', async function (payload, next) {
     const resolved = await next()
@@ -86,6 +129,24 @@ export function apply(ctx, config) {
     }
   }
 
+  const runTurn = async (prompt) => {
+    const root = (await ctx.agents.create({
+      sessionId: `session-${randomUUID()}`,
+      agentOptions: report.parentModel,
+      meta: { cwd: config.cwd, agentPreset: PARENT_PRESET },
+      setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, PARENT_PRESET) },
+    })).agent
+    root.followup(createUserMessage({ content: [{ type: 'text', text: prompt }], source: { kind: 'user' } }))
+    const subagents = ctx.get('subagents')
+    const deadline = Date.now() + 30000
+    while (Date.now() < deadline) {
+      await root.whenIdle()
+      const idleSeq = root.session.seq
+      if (!await subagents.waitForChildren(root) && root.status === 'idle' && root.session.seq === idleSeq) break
+    }
+    return root
+  }
+
   const main = async () => {
     try {
       report.hub = await ctx.subagentHub.ready
@@ -117,20 +178,8 @@ export function apply(ctx, config) {
       report.checks.confined = await delegate(root, { description: 'confined', prompt: 'x', agent: 'reviewer', needs: ['vision'] })
 
       // Full turn through the agent loop: durable tool/result.meta, projection, child truth.
-      const turnRoot = (await ctx.agents.create({
-        sessionId: `session-${randomUUID()}`,
-        agentOptions: report.parentModel,
-        meta: { cwd: config.cwd, agentPreset: PARENT_PRESET },
-        setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, PARENT_PRESET) },
-      })).agent
-      turnRoot.followup(createUserMessage({ content: [{ type: 'text', text: 'HUB-E2E-TURN delegate once' }], source: { kind: 'user' } }))
-      const subagents = ctx.get('subagents')
-      const deadline = Date.now() + 30000
-      while (Date.now() < deadline) {
-        await turnRoot.whenIdle()
-        const idleSeq = turnRoot.session.seq
-        if (!await subagents.waitForChildren(turnRoot) && turnRoot.status === 'idle' && turnRoot.session.seq === idleSeq) break
-      }
+      report.stage = 'turn'; flush()
+      const turnRoot = await runTurn('HUB-E2E-TURN delegate once')
       const events = turnRoot.session.snapshotEvents()
       const result = events.find(event => event.type === 'tool/result' && event.data.message.toolCallId === 'call-hub-e2e')
       const runs = ctx.sessionProjections.snapshot(turnRoot.session, ['subagentHub']).values.subagentHub?.runs ?? []
@@ -145,6 +194,35 @@ export function apply(ctx, config) {
         childTokenUsage: childValues.tokenUsage,
         childFound: childSession !== undefined,
         lastText: events.filter(event => event.type === 'assistant/message').map(event => textOf(event.data.message)).at(-1),
+      }
+
+      // M3: define (session / approved workspace / rejected profile / approved profile / invalid), then delegate.
+      report.stage = 'define'; flush()
+      const defineRoot = await runTurn('HUB-E2E-DEFINE make agents')
+      report.stage = 'define-done'; flush()
+      const defineEvents = defineRoot.session.snapshotEvents()
+      const resultFor = id => {
+        const event = defineEvents.find(item => item.type === 'tool/result' && item.data.message.toolCallId === id)
+        return event === undefined ? undefined : { meta: event.data.meta, error: event.data.error, text: textOf(event.data.message) }
+      }
+      const state = ctx.sessionProjections.stateOf(defineRoot.session, 'subagentHub')
+      const scribeRun = state?.runs.find(run => run.agent === 'scribe')
+      const scribeChild = scribeRun === undefined ? undefined : children.get(scribeRun.subagentId)
+      const { readFileSync, existsSync } = await import('node:fs')
+      const workspaceFile = `${config.cwd}/.dsh/subagents/scribe.yaml`
+      report.checks.define = {
+        scribe: resultFor('def-scribe'),
+        ghost: resultFor('def-ghost'),
+        archivist: resultFor('def-archivist'),
+        bad: resultFor('def-bad'),
+        approvals,
+        sessionDefinitions: Object.keys(state?.definitions ?? {}).sort(),
+        workspaceFile: existsSync(workspaceFile) ? readFileSync(workspaceFile, 'utf8') : undefined,
+        profilePatchHasArchivist: readFileSync(config.profilePatch, 'utf8').includes('archivist'),
+        profileAgentsNow: ctx.subagentHub.profileAgents.map(agent => agent.id),
+        scribeRun,
+        scribeChild: scribeChild === undefined ? undefined : { preset: scribeChild.preset, marker: scribeChild.prompt.includes('HUB-SCRIBE-MARKER'), request: requests.get(scribeRun.subagentId) },
+        lastText: defineEvents.filter(event => event.type === 'assistant/message').map(event => textOf(event.data.message)).at(-1),
       }
     } catch (error) {
       report.fatal = String(error?.stack ?? error)

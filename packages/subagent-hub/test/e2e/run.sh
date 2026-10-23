@@ -39,7 +39,11 @@ json.dump(manifest, open(path, 'w'), indent=2)
 PYEOF
 ln -sfn "$HERE/driver" "$DSH_HOME/profiles/web/node_modules/hub-e2e-driver"
 
-cat >"$DSH_HOME/e2e.patch.yml" <<YAML
+# The hub row is configured in the profile's own patch layer, exactly where a user (and an
+# approved profile promotion) writes it; only the test driver comes from the overlay.
+# A fresh profile patch is the empty list `[]`; drop it so entries can follow.
+sed -i.bak '/^\[\]$/d' "$DSH_HOME/profiles/web/cordis.patch.yml" && rm -f "$DSH_HOME/profiles/web/cordis.patch.yml.bak"
+cat >>"$DSH_HOME/profiles/web/cordis.patch.yml" <<YAML
 - id: subagent-hub
   config:
     routes:
@@ -51,12 +55,16 @@ cat >"$DSH_HOME/e2e.patch.yml" <<YAML
         description: Reviews a diff and reports findings
         instructions: HUB-REVIEWER-MARKER Report findings only.
         routes: [flash]
+YAML
+
+cat >"$DSH_HOME/e2e.patch.yml" <<YAML
 - insert:
     - id: hub-e2e-driver
       name: hub-e2e-driver
       config:
         out: $REPORT
         cwd: $CWD
+        profilePatch: $DSH_HOME/profiles/web/cordis.patch.yml
 YAML
 
 env -u DEEPSEEK_API_KEY -u MAGPIE_GATEWAY_KEY \

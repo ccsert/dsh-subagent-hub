@@ -9,7 +9,7 @@ DeepSeek Harness 插件：子 agent 的定义、模型路由与可视化。
 
 执行全部复用官方 `subagents` 服务，不另造运行时。
 
-设计与决策见 [`docs/design.md`](docs/design.md)。
+设计与决策见 [`docs/design.md`](docs/design.md)，安装步骤见 [`docs/install.md`](docs/install.md)，版本变更见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 ## 状态
 

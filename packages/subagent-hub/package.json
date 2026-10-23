@@ -1,10 +1,14 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Named subagents, capability-based child model routing, a delegate tool, and a subagent routing panel for DeepSeek Harness.",
   "license": "MIT",
   "type": "module",
-  "repository": { "type": "git", "url": "git+https://github.com/ccsert/dsh-subagent-hub.git", "directory": "packages/subagent-hub" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ccsert/dsh-subagent-hub.git",
+    "directory": "packages/subagent-hub"
+  },
   "exports": {
     ".": "./lib/index.js",
     "./delegate": "./lib/delegate.js",
@@ -15,12 +19,21 @@
     "./delegate/locale/*.json": "./delegate/locale/*.json",
     "./delegate/icon": "./icon.svg"
   },
-  "files": ["lib", "locale/*.json", "delegate/locale/*.json", "icon.svg", "cordis.patch.yml", "README.md"],
+  "files": [
+    "lib",
+    "locale/*.json",
+    "delegate/locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md"
+  ],
   "scripts": {
     "test": "node --test test/*.test.js"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,

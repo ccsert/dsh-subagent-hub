@@ -95,5 +95,24 @@ check('define: the session layer exposes all three agents, and one is delegated 
   assert.equal(define.lastText, 'HUB-E2E-DEFINE done')
 })
 
+const budget = checks.budget
+check('budget: usage reports no running child and a real token total', () => {
+  assert.equal(budget.usage.running, 0)
+  assert.ok(budget.usage.tokens > 0, `expected tokens > 0, got ${budget.usage.tokens}`)
+  assert.equal(budget.limits.maxConcurrent, 2)
+})
+check('budget: a delegation over the concurrency limit is refused with a model-readable reason', () => {
+  assert.match(budget.budgetError, /delegation budget: 0 of 0 concurrent subagents/)
+})
+check('define sources: a registered source contributes agents, and its disposer removes them', () => {
+  assert.ok(budget.externVisible.some(entry => entry === 'extern:source:central-test'), budget.externVisible.join(','))
+  assert.ok(!budget.afterDispose.includes('extern'))
+})
+check('define sources: a source-contributed agent delegates with its own preset and instructions', () => {
+  assert.equal(budget.extern.value.agent, 'extern')
+  assert.match(budget.extern.preset, /^hub-agent-extern-/)
+  assert.match(budget.extern.prompt, /HUB-EXTERN-MARKER/)
+})
+
 console.log(results.join('\n'))
 if (results.some(line => line.startsWith('FAIL'))) process.exit(1)

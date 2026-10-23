@@ -10,6 +10,7 @@ import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
 import { agentOptionsFor, candidates, decide, indexRoutes, knownTags, RoutingError } from './router.js'
 import { deriveAgentPreset, deriveHubPreset } from './presets.js'
 import { fingerprint, mergeLayers, normalizeDefinition, readWorkspaceDefinitions } from './definitions.js'
+import { assertBudget, sumUsage } from './budget.js'
 import { definition as projection, PROJECTION_KEY } from './projection.js'
 
 export { RoutingError }
@@ -57,6 +58,10 @@ export default class SubagentHub extends Service {
     })).default([]).volatile().description('Profile-level named agents.'),
     workspaceDir: z.string().default('.dsh/subagents')
       .description('Workspace-relative directory of named agent YAML files.'),
+    maxConcurrent: z.natural().default(4)
+      .description('How many subagents of one Session may run at once; `delegate` refuses beyond it.'),
+    maxTokensPerSession: z.natural()
+      .description('Optional cap on the tokens this Session\'s subagents may consume; `delegate` refuses beyond it.'),
   })
 
   constructor(ctx, config) {
@@ -68,6 +73,10 @@ export default class SubagentHub extends Service {
     /** @type {Map<string, Promise<string>>} named agent preset id per fingerprinted definition */
     this.agentPresets = new Map()
     this.disposers = []
+    /** @type {Map<string, { id: string, priority: number, definitions: Function }>} external definition sources */
+    this.sources = new Map()
+    /** @type {Map<string, { parentId: string, tokens: number }>} last token total of each disposed child */
+    this.ledger = new Map()
     this.cache = { routesRaw: undefined, routes: undefined, agentsRaw: undefined, agents: undefined }
     /** Settles once every `<base>+hub` preset is registered or reported missing. */
     this.ready = undefined
@@ -77,6 +86,21 @@ export default class SubagentHub extends Service {
     // Global so every Session (parent and child) folds its own delegate and define results.
     this.ctx.inject(['sessionProjections'], (scope) => {
       scope.sessionProjections.register(projection)
+    })
+    // A finished child is disposed before its parent asks again, so remember its final token
+    // total while its Session is still readable. Latest total per child wins, so a resumed child
+    // is never counted twice. The ledger is per process: a restart forgets it.
+    this.ctx.on('agent/disposed', ({ agent }) => {
+      const parentId = agent.session.header.parentSession
+      if (parentId === undefined) return
+      try {
+        const projections = this.ctx.get('sessionProjections')
+        if (projections === undefined) return
+        const tokens = sumUsage(projections.stateOf(agent.session, 'tokenUsage'))
+        if (tokens !== undefined) this.ledger.set(String(agent.id), { parentId: String(parentId), tokens })
+      } catch {
+        // projections unavailable at teardown: this child simply stays unaccounted
+      }
     })
     this.ready = this.deriveHubPresets()
     yield async () => {
@@ -183,6 +207,95 @@ export default class SubagentHub extends Service {
     return knownTags(this.routes)
   }
 
+  /** Effective delegation limits; volatile so the settings page and patches can retune them. */
+  limits() {
+    return {
+      maxConcurrent: read(this.config.maxConcurrent),
+      maxTokensPerSession: read(this.config.maxTokensPerSession),
+    }
+  }
+
+  /**
+   * Observed budget usage for one Session: children still running, and the tokens those children
+   * consumed (live ones read from their Session, disposed ones from the ledger).
+   */
+  async usage(parent) {
+    const usage = {}
+    const projections = this.ctx.get('sessionProjections')
+    const agents = this.ctx.get('agents')
+    let live = new Set()
+    let tokens = 0
+    let known = false
+    try {
+      if (agents !== undefined) {
+        const children = agents.list().filter(agent => agent.session.header.parentSession === parent.id)
+        usage.running = children.filter(agent => agent.status === 'running').length
+        live = new Set(children.map(agent => String(agent.id)))
+        if (projections !== undefined) {
+          for (const agent of children) {
+            const value = sumUsage(projections.stateOf(agent.session, 'tokenUsage'))
+            if (value !== undefined) {
+              tokens += value
+              known = true
+            }
+          }
+        }
+      }
+    } catch {
+      // no Agent registry in this composition
+    }
+    for (const [childId, entry] of this.ledger) {
+      if (entry.parentId !== String(parent.id) || live.has(childId)) continue
+      tokens += entry.tokens
+      known = true
+    }
+    if (known) usage.tokens = tokens
+    return usage
+  }
+
+  /** Reject one delegation that would exceed the Session's budget. */
+  async checkBudget(parent, limits = this.limits()) {
+    assertBudget(limits, await this.usage(parent))
+  }
+
+  /**
+   * Contribute named agents from an external store (a central service, a shared drive).
+   * Definitions are plain objects in the same shape as the `agents` config; a source with a lower
+   * priority is overridden by a higher one, and both lose to the workspace and session layers.
+   * @param {{ id: string, priority?: number, definitions: (agent: any) => any[] }} source
+   * @returns {() => void} disposer
+   */
+  registerSource(source) {
+    if (!source?.id) throw new Error('subagent-hub: a definition source needs an id')
+    if (typeof source.definitions !== 'function') throw new Error(`subagent-hub: source "${source.id}" must expose definitions(agent)`)
+    if (this.sources.has(source.id)) throw new Error(`subagent-hub: duplicate definition source "${source.id}"`)
+    this.sources.set(source.id, { id: source.id, priority: source.priority ?? 15, definitions: source.definitions })
+    return () => { this.sources.delete(source.id) }
+  }
+
+  /** Named agents one external source contributes, normalized and tagged with the source id. */
+  externalAgents(agent) {
+    const ordered = [...this.sources.values()].sort((left, right) => left.priority - right.priority || left.id.localeCompare(right.id))
+    const agents = []
+    for (const source of ordered) {
+      let raw = []
+      try {
+        raw = source.definitions(agent) ?? []
+      } catch (error) {
+        this.ctx.logger?.warn?.(`subagent-hub: definition source "${source.id}" failed: ${String(error?.message ?? error)}`)
+        continue
+      }
+      for (const item of raw) {
+        try {
+          agents.push(normalizeDefinition(item, `source:${source.id}`))
+        } catch (error) {
+          this.ctx.logger?.warn?.(`subagent-hub: source "${source.id}" has an invalid definition: ${String(error?.message ?? error)}`)
+        }
+      }
+    }
+    return agents
+  }
+
   cwdOf(agent) {
     return this.ctx.get('workingDirectory')?.get(agent.session) ?? agent.session.header.cwd
   }
@@ -197,8 +310,9 @@ export default class SubagentHub extends Service {
   definitionsFor(agent) {
     const cwd = agent === undefined ? undefined : this.cwdOf(agent)
     const workspace = cwd === undefined ? { agents: [], errors: [] } : readWorkspaceDefinitions(cwd, this.config.workspaceDir)
+    const external = agent === undefined ? [] : this.externalAgents(agent)
     const session = agent === undefined ? [] : this.sessionAgents(agent)
-    return { agents: mergeLayers(this.profileAgents, workspace.agents, session), errors: workspace.errors }
+    return { agents: mergeLayers(this.profileAgents, workspace.agents, external, session), errors: workspace.errors }
   }
 
   /**

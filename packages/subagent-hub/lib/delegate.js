@@ -57,6 +57,7 @@ export function apply(ctx, config) {
     async execute(args, exec) {
       const parent = exec.agent
       if (parent === undefined) throw new Error('delegate requires a calling agent')
+      await hub.checkBudget(parent)
       const plan = await hub.plan({ agent: args.agent, needs: args.needs ?? [], parent, signal: exec.signal })
       exec.signal.throwIfAborted()
       const maxDepth = ctx.subagents.resolveMaxDepth()

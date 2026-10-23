@@ -9,6 +9,8 @@ DSH 插件：具名子 agent、按能力标签选子 agent 的模型、`delegate
 - **具名 agent**：每个定义注册为一个预设（基于 `basePreset`，去掉委派工具，指令追加到人设）。具名 agent 的子会话不能再委派。
 - **`define_subagent`**：主 agent 在会话里创建具名 agent。定义永远记进会话日志（会话层），所以即使晋升被拒也能在当前会话使用。
 - **审批后晋升**：`persist: workspace` 写 `<cwd>/.dsh/subagents/<id>.yaml`；`persist: profile` 通过 `configEditor` 写入 profile 的 `cordis.patch.yml` 并即时生效。两者都需要 `approval.request` 的 `allowed-once`，被拒则退回会话层。
+- **预算上限**：`maxConcurrent`（默认 4）和可选的 `maxTokensPerSession`。超限时 `delegate` 直接拒绝，并把原因交给主 agent，让它自己做而不是继续派发。
+- **外部定义来源**：`ctx.subagentHub.registerSource({ id, priority, definitions })`，给中央服务按租户下发具名 agent 留的接口。优先级介于工作区层与会话层之间。
 - **设置页**：插件页里 `dsh-subagent-hub` 那一行的配置卡片，可增删改路由与具名 agent，一次 `mutate` 原子保存（带修订号）。配置字段声明为 volatile，保存不需要重载插件。
 - **“子代理路由”侧栏页**：右侧栏“+”引导页里的入口。列出本会话每次 `delegate`：标签、具名 agent、路由选中的模型、**子会话实际使用的模型**（不一致时警告）、选择理由、跳过的路由数、token 用量，以及按模型汇总。点击一行在右栏打开官方的子会话对话。
 
@@ -55,10 +57,21 @@ DSH 插件：具名子 agent、按能力标签选子 agent 的模型、`delegate
 | 层 | 位置 | 生效范围 |
 |---|---|---|
 | session | 会话日志（`define_subagent` 的结果） | 本会话及其子会话 |
+| source | `registerSource()` 注册的外部来源（如中央服务） | 由该来源决定 |
 | workspace | `<cwd>/.dsh/subagents/*.yaml` | 该工作区的所有会话 |
 | profile | 插件配置 `agents` | 所有会话 |
 
-同 id 时近的覆盖远的：session > workspace > profile。
+同 id 时近的覆盖远的：session > source > workspace > profile。外部来源之间按 `priority`（小的先，被大的覆盖）与 id 排序。
+
+## 预算
+
+```yaml
+config:
+  maxConcurrent: 4          # 同一会话同时运行的子 agent 上限
+  maxTokensPerSession: 200000   # 可选：该会话子 agent 的累计 token 上限
+```
+
+用量来源：还在运行的子 agent 直接读它们的 `tokenUsage` 投影；已结束的子 agent 在 `agent/disposed` 时记下最终总量（每个子会话取最新值，续聊不会重复计）。账本是进程内的，重启后清零。拿不到用量时不拦截（缺数据不能把派发卡死）。
 
 ## 测试
 
@@ -76,6 +89,7 @@ bash test.sh   # 仓库根目录：单元测试 + 真实运行时 e2e（临时 D
 | 未指定具名 agent 的子会话沿用父组合（`+hub`），可以继续委派，深度受全局上限约束 | 按需加配置 |
 | `delegate` 在对话流里显示为通用工具卡片 | 侧栏页已提供完整信息；卡片美化待定 |
 | 侧栏页与设置页的渲染、注册与交互由单元测试（真实 React 18.3.1）覆盖，bundle 加载由 e2e 覆盖，但**未在已连接页面中截图验证** | 安装到真实 profile 时验证 |
+| token 预算账本是进程内的，DSH 重启后从头累计 | 需要跨重启精确控制时，接中央服务记账 |
 | `persist: profile` 要求该行的配置来自 profile 自己的 patch；被 home patch 或 `--patch` 覆盖时 Host 会拒绝写入，此时定义退回会话层并在结果里说明 | 由设置页或 profile patch 管理该项配置 |
 
 ## 与其他子代理插件共存

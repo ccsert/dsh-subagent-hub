@@ -224,6 +224,31 @@ export function apply(ctx, config) {
         scribeChild: scribeChild === undefined ? undefined : { preset: scribeChild.preset, marker: scribeChild.prompt.includes('HUB-SCRIBE-MARKER'), request: requests.get(scribeRun.subagentId) },
         lastText: defineEvents.filter(event => event.type === 'assistant/message').map(event => textOf(event.data.message)).at(-1),
       }
+
+      // M4: delegation budgets and external definition sources.
+      const usage = await ctx.subagentHub.usage(defineRoot)
+      let budgetError
+      try {
+        await ctx.subagentHub.checkBudget(defineRoot, { maxConcurrent: 0 })
+      } catch (error) {
+        budgetError = String(error?.message ?? error)
+      }
+      const disposeSource = ctx.subagentHub.registerSource({
+        id: 'central-test',
+        priority: 15,
+        definitions: () => [{ id: 'extern', description: 'Contributed by a central store', instructions: 'HUB-EXTERN-MARKER Answer briefly.' }],
+      })
+      const externVisible = ctx.subagentHub.definitionsFor(defineRoot).agents.map(agent => `${agent.id}:${agent.source}`)
+      const extern = await delegate(defineRoot, { description: 'extern run', prompt: 'HUB-E2E-CHILD hi', agent: 'extern' })
+      disposeSource()
+      report.checks.budget = {
+        usage,
+        budgetError,
+        externVisible,
+        extern,
+        afterDispose: ctx.subagentHub.definitionsFor(defineRoot).agents.map(agent => agent.id),
+        limits: ctx.subagentHub.limits(),
+      }
     } catch (error) {
       report.fatal = String(error?.stack ?? error)
     }

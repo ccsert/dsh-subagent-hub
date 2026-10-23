@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计
 
-> 状态：M3 完成（单元 27 项 + 真实运行时 e2e 20 项；脚本化模型驱动完整一轮，覆盖 define/审批/晋升）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
+> 状态：M4 完成（单元 34 项 + 真实运行时 e2e 24 项）。M0–M4 全部达成，剩余是产品化（真实 profile 安装、界面人工验收、发布）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 
 ## 1. 目标
@@ -20,7 +20,7 @@
 
 | # | 问题 | 决策 |
 |---|---|---|
-| D1 | 具名 agent 存在哪一层 | 三层：profile → workspace → session，近的覆盖远的（M3 已实现全部三层，session 层取自会话日志的 `define_subagent` 结果）。中央服务的下发留待 M4 |
+| D1 | 具名 agent 存在哪一层 | 四层：profile → workspace → 外部 source → session，近的覆盖远的。外部 source 是中央服务下发的挂点 |
 | D2 | 主 agent 能改模型到什么程度 | 只能在具名 agent 声明的 `routes` 范围内选；无声明时落到全局路由表。不允许任意覆盖 |
 | D3 | 用什么工具派发 | 自有工具 `delegate`。~~用 `tools.restrict` 隐藏官方工具~~（S2：默认组合下 `subagent` 注册在 agent 自身作用域，藏不掉）。**改为派生预设**：启动时读取每个内置预设（standard / ptc / cordis），去掉 `@deepseek-ai/dsh-tool-subagent` 行、加上本插件的工具行，注册为 `<id>+hub`（S2b 已验证）。用户在新会话选 `standard+hub` 即启用；官方预设保持原样 |
 | D4 | 界面放哪 | 官方 `dsh-client-ui-subagent` 已提供页头子 agent 目录（树/状态/用量/耗时/续聊/停止），**不重做**。v1 只补它缺的：右侧栏标签页“路由”视图，展示每个子 agent 的模型（`modelSelection` 投影）、选择理由、费用汇总，行内跳转复用官方 `subagentchat` 资源。另加设置页 |
@@ -100,7 +100,7 @@ spikes/
 | M1 ✅ | 派生预设 + registry + router + `delegate` | 选 `standard+hub` 的会话里只有 `delegate`；主 agent 按标签派发，理由写入 meta |
 | M2 ✅ | 右侧栏“路由”标签页 | 每个子 agent 的模型 + 理由 + 费用汇总；点击跳官方子会话 |
 | M3 ✅ | `define_subagent` + 审批晋升 + 设置页 | 会话内创建、审批后持久化 |
-| M4 | 预算 + 中央下发的 `DefinitionSource` 接口 | 超限拒绝；接口有桩实现 |
+| M4 ✅ | 预算 + 外部 `DefinitionSource` 接口 | 超限拒绝并把原因交给模型；来源注册/释放与优先级已实现 |
 
 ## 8. 风险
 

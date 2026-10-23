@@ -19,6 +19,7 @@ DeepSeek Harness 插件：子 agent 的定义、模型路由与可视化。
 | M1 派生预设 + 具名 agent + 标签路由 + `delegate` | ✅ [`packages/subagent-hub`](packages/subagent-hub/README.md) |
 | M2 右侧栏“子代理路由”页 + 路由投影 | ✅ |
 | M3 `define_subagent` + 审批晋升 + 设置页 | ✅ |
-| M4 预算 + 中央下发的定义来源 | 下一步 |
+| M4 预算上限 + 外部定义来源 | ✅ |
+| 产品化：装进真实 profile、界面验收、发布 | 待定 |
 
 测试：`bash test.sh`（单元测试 + 在临时 `DSH_HOME` 里对真实运行时跑 e2e）。

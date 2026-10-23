@@ -50,6 +50,7 @@ cat >>"$DSH_HOME/profiles/web/cordis.patch.yml" <<YAML
       - { id: offline, provider: no-such-provider, model: x, tags: [reasoning, vision] }
       - { id: pro, provider: deepseek-official, model: deepseek-v4-pro, tags: [reasoning], note: 'DeepSeek V4 Pro' }
       - { id: flash, provider: deepseek-official, model: deepseek-flash, tags: [fast], note: 'DeepSeek Flash' }
+    maxConcurrent: 2
     agents:
       - id: reviewer
         description: Reviews a diff and reports findings

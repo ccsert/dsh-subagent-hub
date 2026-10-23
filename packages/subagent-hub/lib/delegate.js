@@ -1,6 +1,7 @@
 // `delegate` tool row, mounted inside the `<base>+hub` presets in place of the official tools.
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import { META_KEY } from './projection.js'
 
 export const name = 'subagent-hub-delegate'
 export const inject = ['subagentHub', 'subagents', 'tools', 'systemPrompt']
@@ -36,6 +37,7 @@ export function apply(ctx, config) {
         additionalProperties: false,
         properties: {
           subagentId: { type: 'string', required: true },
+          label: { type: 'string', required: true },
           agent: { type: 'string' },
           provider: { type: 'string', required: true },
           model: { type: 'string', required: true },
@@ -49,7 +51,7 @@ export function apply(ctx, config) {
         text: `started subagent ${value.subagentId}${value.agent ? ` (${value.agent})` : ''} on ${value.provider}/${value.model}: ${value.reason}`,
       }],
       // Durable routing record for the panel (M2): what ran and why.
-      presentationMeta: (_args, value) => ({ subagentHub: value }),
+      presentationMeta: (_args, value) => ({ [META_KEY]: value }),
     },
     isConcurrencySafe: () => true,
     async execute(args, exec) {
@@ -74,6 +76,7 @@ export function apply(ctx, config) {
       })
       return {
         subagentId: activation.childId,
+        label: args.description,
         ...(plan.agent === undefined ? {} : { agent: plan.agent.id }),
         provider: plan.effective.provider,
         model: plan.effective.model,

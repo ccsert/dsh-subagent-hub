@@ -46,5 +46,22 @@ check('workspace agent: loaded from .dsh/subagents with its own needs', () => {
 check('unknown agent is rejected with the available list', () => assert.match(checks.unknownAgent.error, /available: reviewer, scout/))
 check('a named agent cannot be routed outside its routes (D2)', () => assert.match(checks.confined.error, /agent "reviewer" routes has all of: vision/))
 
+check('full turn: delegate result persists the routing record in tool/result.meta', () => {
+  assert.equal(checks.turn.resultError, undefined)
+  assert.equal(checks.turn.resultMeta.subagentHub.model, 'deepseek-v4-pro')
+  assert.equal(checks.turn.resultMeta.subagentHub.label, 'turn check')
+  assert.equal(checks.turn.lastText, 'parent done')
+})
+check('full turn: subagentHub projection folds the run from the log', () => {
+  assert.equal(checks.turn.runs.length, 1)
+  assert.equal(checks.turn.runs[0].callId, 'call-hub-e2e')
+  assert.equal(checks.turn.runs[0].subagentId, checks.turn.resultMeta.subagentHub.subagentId)
+})
+check('full turn: child projections the panel reads agree with the routing record', () => {
+  assert.equal(checks.turn.childFound, true)
+  assert.equal(checks.turn.childLastUsed.model, 'deepseek-v4-pro')
+  assert.equal(checks.turn.childTokenUsage.outputTokens, 10)
+})
+
 console.log(results.join('\n'))
 if (results.some(line => line.startsWith('FAIL'))) process.exit(1)

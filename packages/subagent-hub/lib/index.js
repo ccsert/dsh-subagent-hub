@@ -7,6 +7,7 @@ import { parentAgentOptionsForDelegation } from '@deepseek-ai/dsh-subagent'
 import { agentOptionsFor, decide, indexRoutes, knownTags, RoutingError } from './router.js'
 import { deriveAgentPreset, deriveHubPreset } from './presets.js'
 import { fingerprint, mergeLayers, normalizeDefinition, readWorkspaceDefinitions } from './definitions.js'
+import { definition as projection } from './projection.js'
 
 export { RoutingError }
 
@@ -57,6 +58,10 @@ export default class SubagentHub extends Service {
   }
 
   async *[Service.init]() {
+    // Global so every Session (parent and child) folds its own delegate results.
+    this.ctx.inject(['sessionProjections'], (scope) => {
+      scope.sessionProjections.register(projection)
+    })
     this.ready = this.deriveHubPresets()
     yield async () => {
       await this.ready.catch(() => {})

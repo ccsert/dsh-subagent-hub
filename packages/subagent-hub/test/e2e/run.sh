@@ -15,6 +15,7 @@ for dir in "$PKG" "$HERE/driver"; do
   ln -sfn "$DSH_PKG/node_modules/@deepseek-ai" "$dir/node_modules/@deepseek-ai"
 done
 ln -sfn "$DSH_PKG/node_modules/js-yaml" "$PKG/node_modules/js-yaml"
+ln -sfn "$DSH_PKG/node_modules/zod" "$PKG/node_modules/zod"
 
 cat >"$CWD/.dsh/subagents/scout.yaml" <<'YAML'
 id: scout

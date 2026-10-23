@@ -62,6 +62,55 @@ test('tab renders rows, the divergence warning, and the summary', () => {
   }
 })
 
+test('settings: drafts round-trip a saved value and drop empty fields', () => {
+  const { draftsOf, valuesOf, saveOps, draftProblem } = loadClient()
+  const saved = {
+    routes: [{ id: 'pro', provider: 'p', model: 'm', tags: ['reasoning'], note: 'ignored' }],
+    agents: [{ id: 'reviewer', description: 'Reviews', instructions: 'Be terse.', routes: ['pro'] }],
+  }
+  const drafts = draftsOf(saved)
+  assert.deepEqual(plain(valuesOf(drafts)), {
+    routes: [{ id: 'pro', provider: 'p', model: 'm', tags: ['reasoning'] }],
+    agents: [{ id: 'reviewer', description: 'Reviews', instructions: 'Be terse.', routes: ['pro'] }],
+  })
+  drafts.routes.push({ id: '', provider: '', model: '', reasoningEffort: '', tags: [] })
+  assert.equal(valuesOf(drafts).routes.length, 1, 'incomplete rows are not saved')
+  assert.deepEqual(plain(saveOps({ routes: [], agents: [] })), [
+    { op: 'set', path: ['routes'], value: [] },
+    { op: 'set', path: ['agents'], value: [] },
+  ])
+})
+
+test('settings: validation catches duplicate ids, bad ids, and unknown route refs', () => {
+  const { draftsOf, draftProblem } = loadClient()
+  const base = { routes: [{ id: 'pro', provider: 'p', model: 'm', tags: [] }], agents: [] }
+  assert.equal(draftProblem(draftsOf(base)), undefined)
+  assert.match(draftProblem(draftsOf({ ...base, routes: [...base.routes, { id: 'pro', provider: 'q', model: 'n' }] })), /duplicate route id/)
+  assert.match(draftProblem(draftsOf({ ...base, agents: [{ id: 'Bad Id', description: 'x' }] })), /lowercase letters/)
+  assert.match(draftProblem(draftsOf({ ...base, agents: [{ id: 'ghost', description: 'x', routes: ['nope'] }] })), /unknown routes: nope/)
+})
+
+test('settings: summary counts and page renders seeded rows and a save control', () => {
+  const { SettingsPage } = loadClient()
+  const form = {
+    state: { status: 'ready', writable: true, revision: 7, value: { routes: [{ id: 'pro', provider: 'p', model: 'm', tags: ['reasoning'] }], agents: [{ id: 'reviewer', description: 'Reviews diffs', instructions: 'Be terse.' }] } },
+    mutate: async () => true,
+  }
+  const summary = renderToStaticMarkup(React.createElement(SettingsPage, { view: 'summary', form, t }))
+  assert.match(summary, /settings.summary/)
+  const page = renderToStaticMarkup(React.createElement(SettingsPage, { view: 'page', form, t }))
+  for (const needle of ['value="pro"', 'value="p"', 'value="reasoning"', 'Be terse.', 'settings.agentsHint', 'settings.save']) {
+    assert.ok(page.includes(needle), `missing ${needle}`)
+  }
+})
+
+test('settings: page without a Host form explains itself instead of offering a dead save', () => {
+  const { SettingsPage } = loadClient()
+  const page = renderToStaticMarkup(React.createElement(SettingsPage, { view: 'page', form: undefined, t }))
+  assert.ok(page.includes('settings.noForm'))
+  assert.match(page, /disabled=""[^>]*>settings.save/)
+})
+
 test('apply registers the localized tab type, its body, and opens the official child chat', () => {
   const { apply, inject } = loadClient()
   assert.deepEqual(plain(inject), ['slots', 'locale', 'sessions', 'sidebarRight', 'sidebarRightTabs'])
@@ -72,13 +121,22 @@ test('apply registers the localized tab type, its body, and opens the official c
     sidebarRightTabs: { register: def => { calls.tab = def; return () => {} } },
     sidebarRight: { openResource: (address, options) => { calls.opened = [address, options] } },
     sessions: { refreshProjections: id => { calls.refreshed = id } },
-    slots: { inject: (_owner, fn) => fn(), register: (options, body) => { calls.slot = options; calls.body = body } },
+    slots: {
+      inject: (_owner, fn) => fn(),
+      register: (options, body) => {
+        calls.slots ??= []
+        calls.slots.push(options)
+        if (options.name === 'sidebar.right.pane.tab') calls.body = body
+      },
+    },
   }
   apply(ctx)
   assert.deepEqual(plain(calls.locale), ['subagentHub', ['en', 'zh']])
   assert.equal(calls.tab.id, 'dsh-subagent-hub/routing')
   assert.equal(calls.tab.guide[0].title(), 'tab.title')
-  assert.deepEqual(plain(calls.slot), { name: 'sidebar.right.pane.tab', key: 'dsh-subagent-hub/routing', locale: 'subagentHub' })
+  assert.deepEqual(plain(calls.slots.map(slot => slot.name)), ['plugins.row.config', 'sidebar.right.pane.tab'])
+  assert.equal(calls.slots[0].key, 'dsh-subagent-hub#subagent-hub')
+  assert.deepEqual(plain(calls.slots[1]), { name: 'sidebar.right.pane.tab', key: 'dsh-subagent-hub/routing', locale: 'subagentHub' })
 
   // Drive the registered body's click handler through a rendered row.
   const element = calls.body({ sessionId: 'parent-1', useProjection: () => ({ runs: [run()] }), useSessions: () => undefined })

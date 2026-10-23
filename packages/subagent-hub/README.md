@@ -7,6 +7,9 @@ DSH 插件：具名子 agent、按能力标签选子 agent 的模型、`delegate
 - 为 `standard` / `ptc` / `cordis` 各派生一个 **`<id>+hub` 预设**：组合与原预设相同，只是官方 `subagent` / `subagent_fork` 换成 `delegate`。新会话选 `+hub` 预设即启用；官方预设不变。
 - **`delegate`**：主 agent 传 `agent`（具名 agent）和/或 `needs`（能力标签），插件解析成具体 provider/model，跳过不可用的路由，并把选择与理由写进工具结果（`meta.subagentHub`）。
 - **具名 agent**：每个定义注册为一个预设（基于 `basePreset`，去掉委派工具，指令追加到人设）。具名 agent 的子会话不能再委派。
+- **`define_subagent`**：主 agent 在会话里创建具名 agent。定义永远记进会话日志（会话层），所以即使晋升被拒也能在当前会话使用。
+- **审批后晋升**：`persist: workspace` 写 `<cwd>/.dsh/subagents/<id>.yaml`；`persist: profile` 通过 `configEditor` 写入 profile 的 `cordis.patch.yml` 并即时生效。两者都需要 `approval.request` 的 `allowed-once`，被拒则退回会话层。
+- **设置页**：插件页里 `dsh-subagent-hub` 那一行的配置卡片，可增删改路由与具名 agent，一次 `mutate` 原子保存（带修订号）。配置字段声明为 volatile，保存不需要重载插件。
 - **“子代理路由”侧栏页**：右侧栏“+”引导页里的入口。列出本会话每次 `delegate`：标签、具名 agent、路由选中的模型、**子会话实际使用的模型**（不一致时警告）、选择理由、跳过的路由数、token 用量，以及按模型汇总。点击一行在右栏打开官方的子会话对话。
 
 ## 数据从哪来
@@ -47,6 +50,16 @@ DSH 插件：具名子 agent、按能力标签选子 agent 的模型、`delegate
 3. 按 `needs`（调用时的 + agent 自带的）过滤标签，再按顺序预检，取第一条可用的。
 4. 全部不可用或没有匹配 → `delegate` 报错并说明原因，不会悄悄降级到别的模型。
 
+## 具名 agent 的三层来源
+
+| 层 | 位置 | 生效范围 |
+|---|---|---|
+| session | 会话日志（`define_subagent` 的结果） | 本会话及其子会话 |
+| workspace | `<cwd>/.dsh/subagents/*.yaml` | 该工作区的所有会话 |
+| profile | 插件配置 `agents` | 所有会话 |
+
+同 id 时近的覆盖远的：session > workspace > profile。
+
 ## 测试
 
 ```sh
@@ -62,7 +75,8 @@ bash test.sh   # 仓库根目录：单元测试 + 真实运行时 e2e（临时 D
 | 工作区级 agent 的预设是按需注册的；重启后，在它下一次被 `delegate` 用到之前，它的旧子会话无法续接 | M3：启动时扫描工作区 / 会话日志预注册 |
 | 未指定具名 agent 的子会话沿用父组合（`+hub`），可以继续委派，深度受全局上限约束 | 按需加配置 |
 | `delegate` 在对话流里显示为通用工具卡片 | 侧栏页已提供完整信息；卡片美化待定 |
-| 侧栏页只在真实浏览器里人工确认过的部分有限：渲染、注册与点击行为由单元测试（真实 React 18.3.1）覆盖，bundle 加载由 e2e 覆盖，未在已连接页面中截图验证 | 安装到真实 profile 时验证 |
+| 侧栏页与设置页的渲染、注册与交互由单元测试（真实 React 18.3.1）覆盖，bundle 加载由 e2e 覆盖，但**未在已连接页面中截图验证** | 安装到真实 profile 时验证 |
+| `persist: profile` 要求该行的配置来自 profile 自己的 patch；被 home patch 或 `--patch` 覆盖时 Host 会拒绝写入，此时定义退回会话层并在结果里说明 | 由设置页或 profile patch 管理该项配置 |
 
 ## 与其他子代理插件共存
 

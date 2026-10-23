@@ -1,0 +1,13 @@
+# dsh-subagent-hub: the Host service derives `<preset>+hub` presets (whose `delegate` row loads
+# `dsh-subagent-hub/delegate`) and serves the routing projection; the Client half adds the
+# right-sidebar "Subagent routing" page. Configure routes and named agents in your own patch:
+#
+#   - id: subagent-hub
+#     config:
+#       routes:
+#         - { id: pro, provider: <provider>, model: <model>, tags: [reasoning] }
+#       agents:
+#         - { id: reviewer, description: Reviews diffs, instructions: '...', routes: [pro] }
+- insert:
+    - id: subagent-hub
+      name: dsh-subagent-hub

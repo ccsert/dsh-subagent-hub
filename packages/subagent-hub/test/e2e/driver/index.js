@@ -91,6 +91,11 @@ export function apply(ctx, config) {
       report.hub = await ctx.subagentHub.ready
       report.presets = (await ctx.agentPresets.list()).map(preset => preset.id)
       report.parentModel = ctx.agentDefaultModel.currentSelection()
+      // The browser half is served exactly like an installed bundle's client module.
+      const modules = ctx.get('clientModules')
+      const clientPath = modules?.clientPath('dsh-subagent-hub')
+      const graph = modules === undefined ? undefined : JSON.stringify(modules.graph())
+      report.client = { clientPath, inGraph: graph?.includes('dsh-subagent-hub') ?? false }
 
       const handle = await ctx.agents.create({
         sessionId: `session-${randomUUID()}`,

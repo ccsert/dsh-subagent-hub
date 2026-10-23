@@ -63,5 +63,10 @@ check('full turn: child projections the panel reads agree with the routing recor
   assert.equal(checks.turn.childTokenUsage.outputTokens, 10)
 })
 
+check('bundle: client module is scanned and served from lib/client.js', () => {
+  assert.equal(report.client.inGraph, true)
+  assert.match(report.client.clientPath ?? '', /lib\/client\.js$/)
+})
+
 console.log(results.join('\n'))
 if (results.some(line => line.startsWith('FAIL'))) process.exit(1)

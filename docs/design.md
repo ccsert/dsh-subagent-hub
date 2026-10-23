@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计
 
-> 状态：M1 完成（[`packages/subagent-hub`](../packages/subagent-hub/README.md)，单元 16 项 + 真实运行时 e2e 11 项）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
+> 状态：M2 完成（单元 23 项 + 真实运行时 e2e 15 项，含脚本化模型驱动的完整一轮）。M0 完成（结论见 [`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md)），D3/D4 已据此修订。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 
 ## 1. 目标
@@ -98,7 +98,7 @@ spikes/
 |---|---|---|
 | M0 ✅ | S1–S3 spike | 三项均有可复现结论 |
 | M1 ✅ | 派生预设 + registry + router + `delegate` | 选 `standard+hub` 的会话里只有 `delegate`；主 agent 按标签派发，理由写入 meta |
-| M2 | 右侧栏“路由”标签页 | 每个子 agent 的模型 + 理由 + 费用汇总；点击跳官方子会话 |
+| M2 ✅ | 右侧栏“路由”标签页 | 每个子 agent 的模型 + 理由 + 费用汇总；点击跳官方子会话 |
 | M3 | `define_subagent` + 审批晋升 + 设置页 | 会话内创建、审批后持久化 |
 | M4 | 预算 + 中央下发的 `DefinitionSource` 接口 | 超限拒绝；接口有桩实现 |
 
@@ -109,3 +109,7 @@ spikes/
 | 运行时仍是 rc，接口在变（本地 checkout 已与运行时不一致） | 每次升级先跑 `spikes/m0-runtime/run.sh` 作回归 |
 | 派生预设依赖官方预设的 YAML 结构 | 只按包名过滤行，不依赖行位置；过滤结果为空或未命中时拒绝注册并告警 |
 | 用户需手动选 `+hub` 预设 | 设置页提供“设为默认预设”开关（`agent-preset-registry` 的 `default`） |
+
+## 9. 共存（M2 期间发现）
+
+用户的真实 profile 已装有 `dsh-subagent-default-model`（启用）、`dsh-subagent-library` 与 `@aiwayds/dsh-subagent-registry`（已安装未启用）、`dsh-better-sidebar`（启用）。结论见 [`packages/subagent-hub/README.md`](../packages/subagent-hub/README.md#与其他子代理插件共存)。要点：路由选择不会被 default-model 覆盖，但其故障转移会突破 D2，面板以“实际运行”警告呈现；与 subagent-library 的 `delegate` 同名。

@@ -27,22 +27,31 @@ YAML
 dsh --profile web --dump-config >/dev/null
 mkdir -p "$DSH_HOME/profiles/web/node_modules"
 ln -sfn "$PKG" "$DSH_HOME/profiles/web/node_modules/dsh-subagent-hub"
+# Load the package exactly as an installed bundle: listed in the profile, its own patch applied.
+python3 - "$DSH_HOME/profiles/web/package.json" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+manifest = json.load(open(path))
+bundles = manifest.setdefault('dsh', {}).setdefault('profile', {}).setdefault('bundles', [])
+if 'dsh-subagent-hub' not in bundles:
+    bundles.append('dsh-subagent-hub')
+json.dump(manifest, open(path, 'w'), indent=2)
+PYEOF
 ln -sfn "$HERE/driver" "$DSH_HOME/profiles/web/node_modules/hub-e2e-driver"
 
 cat >"$DSH_HOME/e2e.patch.yml" <<YAML
+- id: subagent-hub
+  config:
+    routes:
+      - { id: offline, provider: no-such-provider, model: x, tags: [reasoning, vision] }
+      - { id: pro, provider: deepseek-official, model: deepseek-v4-pro, tags: [reasoning], note: 'DeepSeek V4 Pro' }
+      - { id: flash, provider: deepseek-official, model: deepseek-flash, tags: [fast], note: 'DeepSeek Flash' }
+    agents:
+      - id: reviewer
+        description: Reviews a diff and reports findings
+        instructions: HUB-REVIEWER-MARKER Report findings only.
+        routes: [flash]
 - insert:
-    - id: subagent-hub
-      name: dsh-subagent-hub
-      config:
-        routes:
-          - { id: offline, provider: no-such-provider, model: x, tags: [reasoning, vision] }
-          - { id: pro, provider: deepseek-official, model: deepseek-v4-pro, tags: [reasoning], note: 'DeepSeek V4 Pro' }
-          - { id: flash, provider: deepseek-official, model: deepseek-flash, tags: [fast], note: 'DeepSeek Flash' }
-        agents:
-          - id: reviewer
-            description: Reviews a diff and reports findings
-            instructions: HUB-REVIEWER-MARKER Report findings only.
-            routes: [flash]
     - id: hub-e2e-driver
       name: hub-e2e-driver
       config:

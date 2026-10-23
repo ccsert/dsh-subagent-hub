@@ -1,16 +1,35 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.1.0",
-  "description": "DSH plugin: named subagents, capability-based child model routing, and a delegate tool.",
+  "version": "0.2.0",
+  "description": "Named subagents, capability-based child model routing, a delegate tool, and a subagent routing panel for DeepSeek Harness.",
   "license": "MIT",
   "type": "module",
+  "repository": { "type": "git", "url": "git+https://github.com/ccsert/dsh-subagent-hub.git", "directory": "packages/subagent-hub" },
   "exports": {
     ".": "./lib/index.js",
-    "./delegate": "./lib/delegate.js"
+    "./delegate": "./lib/delegate.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./delegate/locale/*.json": "./delegate/locale/*.json",
+    "./delegate/icon": "./icon.svg"
   },
-  "files": ["lib"],
+  "files": ["lib", "locale/*.json", "delegate/locale/*.json", "icon.svg", "cordis.patch.yml", "README.md"],
   "scripts": {
     "test": "node --test test/*.test.js"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-api-session-controller",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
   },
   "peerDependencies": {
     "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.3"

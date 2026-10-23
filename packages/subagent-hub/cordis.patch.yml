@@ -1,6 +1,7 @@
-# dsh-subagent-hub: one Host-only row. It reads `routes` and `agents` from the profile patch,
-# registers each agent as an Agent Preset, and adds a system-prompt catalog plus a route guard to
-# the official delegation tools. It does not replace them and adds no client UI.
+# dsh-subagent-hub: one Host row plus one browser config card. It reads `routes` and `agents`
+# (both live-editable from that card on the official Plugins page), registers each agent as an
+# Agent Preset, and adds a system-prompt catalog plus a route guard to the official delegation
+# tools. It does not replace them.
 #
 #   - id: subagent-hub
 #     config:

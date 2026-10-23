@@ -95,5 +95,33 @@ check('the profile patch keeps the writes as ordinary profile overrides', () => 
   }
 })
 
+// ── Plugins-page configuration form and live editing ─────────────────────────────────────────
+check('bundle: the client module is scanned and served from lib/client.js', () => {
+  assert.equal(report.client.inGraph, true)
+  assert.match(report.client.clientPath ?? '', /lib\/client\.js$/)
+})
+check('settings: the row exposes a writable form for routes, agents, and the official switch', () => {
+  assert.ok(report.settings !== undefined, 'no subagent-hub settings descriptor')
+  assert.equal(report.settings.writable, true)
+  assert.equal(report.settings.routes, 2)
+  assert.deepEqual(report.settings.agents, ['reviewer'])
+  assert.equal(report.settings.manageOfficialSettings, true)
+})
+check('settings: a live edit re-registers presets and re-syncs the official allowlists', () => {
+  const live = report.checks.live
+  assert.ok(live !== undefined, 'live edit stage did not run')
+  assert.deepEqual(live.presets.sort(), ['hub-agent-reviewer', 'hub-agent-scribe'])
+  assert.deepEqual(live.allow, ['hub-agent-reviewer', 'hub-agent-scribe'])
+  assert.equal(live.official.enabled, true)
+  assert.ok(live.official.presets.includes('preset-standard'), live.official.presets.join(','))
+  assert.deepEqual(live.schemaEnum, ['hub-agent-reviewer', 'hub-agent-scribe'])
+  assert.equal(live.sectionHasScribe, true)
+})
+check('settings: an agent added live is usable through agent_preset with its instructions', () => {
+  assert.equal(report.checks.live.scribe.isError, false)
+  assert.equal(report.checks.live.scribe.preset, 'hub-agent-scribe')
+  assert.ok(report.checks.live.scribe.prompt.includes('HUB-SCRIBE-MARKER'))
+})
+
 console.log(results.join('\n'))
 if (results.some(line => line.startsWith('FAIL'))) process.exit(1)

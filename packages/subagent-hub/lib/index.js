@@ -6,7 +6,11 @@
 // 3. A system-prompt section says which named agent / model fits which job.
 // 4. A `tools/pre-execute` guard enforces a named agent's route confinement, which the official
 //    allowlist alone cannot express.
-// 5. Opt-in `manageOfficialSettings` writes those official allowlists through `configEditor`.
+// 5. `manageOfficialSettings` writes those official allowlists through `configEditor`.
+//
+// `routes`, `agents`, and `manageOfficialSettings` are volatile: the Plugins page form edits them
+// live. After such an edit the service re-registers affected presets and re-syncs the official
+// allowlists (see `loader/volatile-update` below).
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { Service } from '@deepseek-ai/cordis'
@@ -20,8 +24,14 @@ import { MODEL_SETTINGS_ID, PRESET_PLUGIN, modelSettingsFor, officialSettingsPla
 const PACKAGE = 'dsh-subagent-hub'
 const PRESET_WAIT_MS = 30_000
 const PRESET_ORDER = 10_000
+const LIVE_FIELDS = new Set(['routes', 'agents', 'manageOfficialSettings'])
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
+/** A volatile field arrives as a cell with `get()`; tolerate a plain value too. */
+const read = field => (field !== null && typeof field === 'object' && typeof field.get === 'function' ? field.get() : field)
+
+/** Everything that shapes a named agent's preset; presets are only re-registered when this moves. */
+const agentSignature = agents => JSON.stringify(agents.map(agent => [agent.id, agent.description, agent.basePreset, agent.instructions]))
 
 export default class SubagentHub extends Service {
   static inject = ['agentPresets', 'systemPrompt']
@@ -34,7 +44,7 @@ export default class SubagentHub extends Service {
       reasoningEffort: z.string(),
       tags: z.array(z.string()).default([]),
       note: z.string(),
-    })).default([]).description('Child model allowlist in preference order, tagged by capability. '
+    })).default([]).volatile().description('Child model allowlist in preference order, tagged by capability. '
       + 'Each route becomes one official `subagent-model-selection` allowed model.'),
     agents: z.array(z.object({
       id: z.string().required(),
@@ -43,9 +53,9 @@ export default class SubagentHub extends Service {
       routes: z.array(z.string()),
       needs: z.array(z.string()),
       basePreset: z.string().default('standard'),
-    })).default([]).description('Named agents. Each one is registered as an Agent Preset and exposed '
+    })).default([]).volatile().description('Named agents. Each one is registered as an Agent Preset and exposed '
       + 'through the official tool\'s static `allowedAgentPresets` list.'),
-    manageOfficialSettings: z.boolean().default(false)
+    manageOfficialSettings: z.boolean().default(false).volatile()
       .description('When true, write `allowedAgentPresets` onto the official delegation tool rows and '
         + 'mirror `routes` into the Host `subagent-model-selection` setting through configEditor. '
         + 'This owns those official configuration fields for every preset that contains a spawn '
@@ -55,38 +65,69 @@ export default class SubagentHub extends Service {
   constructor(ctx, config) {
     super(ctx, 'subagentHub')
     this.config = config
-    this.catalogState = buildCatalog(config)
     /** @type {Map<string, () => Promise<void>>} registered named-agent presets by preset id */
     this.registered = new Map()
     /** @type {Map<string, Promise<any[]>>} parsed rows per base preset */
     this.baseRows = new Map()
     this.disposers = []
+    this.cache = { routesRaw: undefined, agentsRaw: undefined, catalog: undefined }
+    this.presetSignature = undefined
+    this.disposed = false
+    this.reconcileChain = Promise.resolve({ registered: [], skipped: [] })
+    // A worker started outside any HMR transaction drains live-edit reconciliations. Scheduling
+    // one from inside the transaction (a `setTimeout` created there keeps the async context)
+    // would make configEditor.edit() fail with "HMR transactions cannot be nested".
+    this.reconcileGeneration = 0
+    this.reconciledGeneration = 0
+    this.reconcilePending = false
+    this.reconcileWaiters = []
+    this.reconcileWorker = undefined
     /** Settles once every named agent preset is registered or reported missing. */
     this.ready = Promise.resolve({ registered: [], skipped: [] })
-    /** Settles once the opt-in official settings write (or its skip) is complete. */
+    /** Settles once the official settings write (or its deliberate skip) is complete. */
     this.officialSettingsReady = Promise.resolve({ enabled: false })
   }
 
-  async *[Service.init]() {
-    for (const problem of this.catalogState.problems) {
-      this.ctx.logger?.warn?.(`${PACKAGE}: ${problem}`)
+  /**
+   * Current catalog, rebuilt when a volatile `routes`/`agents` value changes. The prompt and the
+   * guard read this on demand, so a live edit is visible without waiting for a re-registration.
+   */
+  get catalog() {
+    const routesRaw = read(this.config.routes) ?? []
+    const agentsRaw = read(this.config.agents) ?? []
+    if (routesRaw !== this.cache.routesRaw || agentsRaw !== this.cache.agentsRaw) {
+      this.cache = { routesRaw, agentsRaw, catalog: buildCatalog({ routes: routesRaw, agents: agentsRaw }) }
     }
+    return this.cache.catalog
+  }
+
+  async *[Service.init]() {
+    for (const problem of this.catalog.problems) this.ctx.logger?.warn?.(`${PACKAGE}: ${problem}`)
     this.disposers.push(this.ctx.systemPrompt.section({
       name: PACKAGE,
       order: this.ctx.systemPrompt.getSectionOrder('TOOL_SUBAGENT') + 10,
       text: context => this.sectionText(context.scope),
     }))
     this.disposers.push(this.ctx.on('tools/pre-execute', (exec, next) => this.preExecute(exec, next)))
+    // The Plugins page form writes volatile fields; the Loader commits them in place and announces
+    // the changed paths on this plugin's own fiber.
+    this.disposers.push(this.ctx.on('loader/volatile-update', paths => this.onVolatileUpdate(paths)))
+    this.reconcileWorker = this.runReconcileWorker()
 
-    this.ready = this.registerAgentPresets()
+    this.ready = this.registerAgentPresets().then((report) => {
+      this.presetSignature = agentSignature(this.catalog.agents)
+      return report
+    })
     this.officialSettingsReady = this.ready
       .then(() => this.syncOfficialSettings())
       .catch((error) => {
         this.ctx.logger?.warn?.(`${PACKAGE}: official settings sync failed: ${String(error?.message ?? error)}`)
-        return { enabled: this.config.manageOfficialSettings === true, error: String(error?.message ?? error) }
+        return { enabled: read(this.config.manageOfficialSettings) === true, error: String(error?.message ?? error) }
       })
 
     yield async () => {
+      this.disposed = true
+      for (const wake of this.reconcileWaiters.splice(0)) wake()
       const disposers = this.disposers.splice(0).reverse()
       for (const dispose of disposers) {
         try {
@@ -95,14 +136,9 @@ export default class SubagentHub extends Service {
           // a disposed context may already be gone during teardown
         }
       }
-      for (const dispose of [...this.registered.values()].reverse()) {
-        try {
-          await dispose()
-        } catch {
-          // the registry may already be torn down
-        }
-      }
-      this.registered.clear()
+      await this.ready.catch(() => {})
+      await this.reconcileWorker?.catch(() => {})
+      await this.disposeAgentPresets()
     }
   }
 
@@ -133,7 +169,8 @@ export default class SubagentHub extends Service {
   /** Register one stable official preset per configured named agent. */
   async registerAgentPresets() {
     const report = { registered: [], skipped: [] }
-    for (const agent of this.catalogState.agents) {
+    for (const agent of this.catalog.agents) {
+      if (this.disposed) break
       try {
         const { plugins } = deriveAgentPreset(await this.rowsOf(agent.basePreset), agent.instructions)
         const dispose = await this.ctx.agentPresets.register({
@@ -143,6 +180,10 @@ export default class SubagentHub extends Service {
           order: PRESET_ORDER,
           plugins,
         })
+        if (this.disposed) {
+          await dispose().catch(() => {})
+          break
+        }
         this.registered.set(agent.presetId, dispose)
         report.registered.push(agent.presetId)
       } catch (error) {
@@ -151,6 +192,83 @@ export default class SubagentHub extends Service {
       }
     }
     return report
+  }
+
+  async disposeAgentPresets() {
+    const registered = [...this.registered.entries()].reverse()
+    this.registered.clear()
+    for (const [, dispose] of registered) {
+      try {
+        await dispose()
+      } catch {
+        // the registry may already be torn down
+      }
+    }
+  }
+
+  /** A live configuration edit arrived from the Plugins page form. */
+  onVolatileUpdate(paths) {
+    const changed = new Set((paths ?? []).map(path => path?.[0]))
+    if (![...LIVE_FIELDS].some(field => changed.has(field))) return
+    this.signalReconcile()
+  }
+
+  /** Ask the reconcile worker to apply the current configuration. */
+  signalReconcile() {
+    if (this.disposed) return
+    this.reconcileGeneration += 1
+    this.reconcilePending = true
+    for (const wake of this.reconcileWaiters.splice(0)) wake()
+  }
+
+  /** Long-lived worker whose async context is free of any HMR transaction. */
+  async runReconcileWorker() {
+    while (!this.disposed) {
+      if (!this.reconcilePending) {
+        await new Promise((resolve) => { this.reconcileWaiters.push(resolve) })
+        continue
+      }
+      const target = this.reconcileGeneration
+      this.reconcilePending = false
+      this.reconcileChain = this.reconcileChain
+        .then(() => this.reconcileNow())
+        .catch((error) => {
+          this.ctx.logger?.warn?.(`${PACKAGE}: live configuration update failed: ${String(error?.message ?? error)}`)
+          return { registered: [], skipped: [] }
+        })
+      await this.reconcileChain
+      this.reconciledGeneration = target
+    }
+  }
+
+  /**
+   * Apply a live configuration edit: re-register presets only when an agent's preset-affecting
+   * fields moved, then re-sync the official allowlists (routes may have changed on their own).
+   */
+  async reconcileNow() {
+    if (this.disposed) return { registered: [], skipped: [] }
+    for (const problem of this.catalog.problems) this.ctx.logger?.warn?.(`${PACKAGE}: ${problem}`)
+    const signature = agentSignature(this.catalog.agents)
+    let report
+    if (signature !== this.presetSignature) {
+      await this.disposeAgentPresets()
+      report = await this.registerAgentPresets()
+      this.presetSignature = signature
+    } else {
+      report = { registered: [...this.registered.keys()], skipped: [] }
+    }
+    this.ready = Promise.resolve(report)
+    this.officialSettingsReady = this.syncOfficialSettings()
+    await this.officialSettingsReady
+    return report
+  }
+
+  /** Await every live-configuration edit announced so far (used by tests and tooling). */
+  async whenSettled() {
+    const target = this.reconcileGeneration
+    while (this.reconciledGeneration < target) await sleep(10)
+    await this.reconcileChain
+    await this.officialSettingsReady
   }
 
   /** Parameters the official delegation tool currently exposes in one agent's composition. */
@@ -172,13 +290,13 @@ export default class SubagentHub extends Service {
   sectionText(scope) {
     const params = this.exposedParameters(scope)
     if (params === undefined) return ''
-    return promptSection({ catalog: this.catalogState, params })
+    return promptSection({ catalog: this.catalog, params })
   }
 
   /** Reject a delegation that would put a route-confined named agent on another model. */
   preExecute(exec, next) {
     try {
-      const reason = guardVerdict({ arguments: exec.arguments, parent: exec.agent, catalog: this.catalogState })
+      const reason = guardVerdict({ arguments: exec.arguments, parent: exec.agent, catalog: this.catalog })
       if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
     } catch (error) {
       this.ctx.logger?.warn?.(`${PACKAGE}: route guard skipped one call: ${String(error?.message ?? error)}`)
@@ -193,7 +311,8 @@ export default class SubagentHub extends Service {
    * @returns {Promise<{ enabled: boolean, presets?: string[], modelSettings?: string, presetIds?: string[], models?: any[], skipped?: string }>}
    */
   async syncOfficialSettings() {
-    const plan = officialSettingsPlan(this.config, { presetIds: [...this.registered.keys()], routes: this.catalogState.routes })
+    const plan = officialSettingsPlan({ manageOfficialSettings: read(this.config.manageOfficialSettings) === true },
+      { presetIds: [...this.registered.keys()], routes: this.catalog.routes })
     if (!plan.enabled) return { enabled: false }
     const editor = this.ctx.get('configEditor')
     if (editor === undefined) {
@@ -224,7 +343,7 @@ export default class SubagentHub extends Service {
       if (entry !== undefined) {
         const snapshot = new Map(editor.configuration().map(row => [row.entry, row]))
         const base = { ...(snapshot.get(entry)?.inherited ?? {}), ...(entry.options.config ?? {}) }
-        const desired = modelSettingsFor(this.catalogState.routes)
+        const desired = modelSettingsFor(this.catalog.routes)
         if (base.enabled !== desired.enabled || !sameAllowedModels(base.allowedModels, desired.allowedModels)) {
           await editor.edit(entry, () => ({ ...base, ...desired }))
           report.modelSettings = 'written'

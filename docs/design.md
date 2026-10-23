@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.4.0 方向性重构完成（单元测试 36 项 + 真实运行时 e2e 12 项）。
+> 状态：0.4.1（0.4.0 方向性重构 + 官方 Plugins 页配置卡片）完成，单元测试 44 项 + 真实运行时 e2e 16 项。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -17,7 +17,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | 模型路由 | 插件自己选模型并写 `agentOptions` | 映射成官方 `subagent-model-selection` 的 `allowedModels` |
 | 能力标签 | 自有 `needs` 参数 | 新增 system prompt 段落，告诉主 agent 什么任务配什么 |
 | 路由约束 | 自有 `delegate` 在执行时限制 | 官方 `agent_preset` + `tools/pre-execute` 守卫 |
-| 界面 | 右侧栏页 + 设置页 | 无界面 |
+| 界面 | 右侧栏页 + 自建设置页 | 无独立界面；官方 Plugins 页的行配置卡片 |
 | 派发工具 | 自有 `delegate` | 官方 `subagent` / `subagent_fork` |
 
 ## 2. 原则
@@ -31,7 +31,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
 | D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
 | D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
-| D4 | 界面放哪 | **不做界面**。官方 `dsh-client-ui-subagent` 已有子 agent 目录；官方设置页已有 `subagent-model-selection` 的模型允许列表 |
+| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不再有 v1 的侧栏页与自建设置页 |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
@@ -88,11 +88,21 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 已知副作用（有意接受）：这份写入是 profile patch 里对预设行的**完整 config override**，该预设的 plugin 列表从此固定在 profile 层，官方后续升级不会自动合并。这正是“替用户管官方配置”的代价，所以默认关闭。关闭开关不会回滚已经写入的内容，只是不再维护。
 
-### 4.6 删除清单（v1 → v2）
+### 4.6 配置卡片与 live 重配置（0.4.1）
+
+`routes` / `agents` / `manageOfficialSettings` 声明为 schemastery **volatile** 字段，官方 `settings` 服务因此为 profile 行 `subagent-hub` 生成配置表单，Client 半侧（`lib/client.js`）通过官方 `plugins.row.config` 槽位（key `dsh-subagent-hub#subagent-hub`）渲染：
+
+- 路由表、具名 agent、托管开关一次 `mutate` 原子保存（带修订号），Host 逐路径合并进 profile patch；
+- 保存不会重载插件：Loader 把 volatile 值原地提交并发出 `loader/volatile-update`；
+- Host 侧的 reconcile worker 在 HMR 事务**之外**启动，串行应用变更：只有 `id` / `description` / `basePreset` / `instructions` 变化时才重建具名预设，任何变更后都重做官方 allowlist 同步；
+- prompt 与 guard 直接读取按需重建的 catalog，因此目录和路由约束立即反映新配置；
+- 已有会话保留其 composition（官方行为），新会话拿到新的 `agent_preset` 枚举与 `provider`/`model` 允许列表。
+
+### 4.7 删除清单（v1 → v2）
 
 | 删除 | 原因 |
 |---|---|
-| `lib/client.js`、locale、`icon.svg`、`package.json` 的 `dsh.client`/UI exports | 不再有界面 |
+| `lib/client.js`、locale、`icon.svg`、`package.json` 的 `dsh.client`/UI exports | 0.4.0 不再有界面；0.4.1 只把 `lib/client.js` + `dsh.client` + locale 作为 Plugins 页配置卡片恢复，不恢复侧栏页 |
 | `lib/delegate.js`（`delegate` + `define_subagent`） | 不再有自有派发工具 |
 | `lib/budget.js`、`maxConcurrent` / `maxTokensPerSession` | 预算机制没有落点：不经过本插件派发 |
 | `lib/projection.js`、`subagentHub` / `subagentHubDefine` 投影 | 只服务路由面板与会话层定义 |
@@ -104,7 +114,8 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 ```
 packages/subagent-hub
-├─ lib/index.js             Host 服务：注册预设、prompt 段落、pre-execute 守卫、官方设置同步
+├─ lib/index.js             Host 服务：注册预设、prompt 段落、pre-execute 守卫、官方设置同步、live 重配置
+├─ lib/client.js            官方 Plugins 页的行配置卡片（路由 / 具名 agent / 托管开关）
 ├─ lib/catalog.js           配置 → 路由表 + 具名 agent + 稳定 preset id + 配置问题
 ├─ lib/definitions.js       具名 agent 定义校验
 ├─ lib/presets.js           从基础预设派生具名 agent 预设（递归去委派行 + persona 追加）
@@ -112,6 +123,7 @@ packages/subagent-hub
 ├─ lib/guard.js             路由约束判定（纯函数）
 ├─ lib/prompt.js            system prompt 目录段落（纯函数）
 ├─ lib/official-settings.js manageOfficialSettings 的计划与配置改写（纯函数）
+├─ locale/                  Plugins 卡片标题/说明
 └─ test/                    单元测试 + e2e（临时 DSH_HOME + 真实 dsh 0.2.1-rc.2）
 ```
 
@@ -128,15 +140,17 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：36 项单元测试 + 12 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：44 项单元测试 + 16 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
-e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制。
+e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 
 ## 8. 风险与限制
 
 | 限制 | 说明 |
 |---|---|
 | 具名预设会出现在新会话预设选择器里（`Hub agent · <id>`，排最后） | 官方没有隐藏标记；用户照常用 `standard` 即可 |
+| 配置卡片的修改对**已有会话**不改变工具 schema | 官方在会话组合/恢复时固定 preset 与模型选择策略；新会话生效 |
+| 配置卡片依赖官方 `settings` 服务的 volatile 表单 | 若运行时移除该机制，仍可手改 profile patch（字段一致） |
 | 具名 agent 只来自插件配置 | 这是静态 `allowedAgentPresets` 的硬约束（D1），不是偷懒 |
 | fork 工具不能选具名预设 | 官方 fork provider `agentPreset: false`；具名 agent 只能走 `subagent` |
 | `manageOfficialSettings` 会把被管理的预设 config 固定在 profile 层 | 见 4.5，显式开关 |

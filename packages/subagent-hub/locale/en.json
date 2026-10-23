@@ -1,0 +1,1 @@
+{ "meta": { "title": "Subagent Hub", "description": "Registers named subagents as official Agent Presets, mirrors the model route table into the official allowedModels, and puts a configuration card on the official Plugins page." } }

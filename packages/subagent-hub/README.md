@@ -3,8 +3,8 @@
 DSH 插件：给**官方**子代理派发补上“怎么选”的信息——具名子 agent、按能力标签的模型白名单、路由约束守卫。
 目标运行时 `@deepseek-ai/dsh` 0.2.1-rc.2。
 
-v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_subagent`、不再有右侧栏页与设置页。
-旧方案保留在 git tag **v0.3.0**。
+v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_subagent`、不再有右侧栏页与自建设置页。
+0.4.1 恢复了配置能力，但只挂在官方 Plugins 页的一张卡片上。旧方案保留在 git tag **v0.3.0**。
 
 ## 它做什么
 
@@ -13,6 +13,21 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 - **选择目录**：新增一段 system prompt，列出“具名 agent → 用途 / 标签 / 限定路由”和“可用模型 → 标签”，并告诉主 agent 哪个任务配哪个。参数没被官方工具暴露时，段落会明确说“目录仅供参考”，而不会诱导一次失败的调用。
 - **路由约束守卫**：当官方调用带 `agent_preset` 指向声明了 `routes` 的具名 agent，而实际子路由（显式 `provider`/`model`，或继承的父路由）不在其中时，`tools/pre-execute` 在派发前拒绝，并给出允许的路由列表。
 - **可选的官方配置托管**：`manageOfficialSettings: true` 时，通过 `configEditor` 幂等写入官方工具行的 `allowedAgentPresets` 和 Host 的 `subagent-model-selection` 设置。默认 `false`，不替用户改别人的配置。
+- **配置卡片**：官方 Plugins 页里 `dsh-subagent-hub` 的 `subagent-hub` 行有 **Configure** 页，可视化增删模型路由、具名子 agent 和托管开关；保存即时生效，不需要重启，也不用再手改 YAML。
+
+## 在界面上配置
+
+打开 **Plugins → dsh-subagent-hub → subagent-hub → Configure**：
+
+| 区块 | 可编辑 |
+|---|---|
+| 官方设置托管 | `manageOfficialSettings` 开关 |
+| 模型路由 | id / provider / model / reasoningEffort / tags / note，按顺序即 `allowedModels` 顺序 |
+| 具名子 agent | id（实时预览 `hub-agent-<id>`）/ description / instructions / routes / needs / basePreset |
+
+保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
+
+不想用界面时，下面这些字段仍然可以直接写在 profile 的 `cordis.patch.yml` 里，效果相同。
 
 ## 配置
 
@@ -76,16 +91,16 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 - 不注册任何派发工具；`delegate` / `define_subagent` 已删除。
 - 不派生 `<base>+hub` 预设；新会话不需要选任何特殊预设。
 - 不选模型、不做路由回退、不做预算、不写会话投影。
-- 不提供界面：子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页。
+- 不提供独立侧栏页或自建设置页：子 agent 目录用官方 `dsh-client-ui-subagent`，本插件只在官方 Plugins 页提供一张配置卡片。
 - 具名 agent 只来自插件配置：官方 `allowedAgentPresets` 是静态列表，会话内创建 / 工作区文件 / 外部来源无法可靠进入它（v1 的这四层已删除）。
 
 ## 测试
 
 ```sh
-bash test.sh   # 36 项单元测试 + 真实运行时 e2e（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 44 项单元测试 + 16 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
-e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions。
+e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新。
 
 ## 已知限制
 

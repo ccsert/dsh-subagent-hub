@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — 官方 Plugins 页配置卡片，保存即时生效
+
+0.4.0 删掉了 v1 的侧栏路由页和自建设置页，配置只能手改 profile patch。这一版把**配置卡片**加回来，但不恢复任何独立界面：它挂在官方 Plugins 页，通过官方 `plugins.row.config` 槽位与 `settings` 配置表单工作。
+
+- `routes` / `agents` / `manageOfficialSettings` 声明为 volatile：在 Plugins → `dsh-subagent-hub` → `subagent-hub` 行的 **Configure** 页里编辑并保存，配置即时写入 profile patch、无需重启。
+- 保存后 Host 侧自动重注册受影响的具名 Agent Preset、更新官方 `allowedAgentPresets` / `subagent-model-selection` allowlist；新会话立刻可用，已有会话 composition 不变。
+- 表单提供：模型路由（id / provider / model / reasoningEffort / tags / note）、具名子 agent（id / description / instructions / routes / needs / basePreset）、以及“管理官方委派配置”开关；保存为一次带修订号的原子写入。
+- 重新加入 Client 半侧（`lib/client.js`、`dsh.client`、locale）、`plugins.row.config` 注册与对应单元测试；`package.json` 版本 0.4.1。
+- 修复 live 编辑路径与官方 HMR 事务嵌套冲突：配置变更由一个在 HMR 事务之外启动的长期 worker 串行应用，`configEditor` 不再在嵌套事务里报 “HMR transactions cannot be nested”。
+- 测试：44 项单元测试 + 16 项真实运行时 e2e（新增：client bundle 上架、row config form 描述符、live 新增具名 agent 后预设/allowlist/schema/persona 全部生效）。
+
 ## 0.4.0 — 反转到官方机制
 
 方向性重构：**不再替代官方派发，只给官方 subagent 补“怎么选”的信息。** 旧方案完整保留在 tag `v0.3.0`。

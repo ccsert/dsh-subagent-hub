@@ -9,7 +9,7 @@ import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 export const name = 'hub-e2e-driver'
 export const inject = [
   'agents', 'agentPresets', 'tools', 'agentDefaultModel', 'subagentModelSelection',
-  'systemPrompt', 'configEditor', 'subagentHub',
+  'systemPrompt', 'configEditor', 'subagentHub', 'settings',
 ]
 
 const TOOL_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
@@ -86,6 +86,29 @@ export function apply(ctx, config) {
         .map(row => ({ id: row.id, provider: row.config?.provider, allow: row.config?.allowedAgentPresets, models: row.config?.modelSelectionSettings }))
       report.presetDescription = (await ctx.agentPresets.list()).find(preset => preset.id === 'hub-agent-reviewer')?.description
 
+      // The browser half is served like an installed bundle's client module, and the row config
+      // form exists because `routes` / `agents` / `manageOfficialSettings` are volatile.
+      const modules = ctx.get('clientModules')
+      report.client = {
+        clientPath: modules?.clientPath('dsh-subagent-hub'),
+        inGraph: (JSON.stringify(modules?.graph()) ?? '').includes('dsh-subagent-hub'),
+      }
+      const descriptors = ctx.settings.describe()
+      const hubDescriptor = descriptors.find(entry => entry.ns === 'subagent-hub')
+      report.settings = hubDescriptor === undefined ? undefined : {
+        writable: ctx.settings.writable,
+        revision: hubDescriptor.revision,
+        routes: hubDescriptor.value?.routes?.length,
+        agents: hubDescriptor.value?.agents?.map(agent => agent.id),
+        manageOfficialSettings: hubDescriptor.value?.manageOfficialSettings,
+      }
+      const standardAllow = async () => {
+        const rows = load((await ctx.agentPresets.readDocument('standard')).content, { schema: entryListSchema })
+        return flattenRows(rows)
+          .filter(row => row?.name === TOOL_PACKAGE && row.config?.provider === 'spawn')
+          .flatMap(row => row.config?.allowedAgentPresets ?? [])
+      }
+
       // Main agent: the official `subagent` schema plus the catalog section.
       const handle = await ctx.agents.create({
         sessionId: `session-${randomUUID()}`,
@@ -104,12 +127,12 @@ export function apply(ctx, config) {
       const assembly = await ctx.systemPrompt.assemble({ scope: root })
       report.rootSection = assembly.sections.find(section => section.name === 'dsh-subagent-hub')?.text
 
-      const call = async (args) => {
+      const callerFor = agent => async (args) => {
         const result = await ctx.tools.execute({
           callId: `call-${randomUUID()}`,
           name: 'subagent',
           arguments: { description: 'e2e', prompt: 'HUB-E2E-CHILD work', ...args },
-          agent: root,
+          agent,
           signal: new AbortController().signal,
         })
         if (result.isError) return { isError: true, message: result.error?.message ?? textOf({ content: result.content }) }
@@ -118,6 +141,7 @@ export function apply(ctx, config) {
         const request = await waitFor(() => requests.get(id))
         return { isError: false, id, preset: children.get(id)?.preset, prompt: children.get(id)?.prompt, request }
       }
+      const call = callerFor(root)
 
       // Route guard: `pro` is a legal official model but outside reviewer's declared routes.
       report.checks.outOfRoute = await call({ agent_preset: 'hub-agent-reviewer', provider: 'deepseek-official', model: 'deepseek-v4-pro' })
@@ -127,6 +151,36 @@ export function apply(ctx, config) {
       report.checks.namedInherited = await call({ agent_preset: 'hub-agent-reviewer' })
       // A generic child is not route-confined: the guard must not restrict it.
       report.checks.generic = await call({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+
+      // Live edit through the same Host settings service the page form uses: add a named agent,
+      // wait for the plugin's reconciliation, then verify presets, allowlists, schema, and persona.
+      report.stage = 'live'; flush()
+      if (hubDescriptor !== undefined) {
+        const liveAgents = [
+          ...(hubDescriptor.value?.agents ?? []),
+          { id: 'scribe', description: 'Writes release notes', instructions: 'HUB-SCRIBE-MARKER Write crisp notes.', needs: ['fast'] },
+        ]
+        await ctx.settings.mutate('subagent-hub', [{ op: 'set', path: ['agents'], value: liveAgents }], hubDescriptor.revision)
+        await ctx.subagentHub.whenSettled()
+        const liveHandle = await ctx.agents.create({
+          sessionId: `session-${randomUUID()}`,
+          agentOptions: report.parentModel,
+          meta: { cwd: config.cwd, agentPreset: 'standard' },
+          setup: async (agentCtx) => { await ctx.agentPresets.mount(agentCtx, 'standard') },
+        })
+        const liveRoot = liveHandle.agent
+        const liveSchema = ctx.tools.schemas(liveRoot).find(item => item.name === 'subagent')
+        const liveSection = (await ctx.systemPrompt.assemble({ scope: liveRoot }))
+          .sections.find(section => section.name === 'dsh-subagent-hub')?.text
+        report.checks.live = {
+          presets: (await ctx.agentPresets.list()).map(preset => preset.id).filter(id => id.startsWith('hub-agent-')),
+          allow: await standardAllow(),
+          official: await ctx.subagentHub.officialSettingsReady,
+          schemaEnum: liveSchema?.parameters?.properties?.agent_preset?.enum,
+          sectionHasScribe: (liveSection ?? '').includes('`hub-agent-scribe`'),
+          scribe: await callerFor(liveRoot)({ agent_preset: 'hub-agent-scribe' }),
+        }
+      }
 
       report.profilePatch = readFileSync(config.profilePatch, 'utf8')
     } catch (error) {

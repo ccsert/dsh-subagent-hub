@@ -1,0 +1,1 @@
+{ "meta": { "title": "子代理中枢", "description": "把具名子 agent 注册为官方 Agent Preset、把模型路由表同步成官方 allowedModels，并在官方 Plugins 页提供配置卡片。" } }

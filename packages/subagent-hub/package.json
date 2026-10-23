@@ -1,7 +1,7 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.4.0",
-  "description": "Named subagents as official Agent Presets, a capability-tagged child model allowlist, and a route guard for the official delegation tools in DeepSeek Harness.",
+  "version": "0.4.1",
+  "description": "Named subagents as official Agent Presets, a capability-tagged child model allowlist, a route guard for the official delegation tools, and a configuration card on the official Plugins page for DeepSeek Harness.",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -11,10 +11,13 @@
   },
   "exports": {
     ".": "./lib/index.js",
-    "./package.json": "./package.json"
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
+    "locale/*.json",
     "cordis.patch.yml",
     "README.md"
   ],
@@ -24,6 +27,10 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
     }
   },
   "peerDependencies": {

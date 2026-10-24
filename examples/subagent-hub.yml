@@ -1,0 +1,36 @@
+# Example profile patch for dsh-subagent-hub.
+# Providers/models must already exist in your DSH configuration.
+# manageOfficialSettings defaults to false. Enabling it writes the official allowlists.
+- id: subagent-hub
+  config:
+    maxConcurrent: 4
+    manageOfficialSettings: true
+    routes:
+      - id: flash
+        provider: deepseek-official
+        model: deepseek-flash
+        tags: [fast, cheap]
+        note: Routine implementation and focused reviews
+      - id: pro
+        provider: deepseek-official
+        model: deepseek-v4-pro
+        tags: [reasoning]
+        note: Tasks that benefit from deeper reasoning
+    agents:
+      - id: reviewer
+        description: Reviews changes and reports concrete findings
+        instructions: |
+          Read the relevant code and diff.
+          Report actionable findings with file locations and reasons.
+          Do not edit files.
+        routes: [flash]
+        needs: [fast]
+        basePreset: standard
+      - id: tester
+        description: Checks behavior and investigates failing tests
+        instructions: |
+          Reproduce the reported behavior and run focused checks.
+          Explain the evidence, failures, and any remaining uncertainty.
+        routes: [flash, pro]
+        needs: [reasoning]
+        basePreset: standard

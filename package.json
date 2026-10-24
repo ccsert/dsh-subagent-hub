@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "bash test.sh"
+    "test": "bash test.sh",
+    "test:unit": "node --test packages/subagent-hub/test/*.test.js",
+    "docs:check": "node scripts/check-docs.mjs",
+    "pack:check": "node scripts/check-package.mjs"
   },
   "devDependencies": {
     "react": "18.3.1",

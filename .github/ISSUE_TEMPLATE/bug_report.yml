@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible problem with Subagent Hub.
+title: '[Bug]: '
+body:
+  - type: markdown
+    attributes:
+      value: Please include a minimal reproduction. Remove credentials, account tokens, and private conversation content.
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: Hub, DSH Desktop, DSH runtime, and operating system.
+      placeholder: Hub 0.10.1 / Desktop 0.12.1 / dsh 0.2.1-rc.2 / macOS
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Include whether this affects a new or existing conversation.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Minimal configuration and error evidence
+      description: For model issues, distinguish configured routes, planned selection, and recorded request model. Use redacted examples.

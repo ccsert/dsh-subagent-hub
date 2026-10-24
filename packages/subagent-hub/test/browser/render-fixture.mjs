@@ -9,7 +9,7 @@ const client = readFileSync(new URL('../../lib/client.js', import.meta.url), 'ut
 const react = readFileSync(resolve(dirname(require.resolve('react/package.json')), 'umd/react.development.js'), 'utf8')
 const reactDOM = readFileSync(resolve(dirname(require.resolve('react-dom/package.json')), 'umd/react-dom.development.js'), 'utf8')
 const safeScript = source => source.replace(/<\/script/gi, '<\\/script')
-const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>子代理中枢 · 交互验收</title>
+const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>子代理中枢 · 交互验收</title>
 <style>body{margin:0;padding:24px;background:#151516;color:#e6e6e6;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}main{max-width:960px;margin:auto}h1{font-size:20px;margin:0 0 8px}#fixture-note{font-size:12px;color:#a6a6ab;margin:0 0 20px}@media(max-width:480px){body{padding:12px}}</style>
 <main><h1>子代理中枢</h1><p id="fixture-note">交互验收数据 · 保存仅写入本页内存，不修改实际配置</p><div id="root"></div></main>
 <script>${safeScript(react)}</script><script>${safeScript(reactDOM)}</script>

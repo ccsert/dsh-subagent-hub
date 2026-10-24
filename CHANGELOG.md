@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.3 — Fix Desktop model badge registration
+
+- 修复子会话模型标识未显示：`conversation.session.header.utilities` 是 list 插槽，需要 `id`；旧代码误用 keyed 插槽的 `key`，被 Desktop 原生注册器拒绝。
+- 单测与浏览器 fixture 校验 list 身份字段；完整验证加入读取实际 Desktop/SDK 渲染器注册方法的回归，先复现真实异常，再确认注册与模型内容渲染。
+- 原有 102 项单测、31 项隔离运行时断言保持通过；Desktop 当前窗口的模块重载与可视确认单独记录，不以组件演示冒充。
+
 ## 0.10.2 — Guard inherited child and Team routes
 
 - 修复 `spawn_teammate` 未经模型路由检查便继承主模型的问题，fresh/fork 两种 context 均覆盖。

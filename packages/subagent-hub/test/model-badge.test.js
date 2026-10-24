@@ -98,12 +98,17 @@ test('the optional session contribution uses the official utilities list slot', 
     sessions: { binding: () => undefined },
     slots: {
       inject(name, register) { assert.equal(name, 'conversation.session.header.utilities'); return register() },
-      register(options, body) { definition = options; component = body },
+      register(options, body) {
+        if (typeof options.id !== 'string' || !options.id) throw new Error('list slot requires options.id')
+        definition = options
+        component = body
+      },
     },
   }
   registerModelBadge({ inject(services, register) { assert.deepEqual(plain(services), ['sessions']); register(scope) } }, t)
   assert.equal(definition.name, MODEL_BADGE_SLOT)
-  assert.equal(definition.key, 'subagent-hub-model')
+  assert.equal(definition.id, 'subagent-hub-model')
+  assert.equal(definition.key, undefined)
   assert.equal(typeof definition.inject, 'function')
   assert.equal(renderToStaticMarkup(component(definition.inject('missing'))), '')
 })

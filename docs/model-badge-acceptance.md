@@ -1,4 +1,19 @@
-# 子会话模型标识验收（0.10.0）
+# 子会话模型标识验证记录
+
+## 0.10.3：Desktop 挂载错误修复
+
+用户在真实 Desktop 子会话中未看到模型标识。复现发现，标题栏 utilities 是 list 插槽，实际 Desktop 注册器要求 `options.id`；旧代码传入 `key`，抛出 `list slot "conversation.session.header.utilities" requires options.id`，组件根本未注册。
+
+修复为 `id: subagent-hub-model`，并让单测和 fixture 验证该字段。新增[原生消费者回归](../packages/subagent-hub/test/e2e/native-slot.js)，直接读取已安装 Desktop ASAR 中的渲染器注册方法，在隔离 VM 中运行，不连接或改变用户进程。该回归先观察到旧代码失败，修复后验证原生注册、MiniMax 内容渲染及独立贡献清理。非 Desktop 环境使用安装 SDK 的对应注册器。
+
+```bash
+node packages/subagent-hub/test/e2e/native-slot.js
+bash test.sh
+```
+
+本次 102 项单测、31 项运行时断言及 Desktop 原生注册回归通过。原有演示只验证组件和数据，没有覆盖真实注册器，是此次漏测原因。当前用户窗口的可视验证仍需客户端加载修复后的模块；不声称已远程重载 Desktop。
+
+## 0.10.0 组件与数据验证（历史范围）
 
 ## 范围与来源
 

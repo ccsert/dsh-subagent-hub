@@ -1719,7 +1719,7 @@ window.__ModuleLoader__.load({
     function registerModelBadge(ctx, t) {
       ctx.inject(['sessions'], scope => scope.slots.inject(MODEL_BADGE_SLOT, () => scope.slots.register({
         name: MODEL_BADGE_SLOT,
-        key: 'subagent-hub-model',
+        id: 'subagent-hub-model',
         order: -10,
         locale: NS,
         inject: sessionId => modelBadgeShares(scope.sessions, sessionId),

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.2"><img src="https://img.shields.io/badge/version-0.10.2-66c8ab" alt="Version 0.10.2"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.3"><img src="https://img.shields.io/badge/version-0.10.3-66c8ab" alt="Version 0.10.3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-102_unit_%2B_31_runtime-66c8ab" alt="102 unit tests and 31 runtime assertions verified"></a>
@@ -46,11 +46,11 @@
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.10.2.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.10.3.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.2.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.3.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -94,6 +94,7 @@
 - **fork 遵循官方能力。** 目标运行时的 fork provider 不支持独立 `agent_preset`；具名角色通过 `subagent` 使用。
 - **官方配置托管默认关闭。** `manageOfficialSettings` 默认为 `false`。开启后同步官方 allowlist；关闭后停止同步，已写入的配置会保留。
 - **已有会话保留原工具 schema。** 配置保存即时生效；新增角色或工具参数请在新会话中使用。替换插件代码则需要重启 DSH。
+- **Desktop 模型标识需 0.10.3 或更新。** 此版本修正原生 list 插槽的注册字段；组件示意图不等于已在当前 Desktop 窗口完成重载。详见[挂载修复记录](docs/model-badge-acceptance.md)。
 - **模型标识来自请求记录。** `lastUsed` 显示最近请求；不同的 `next` 单独标为下一次选择。尚无请求显示“尚未请求”，记录不可用显示“未确认”。记录不代表调用成功或收费情况，fork 的继承历史也可能包含最近请求。
 
 ## 开发与验证
@@ -106,7 +107,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **102 项单元测试和 31 项真实运行时断言**。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **102 项单元测试和 31 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.2"><img src="https://img.shields.io/badge/version-0.10.2-66c8ab" alt="Version 0.10.2"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.3"><img src="https://img.shields.io/badge/version-0.10.3-66c8ab" alt="Version 0.10.3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
   <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-102_unit_%2B_31_runtime-66c8ab" alt="102 unit tests and 31 runtime assertions verified"></a>
@@ -46,11 +46,11 @@ These are the actual plugin components rendered with demo data. They contain no 
 
 Tested with **DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.10.2.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.10.3.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.2.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.3.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
@@ -92,6 +92,7 @@ The main agent selects a role based on the task and catalog. When the official t
 - **Fork follows official capabilities.** The target fork provider does not support an independent `agent_preset`; named roles use `subagent`.
 - **Managed settings are opt-in.** `manageOfficialSettings` defaults to `false`. Enabling it synchronizes official allowlists. Disabling it stops syncing and retains settings already written.
 - **Existing conversations keep their tool schema.** Saved configuration is live; use a new conversation for newly added roles or tool parameters. Plugin code upgrades require a DSH restart.
+- **Desktop model badges need 0.10.3 or newer.** This fixes the required native list-slot registration field. A component demo is distinct from a reload of the current Desktop window; see the [mounting fix record](docs/model-badge-acceptance.md).
 - **The model badge shows request history.** `lastUsed` identifies the latest request; a different `next` selection is shown separately. A ready empty history says “No request yet”; unavailable data says “Unconfirmed.” A request record does not establish success or billing, and forked history may include inherited requests.
 
 ## Development

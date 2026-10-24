@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.2 — Guard inherited child and Team routes
+
+- 修复 `spawn_teammate` 未经模型路由检查便继承主模型的问题，fresh/fork 两种 context 均覆盖。
+- 真实运行时进一步确认独立 `subagent_fork` 也能继承表外模型；统一在三个已知创建入口检查全局 `routes`，再叠加具名角色限制。
+- 按实际工具 schema 决定模型参数是否有效，防止额外字段伪装继承路由；无法确认和无有效路由时拒绝创建，保留原生半参数配对错误。
+- Team-only 会话也展示能力目录，明确 context 只控制历史；仅推荐确有模型输入的派发工具，不再建议传不存在的参数。
+- 补齐全局路由、已有成员、请求期改写和原生 Team 容量的适用边界，更新 npm 分发说明。
+- 验证：102 项单测、23 项独立委派运行时断言、8 项原生 Team/继承路由断言，全部模型流均被脚本拦截。
+
 ## 0.10.1 — Release packaging and project documentation
 
 - 重写中文首页并新增完整英文 README，补齐归档安装、最小配置、使用边界、升级卸载、贡献与发布说明。

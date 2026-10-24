@@ -23,13 +23,15 @@ bash test.sh
 
 The full suite requires a compatible installed DSH runtime. See [the e2e runner](packages/subagent-hub/test/e2e/run.sh) for discovery and override variables. It creates an isolated temporary `DSH_HOME`, registers the real bundle, exercises official subagent dispatch, and intercepts the model stream. No production profile or model account is used.
 
-Unit tests are suitable for CI without a DSH install. This release has 87 unit tests and 23 runtime assertions; the CI workflow runs units, documentation, and package checks. Runtime assertions are a separate local gate, not a claim that CI contacted real model providers.
+Unit tests are suitable for CI without a DSH install. This release has 102 unit tests and 31 runtime assertions; the CI workflow runs units, documentation, and package checks. Runtime assertions are a separate local gate, not a claim that CI contacted real model providers.
+
+The full runtime gate includes both independent delegation and the opt-in native Team bundle. See [Team routing](docs/team-model-routing.md) for schema, inheritance, and rejected-member checks.
 
 ## Scope and design
 
 - Keep official dispatch and lifecycle ownership with DSH.
 - Use official Agent Presets and public client slots/projections.
-- Route tags are guidance. A named agent's route guard is the hard boundary.
+- Route tags are guidance. The global child route list guards native creation tools, and a named agent's routes can narrow it further.
 - Read model information from request records; preserve unknown states.
 - Keep saved configuration free of transient editor metadata.
 - Preserve other profile fields when synchronizing managed settings.

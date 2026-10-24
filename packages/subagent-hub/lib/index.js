@@ -17,7 +17,7 @@ import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
-import { GUARD_PREFIX, concurrencyVerdict, guardVerdict } from './guard.js'
+import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable } from './guard.js'
 import { promptSection } from './prompt.js'
 import { MODEL_SETTINGS_ID, PRESET_PLUGIN, modelSettingsFor, officialSettingsPlan, patchPresetRows, sameAllowedModels } from './official-settings.js'
 
@@ -287,22 +287,34 @@ export default class SubagentHub extends Service {
   exposedParameters(scope) {
     const tools = this.ctx.get('tools')
     if (tools === undefined) return undefined
+    const independent = []
     for (const name of ['subagent', 'subagent_fork']) {
       const tool = tools.get(name, scope)
       if (tool === undefined) continue
       const properties = tool.parameters?.properties ?? {}
-      return {
+      independent.push({
+        name,
         agentPreset: Object.hasOwn(properties, 'agent_preset'),
         model: Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model'),
-      }
+      })
     }
-    return undefined
+    const teamTool = tools.get('spawn_teammate', scope)
+    if (independent.length === 0 && teamTool === undefined) return undefined
+    const properties = teamTool?.parameters?.properties ?? {}
+    return {
+      agentPreset: independent[0]?.agentPreset ?? false,
+      model: independent[0]?.model ?? false,
+      independent,
+      team: teamTool === undefined ? undefined : {
+        model: Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model'),
+      },
+    }
   }
 
   sectionText(scope) {
     const params = this.exposedParameters(scope)
     if (params === undefined) return ''
-    return promptSection({ catalog: this.catalog, params, limit: read(this.config.maxConcurrent) ?? 0 })
+    return promptSection({ catalog: this.catalog, params, limit: read(this.config.maxConcurrent) ?? 0, limitTools: read(this.config.delegationTools) ?? [] })
   }
 
   /** Child agents of one Session that are still running, from the start/end ledger. */
@@ -348,9 +360,30 @@ export default class SubagentHub extends Service {
         running: this.runningChildren(exec.agent),
       })
       if (busy !== undefined) return Promise.resolve({ kind: 'deny', reason: busy })
-      const reason = guardVerdict({ arguments: exec.arguments, parent: exec.agent, catalog: this.catalog })
-      if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
+      let args = exec.arguments
+      let canSelectModel = true
+      if (CREATION_TOOLS.includes(exec.name)) {
+        const tool = this.ctx.get('tools')?.get(exec.name, exec.agent)
+        const reason = creationRouteVerdict({
+          toolName: exec.name,
+          arguments: args,
+          parent: exec.agent,
+          catalog: this.catalog,
+          parameters: tool?.parameters,
+          configured: (read(this.config.routes) ?? []).length > 0,
+        })
+        if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
+        canSelectModel = modelSelectionAvailable(tool?.parameters)
+        if (!canSelectModel) args = { ...args, provider: undefined, model: undefined }
+      }
+      if (exec.name !== 'spawn_teammate') {
+        const reason = guardVerdict({ arguments: args, parent: exec.agent, catalog: this.catalog, canSelectModel })
+        if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
+      }
     } catch (error) {
+      if (CREATION_TOOLS.includes(exec.name)) {
+        return Promise.resolve({ kind: 'deny', reason: `${GUARD_PREFIX} ${exec.name} could not verify its model against the Hub child routes. No child was started; check the route configuration and tool availability.` })
+      }
       this.ctx.logger?.warn?.(`${PACKAGE}: route guard skipped one call: ${String(error?.message ?? error)}`)
     }
     return next()

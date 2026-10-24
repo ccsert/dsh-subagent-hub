@@ -1,6 +1,6 @@
 # Release guide
 
-The current distribution channel is a GitHub Release with an npm-format archive and a SHA-256 checksum. The package does not require a build step. npm registry publication is a separate action; it has not been configured for this repository.
+The package is distributed through npm and GitHub Releases with an npm-format archive and SHA-256 checksum. The package does not require a build step. Publish the exact checked archive to both channels; ordinary npm publication requires its account authentication challenge.
 
 ## Before cutting a version
 
@@ -31,17 +31,17 @@ npm pack ./packages/subagent-hub --ignore-scripts --pack-destination output/rele
 
 Inspect the resulting file list and checksum before uploading. The archive should contain runtime code, locale files, the bundle patch, package metadata, a package README, and MIT license. It should not contain tests, generated fixture HTML, profile data, documentation screenshots, or node_modules.
 
-For version 0.10.1:
+For version 0.10.2:
 
 ```bash
-tar -tzf output/releases/dsh-subagent-hub-0.10.1.tgz
-shasum -a 256 output/releases/dsh-subagent-hub-0.10.1.tgz
+tar -tzf output/releases/dsh-subagent-hub-0.10.2.tgz
+shasum -a 256 output/releases/dsh-subagent-hub-0.10.2.tgz
 ```
 
 Write a standard checksum file containing the hash and archive basename so downloaders can verify it in the same directory:
 
 ```bash
-shasum -a 256 -c dsh-subagent-hub-0.10.1.tgz.sha256
+shasum -a 256 -c dsh-subagent-hub-0.10.2.tgz.sha256
 ```
 
 ## Publish on GitHub
@@ -51,12 +51,12 @@ Commit the reviewed changes, push the branch, and wait for CI. Tag that exact co
 Example for this release:
 
 ```bash
-gh release create v0.10.1 \
-  output/releases/dsh-subagent-hub-0.10.1.tgz \
-  output/releases/dsh-subagent-hub-0.10.1.tgz.sha256 \
+gh release create v0.10.2 \
+  output/releases/dsh-subagent-hub-0.10.2.tgz \
+  output/releases/dsh-subagent-hub-0.10.2.tgz.sha256 \
   docs/assets/hero.png \
   --verify-tag \
-  --title "Subagent Hub v0.10.1" \
+  --title "Subagent Hub v0.10.2" \
   --notes-file output/releases/release-notes.md
 ```
 
@@ -64,11 +64,11 @@ A Release inherits repository visibility. Creating a Release in a private reposi
 
 ## Optional npm publication
 
-Before first npm publication, the owner must decide to distribute the package publicly, verify namespace ownership and authentication, and review the archive. Publish the already checked archive; do not rebuild a different artifact between review and publication.
+Before npm publication, verify the owner account, an unused version, authentication, and the archive. Existing name/version pairs are immutable. Publish the already checked archive; do not rebuild a different artifact between review and publication.
 
 ```bash
 npm whoami
-npm publish output/releases/dsh-subagent-hub-0.10.1.tgz --access public
+npm publish output/releases/dsh-subagent-hub-0.10.2.tgz --access public
 ```
 
 After a successful registry publication, verify `npm view dsh-subagent-hub version dist.integrity` and update the documented installation channel. Never commit npm tokens or put them in release notes.

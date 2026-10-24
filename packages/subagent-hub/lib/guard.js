@@ -57,12 +57,47 @@ export function concurrencyVerdict({ toolName, delegationTools, limit, running }
   return `${GUARD_PREFIX} 这个会话已有 ${running} 个子 agent 正在运行（上限 ${limit}）。等其中一个结束后再派发，或者自己把剩下的工作做完。`
 }
 
+export const CREATION_TOOLS = ['subagent', 'subagent_fork', 'spawn_teammate']
+
+export function modelSelectionAvailable(parameters) {
+  const properties = parameters?.properties ?? {}
+  return Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model')
+}
+
+/**
+ * Check the actual route of every supported creation tool against the configured
+ * child allowlist. Tool capabilities decide whether model arguments are effective;
+ * extra arguments on a model-less fork/Team tool cannot disguise inheritance.
+ */
+export function creationRouteVerdict({ toolName, arguments: args, parent, catalog, parameters, configured = catalog.routes.size > 0 }) {
+  if (!CREATION_TOOLS.includes(toolName) || !configured) return undefined
+  const allowed = [...catalog.routes.values()]
+  if (allowed.length === 0) return `${GUARD_PREFIX} ${toolName} cannot verify its child model: the configured child route list has no valid routes. Fix the Hub route configuration before delegating.`
+  const canSelectModel = modelSelectionAvailable(parameters)
+  if (canSelectModel) {
+    const provider = typeof args?.provider === 'string' && args.provider !== ''
+    const model = typeof args?.model === 'string' && args.model !== ''
+    if (provider !== model) return undefined // the native tool reports its pairing error
+  }
+  const route = effectiveRoute(canSelectModel ? args ?? {} : {}, parent)
+  const labels = allowed.map(routeLabel).join(', ')
+  if (route !== undefined && allowed.some(allowed => allowed.provider === route.provider && allowed.model === route.model)) return undefined
+  const actual = route === undefined ? 'an unconfirmed model' : `${route.provider}/${route.model}`
+  const mode = toolName === 'spawn_teammate' ? ` (${args?.context === 'fork' ? 'fork' : 'fresh'})` : ''
+  const alternative = canSelectModel
+    ? 'Choose provider and model from the allowed routes.'
+    : toolName === 'spawn_teammate'
+      ? 'This spawn_teammate schema has no provider/model selector. Both fresh and fork inherit the Lead model; changing context does not choose a different model. Use a delegation tool only if its actual schema exposes model selection, or select an allowed Lead model before using Teams.'
+      : `This ${toolName} schema has no provider/model selector and inherits the parent model. Use a delegation tool only if its actual schema exposes model selection, or select an allowed parent model first.`
+  return `${GUARD_PREFIX} ${toolName}${mode} would use ${actual}, outside the configured child routes: ${labels}. No child was started. ${alternative}`
+}
+
 /**
  * Whether one official delegation call must be rejected.
  * @param {{ arguments?: GuardArguments, parent?: any, catalog: GuardCatalog }} input
  * @returns {string | undefined} a model-readable rejection reason, or undefined to allow.
  */
-export function guardVerdict({ arguments: args, parent, catalog }) {
+export function guardVerdict({ arguments: args, parent, catalog, canSelectModel = true }) {
   const presetId = args?.agent_preset
   if (typeof presetId !== 'string') return undefined
   const agent = catalog.byPreset.get(presetId)
@@ -87,7 +122,10 @@ export function guardVerdict({ arguments: args, parent, catalog }) {
   const labels = allowed.map(routeLabel).join(', ')
   const explicit = allowed.map(route => route.id).join(', ')
   if (requested.source === 'inherited parent') {
-    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${requested.provider}/${requested.model}. Pass \`provider\` and \`model\` together, choosing one of: ${labels} (route ids: ${explicit}).`
+    const guidance = canSelectModel
+      ? `Pass \`provider\` and \`model\` together, choosing one of: ${labels} (route ids: ${explicit}).`
+      : 'This tool has no provider/model selector. Use a tool whose actual schema supports model selection, or an allowed parent model; do not pass unsupported model arguments.'
+    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${requested.provider}/${requested.model}. ${guidance}`
   }
   return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}; requested ${requested.provider}/${requested.model} is not allowed. Choose \`provider\` and \`model\` from: ${labels} (route ids: ${explicit}).`
 }

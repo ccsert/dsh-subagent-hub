@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import vm from 'node:vm'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { runTeamChecks } from './team.js'
 
 export const name = 'hub-e2e-driver'
 export const inject = [
@@ -94,6 +95,12 @@ export function apply(ctx, config) {
       report.presets = (await ctx.agentPresets.list()).map(preset => preset.id)
       report.parentModel = ctx.agentDefaultModel.currentSelection()
       report.modelSelection = ctx.subagentModelSelection.current()
+      if (config.team) {
+        await runTeamChecks(ctx, config, report, { requests, children, waitFor })
+        report.done = true
+        flush()
+        return
+      }
 
       // The official preset rows the plugin rewrote: spawn row gets the allowlist, fork row keeps
       // its own configuration (the runtime rejects preset selection on fork children).

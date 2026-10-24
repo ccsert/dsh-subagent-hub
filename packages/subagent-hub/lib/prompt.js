@@ -7,7 +7,8 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
  * @typedef {import('./router.js').Route} Route
  * @typedef {import('./guard.js').GuardAgent & { description: string, needs?: string[] }} PromptAgent
  * @typedef {{ routes: Map<string, Route>, agents: PromptAgent[], tags: string[], problems: string[] }} PromptCatalog
- * @typedef {{ agentPreset: boolean, model: boolean }} PromptParameters
+ * @typedef {{ name: string, agentPreset: boolean, model: boolean }} DelegationInputs
+ * @typedef {{ agentPreset: boolean, model: boolean, independent?: DelegationInputs[], team?: { model: boolean } }} PromptParameters
  */
 
 /**
@@ -16,11 +17,25 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
  * @param {{ catalog: PromptCatalog, params: PromptParameters, limit?: number }} input
  * @returns {string} section markdown, or '' when there is nothing to say.
  */
-export function promptSection({ catalog, params, limit = 0 }) {
+export function promptSection({ catalog, params, limit = 0, limitTools = ['subagent', 'subagent_fork'] }) {
   const { agents, routes, tags, problems } = catalog
   if (agents.length === 0 && routes.size === 0) return ''
   const lines = ['## Choosing a subagent']
-  lines.push(guidance(params))
+  if (params.team !== undefined && params.independent?.length === 0) {
+    lines.push('This session exposes Agent Teams without an independent subagent creation tool. The named-agent catalog is informational here; use only the inputs present on the visible tool.')
+  } else {
+    lines.push(guidance(params))
+  }
+  if (params.team !== undefined) {
+    if (params.team.model) {
+      lines.push('`spawn_teammate` exposes model selection in this composition; choose provider and model from the configured child routes.')
+    } else {
+      lines.push('`spawn_teammate` has no `provider`, `model`, or `agent_preset` input in this runtime. Both `context=fresh` and `context=fork` inherit the Lead model; context selects history, not a different model. The Hub rejects a teammate whose inherited model is outside the configured child routes.')
+      const alternatives = (params.independent ?? []).filter(tool => tool.model).map(tool => `\`${tool.name}\``)
+      if (alternatives.length > 0) lines.push(`For an explicit child model requirement, use ${alternatives.join(' or ')} with the provider/model inputs its schema exposes.`)
+      else lines.push('No visible independent delegation tool exposes model selection. If the inherited model cannot satisfy the requested model requirement, explain this limitation before delegating; do not start a different model and apologize afterwards.')
+    }
+  }
   if (agents.length > 0) {
     lines.push('', 'Named agents:')
     for (const agent of agents) {
@@ -39,11 +54,17 @@ export function promptSection({ catalog, params, limit = 0 }) {
       lines.push(`- \`${routeLabel(route)}\`${tagsPart}${notePart}`)
     }
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
+    lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.')
     const restricted = agents.some(agent => (agent.routes?.length ?? 0) > 0)
     if (restricted) lines.push('When a named agent lists routes, the child `provider`/`model` must be one of that agent\'s routes; any other route is rejected before the child starts.')
   }
   if (limit > 0) {
-    lines.push('', `At most ${limit} child agents may run at the same time in one Session; a delegation beyond that is refused, so wait for one to finish instead of queueing more.`)
+    if (params.team !== undefined) {
+      const covered = (params.independent ?? []).filter(tool => limitTools.includes(tool.name)).map(tool => `\`${tool.name}\``)
+      if (covered.length > 0) lines.push('', `The Hub per-session concurrency cap is ${limit}, enforced on ${covered.join(', ')}. Team creation follows the native Team capacity setting.`)
+    } else {
+      lines.push('', `At most ${limit} child agents may run at the same time in one Session; a delegation beyond that is refused, so wait for one to finish instead of queueing more.`)
+    }
   }
   if (problems.length > 0) lines.push('', `Ignored configuration problems: ${problems.join('; ')}`)
   return lines.join('\n')

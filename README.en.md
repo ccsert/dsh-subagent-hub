@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.1"><img src="https://img.shields.io/badge/version-0.10.1-66c8ab" alt="Version 0.10.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.2"><img src="https://img.shields.io/badge/version-0.10.2-66c8ab" alt="Version 0.10.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-87_unit_%2B_23_runtime-66c8ab" alt="87 unit tests and 23 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-102_unit_%2B_31_runtime-66c8ab" alt="102 unit tests and 31 runtime assertions verified"></a>
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
@@ -25,7 +25,7 @@ Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversa
 |---|---|
 | **Named roles** | Register official `hub-agent-<id>` presets and dispatch with `agent_preset` |
 | **Model selection catalog** | Provide configured routes, capabilities, purposes, and role instructions to the main agent |
-| **Route guard** | Reject explicit or inherited routes outside a named role's allowed `routes` before dispatch |
+| **Route guard** | Check the global child routes before subagent, fork, and Team creation; named roles can narrow that range further |
 | **Per-session concurrency** | Limit child agents in each parent session, alongside DSH's global capacity |
 | **Native settings form** | Edit models, roles, tags, and management options in **Settings → Subagent Hub** |
 | **Request model visibility** | Read the latest provider/model from the child header; expand for full IDs and recorded reasoning effort |
@@ -46,17 +46,17 @@ These are the actual plugin components rendered with demo data. They contain no 
 
 Tested with **DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.10.1.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.10.2.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.1.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.2.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
 4. Open **Settings → Subagent Hub**, select models already available in your DSH, and add a role. Enable **Manage the official delegation settings** if you want Hub to synchronize the official allowlists. Save, then start a new conversation.
 
-Git checkout installation, profile locations, upgrades, and removal are covered in the [installation guide](docs/install.md). GitHub release archives are the current distribution channel; npm registry publishing is not enabled yet.
+Git checkout installation, profile locations, upgrades, and removal are covered in the [installation guide](docs/install.md). The package is published as [dsh-subagent-hub](https://www.npmjs.com/package/dsh-subagent-hub); fixed GitHub release archives are also available. The Team/inheritance guard requires 0.10.2 or newer.
 
 ## Minimal configuration
 
@@ -85,6 +85,8 @@ The main agent selects a role based on the task and catalog. When the official t
 
 ## Behavior to keep in mind
 
+- **Team context selects history.** In the supported runtime, fresh and fork both inherit the Lead model and have no model-selection input. For a specific child model, use a `subagent` tool whose actual schema exposes model selection. See [Team model routing](docs/team-model-routing.md).
+- **Global routes also guard inheritance.** A nonempty `routes` list bounds all three creation tools; out-of-list or unconfirmed models are refused. An empty list retains native inheritance. Existing members and later request rewrites are outside this creation check.
 - **Tags guide decisions.** Tags such as `fast`, `reasoning`, or `free` are maintained by you. Use a role's `routes` for a hard route boundary. Tags do not verify pricing or implement automatic fallback.
 - **The guard runs before dispatch.** Model rewrites performed by other plugins during a later child request are outside this guard. Check those plugins when combining route policies.
 - **Fork follows official capabilities.** The target fork provider does not support an independent `agent_preset`; named roles use `subagent`.
@@ -102,7 +104,7 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-This release is verified by **87 unit tests and 23 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations.
+This release is verified by **87 unit tests and 23 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
 
 Issues and PRs are welcome. Read [CONTRIBUTING](CONTRIBUTING.md), the [design notes](docs/design.md), and the [release guide](docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 

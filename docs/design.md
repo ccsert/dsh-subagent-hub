@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.10.1（发布文档、素材与打包检查；子会话最近请求模型展示），单元测试 87 项 + 真实运行时 e2e 23 项；另有浏览器交互验收。
+> 状态：0.10.2（统一检查独立子 agent 与 Team 的显式/继承创建路由），单元测试 102 项 + 真实运行时 e2e 31 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -67,15 +67,17 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 ### 4.4 路由约束守卫
 
-官方 `allowedAgentPresets` 只回答“能选哪些预设”。本插件额外注册 `tools/pre-execute`（waterfall，返回 `{ kind: 'deny', reason }`）：
+`tools/pre-execute` 在工具执行前分两层检查：
 
-1. 调用没有 `agent_preset`，或值不是本次注册的具名 agent → 放行；
-2. 具名 agent 没有 `routes` → 放行；
-3. 取“实际子路由”：显式 `provider` + `model`，否则父 agent 的当前请求路由（与官方 `parentAgentOptionsForDelegation` 同源）；
-4. 不在该 agent 的 `routes` 里 → 拒绝，理由里列出允许的 `provider/model`、路由 id 和“显式传参”的要求；
-5. 半指定（只给 provider 或只给 model）交给官方工具自己的配对错误。
+1. 非空全局 `routes` 对 `subagent`、`subagent_fork`、`spawn_teammate` 生效。
+2. 从当前 Session 的实际工具 schema 判断 `provider` / `model` 是否有效；没有这些输入时按父路由继承检查，忽略额外塞入的模型字段。
+3. 显式选择或继承模型不在全局表内、无法确认模型或配置非空但没有有效路由时，返回 `{ kind: 'deny', reason }`，不启动子会话。
+4. 具名 `agent_preset` 的 `agents[].routes` 在全局范围上继续收紧；半指定的受支持参数交给原生工具报告配对错误。
+5. 错误说明只推荐该工具实际支持的输入。Team 当前没有模型和预设选择参数；fresh/fork 都继承 Lead，独立 fork 同样没有模型输入。
 
-`subagent_fork` 不可能出现 `agent_preset`：官方 fork provider 的 `agentPreset` capability 为 `false` 且继承父上下文，配置了也加载失败。因此 `manageOfficialSettings` 只改写 spawn 行。
+原生新会话中，托管已启用的 `subagent` 暴露模型参数，可选择 MiniMax；当前 `subagent_fork` 与 `spawn_teammate` 不具备该能力。Team-only 会话也收到目录与这项限制。实际请求、零被拒绝成员记录与框架无关 Host 入口回归见 [Team 模型路由](team-model-routing.md)。
+
+全局空表保留原生继承。检查只覆盖创建工具，不重写现有成员、不拦截其后续 `send_message` 唤醒，也不覆盖其他插件的请求期模型改写。并发上限仍由 `delegationTools` 决定，未把原生 Team 容量冒充成 Hub 的独立子任务并发上限。
 
 ### 4.5a 每会话并发上限（0.8.0）
 
@@ -163,7 +165,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：71 项单元测试 + 17 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：102 项单元测试 + 31 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

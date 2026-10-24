@@ -1,8 +1,10 @@
 # 安装与升级
 
-当前版本通过 [GitHub Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 提供 npm 格式的 `.tgz` 安装包，也支持从仓库检出安装。npm registry 首次发布尚未执行。仓库访问仍受 GitHub 当前可见性和权限控制。
+插件已发布到 [npm](https://www.npmjs.com/package/dsh-subagent-hub)，也通过 [GitHub Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 提供固定归档。Team 与继承路由守卫需要 0.10.2 或更高版本。
 
 已验证：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
+
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.10.2`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
@@ -16,10 +18,10 @@ export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/pr
 
 ## 2. 安装插件包
 
-推荐从 [v0.10.1 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.1) 的 Assets 下载 `dsh-subagent-hub-0.10.1.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.10.2 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.2) 的 Assets 下载 `dsh-subagent-hub-0.10.2.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.10.1.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.10.2.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：
@@ -99,6 +101,10 @@ JS
 ```bash
 pnpm --dir "${DSH_PROFILE_DIR:?}" remove dsh-subagent-hub
 ```
+
+## Team 与继承模型
+
+非空全局路由表会在三个创建工具上检查继承模型；角色路由在此范围上收紧。`spawn_teammate` 的 fresh/fork 都继承 Lead，当前没有模型选择参数。不要用不存在的参数或切换 context 来选 MiniMax。见 [Team 模型路由](team-model-routing.md)。
 
 ## 排查
 

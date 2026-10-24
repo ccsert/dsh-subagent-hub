@@ -450,16 +450,19 @@ test('visible field labels and errors are bound to their controls', () => {
   assert.match(html, /aria-describedby="[^"]+-error"/)
 })
 
-test('sync success checks the model allowlist and removal of stale hub preset ids', () => {
+test('sync success checks the model allowlist and actual registered role ids', () => {
   const { officialSyncReady } = loadClient()
   const value = saved()
-  const preset = ids => ({ status: 'ready', value: { plugins: [{ name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', allowedAgentPresets: ids } }] } })
+  const preset = ids => ({ status: 'ready', value: { presets: ids.map(id => ({ id })) } })
   const models = { status: 'ready', value: { enabled: true, allowedModels: value.routes.map(({ provider, model }) => ({ provider, model })) } }
   assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer', 'foreign-agent']), models), true)
   assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer']), { status: 'loading' }), false)
   assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer', 'hub-agent-old']), models), false)
   assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer']), { status: 'ready', value: { enabled: true, allowedModels: [] } }), false)
   assert.equal(officialSyncReady({ ...value, agents: [] }, preset([]), models), true)
+  const broken = preset(['hub-agent-reviewer'])
+  broken.value.presets[0].broken = 'missing base preset'
+  assert.equal(officialSyncReady(value, broken, models), false)
 })
 
 test('apply registers the dictionary, the row page, and a Settings section', () => {

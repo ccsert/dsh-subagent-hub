@@ -1,4 +1,35 @@
-# 配置页 0.9.0 验收记录
+# 配置页验收记录（0.9.0 / 0.9.1）
+
+## 0.9.1 同步提示回归修正
+
+用户反馈保存提示停留在“正在同步官方配置”。真实 Host 中复现了根因：`preset-standard` 是配置条目 id，不是 Settings 服务暴露的表单命名空间。0.9.0 的 fixture 为这个 id 人工返回 ready 快照，导致原验收关于“标准预设可读取”的结论不成立；下文 0.9.0 的同步部分仅作为历史记录。
+
+复现命令：
+
+```sh
+bash packages/subagent-hub/test/e2e/run.sh
+```
+
+修复前该命令中新增的 Client 完成检查实际失败，其余后台同步与注册检查通过：
+
+```text
+FAIL settings: saved official configuration can leave the syncing state:
+{"modelNamespace":"ready","presetNamespace":"unavailable","canFinish":false}
+```
+
+修复使用真实公开契约：`agentPresets.list()` 返回角色目录，模型设置仍读取存在的表单命名空间。完成文案只报告模型白名单与角色注册，不声称核对了标准预设的内部工具行。observer 的独立截止计时为 15 秒；请求报错、不返回、旧结果晚到都不会一直显示“正在核对”。未确认可点击“重新核对”，只发起读取，不重复提交配置。
+
+修复后 **78 项单测、19 项真实运行时 e2e 全通过**。e2e 直接执行实际 Client 的 public reader 与 observer，数据来自真实 Host describe 和角色目录；同时覆盖初始就绪与 live 保存，确认在预设表单仍为 unavailable 时可以正常完成。浏览器 fixture 也改为对未知命名空间返回 unavailable。
+
+Playwright 使用实际组件并控制读取行为，验证了：不返回请求在 15 秒后退出忙碌、读取报错后恢复、延迟出现的角色能结束核对、“重新核对”不增加保存次数、320px 无横向溢出且重试按钮可用。计时通过浏览器虚拟时钟推进；最终完成文案为“已保存；模型白名单已同步，具名角色已注册。”
+
+对应实现与回归：[Client](../packages/subagent-hub/lib/client.js)、[observer 单测](../packages/subagent-hub/test/sync-observer.test.js)、[真实运行时 driver](../packages/subagent-hub/test/e2e/driver/index.js)、[e2e 断言](../packages/subagent-hub/test/e2e/assert.js)。
+
+本轮没有修改用户 profile、重启 DSH，或声称已在用户当前 GUI 进程中加载补丁。部署仍需要重启现有 Desktop 进程。
+
+---
+
+以下为 0.9.0 的原始验收记录。
 
 ## 范围与约定
 

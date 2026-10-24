@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.9.0（官方机制 + 每会话并发上限 + 配置交互精修），单元测试 71 项 + 真实运行时 e2e 17 项；另有浏览器交互验收。
+> 状态：0.9.1（修复同步提示错误观测），单元测试 78 项 + 真实运行时 e2e 19 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -109,7 +109,7 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 `draftsOf` / `valuesOf` 保持配置形状不变。编辑器另外给每行分配稳定的 `_key`，路由保留 `_referenceId`；这两个字段不会写入配置。草稿比较包含所有未完成行，避免空字段被序列化过滤后误判为“没有修改”。改名只有在非空且不冲突时更新引用，删除与撤销按 agent 行身份恢复引用，不依赖可变化的数组位置。
 
-保存必须等待 `form.mutate` 明确返回 `true` 才更新本地基准，失败保留草稿。成功后核对标准预设的 `hub-agent-*` 列表与模型白名单；快照尚未就绪不算成功。新一轮保存、放弃和卸载都会清理旧轮询，避免过期结果覆盖状态。
+保存必须等待 `form.mutate` 明确返回 `true` 才更新本地基准，失败保留草稿。成功后通过公开的 `agentPresets.list()` 核对角色注册，通过 `subagent-model-selection-settings` 的表单快照核对模型白名单。`preset-standard` 是预设条目 id，真实 Host 不把它服务为 Settings 表单；0.9.0 对它的轮询无法成功结束，已在 0.9.1 修正。快照未就绪不算成功。observer 有独立的 15 秒截止计时，网络请求不返回也能退出忙碌状态；用户可只读重新核对。新一轮保存、放弃、卸载以及超时都会拒绝旧请求的晚到结果。
 
 字段标签、错误与帮助通过 `label` / `aria-labelledby` / `aria-describedby` 关联；保存错误可聚焦到相应字段。浏览器 fixture 内嵌实际 Client 模块与测试数据，验证用户交互但不触碰真实 profile，详见 [验收记录](ui-acceptance.md)。
 

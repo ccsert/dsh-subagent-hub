@@ -30,7 +30,7 @@ Ctrl/Cmd+S 或底部按钮均可保存。字段错误会就近显示，保存失
 
 保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
 
-保存之后页面会显示同步进度：官方 allowlist 写在官方预设行里，每写一行就是一次 profile 重载（你的 profile 有多个预设，重建整棵预设树需要几秒到几十秒），页面会核对标准预设与模型白名单，匹配后显示「已同步」；如果超过两分钟还没同步完，会提示稍后刷新确认。
+保存成功后，页面通过公开的角色目录 API 核对具名角色注册，并通过模型设置表单核对白名单。核对成功会分别说明已确认的结果；15 秒内未确认（包括请求报错或一直没返回）则结束等待，提供“重新核对”。重新核对只读状态，不会重复保存。官方预设内部的 allowlist 由 Host worker 维护，预设条目 id 不属于 Settings 表单命名空间，页面不会把它当表单读取。
 
 不想用界面时，下面这些字段仍然可以直接写在 profile 的 `cordis.patch.yml` 里，效果相同。
 
@@ -104,10 +104,10 @@ Ctrl/Cmd+S 或底部按钮均可保存。字段错误会就近显示，保存失
 ## 测试
 
 ```sh
-bash test.sh   # 71 项单元测试 + 17 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 78 项单元测试 + 19 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
-e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新。
+e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新；还会运行实际 Client 的同步 observer，确认初始状态和 live 保存后都能结束核对。
 
 浏览器交互验收：
 

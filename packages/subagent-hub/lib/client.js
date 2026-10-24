@@ -25,10 +25,8 @@ window.__ModuleLoader__.load({
     const NS = 'subagentHub'
     const ROW_CONFIG_KEY = 'dsh-subagent-hub#subagent-hub'
     const ENTRY_ID = 'subagent-hub'
-    /** The official preset row whose allowlist the page watches (the shipped default). */
-    const OFFICIAL_PRESET_NAMESPACE = 'preset-standard'
-    /** How long the page waits for the Host's official allowlist writes before it gives up. */
-    const SYNC_TIMEOUT_MS = 120000
+    /** Bound read-only confirmation; a network request may never settle. */
+    const SYNC_TIMEOUT_MS = 15000
     const SYNC_POLL_MS = 1500
 
     const zh = {
@@ -122,9 +120,11 @@ window.__ModuleLoader__.load({
       'save': '保存',
       'saving': '保存中…',
       'saved': '已保存。',
-      'syncing': '已保存，正在同步官方配置（Host 需要重载官方预设，可能要几十秒）…',
-      'synced': '已保存；模型白名单与标准预设已同步。',
-      'syncPending': '已保存；官方配置仍在同步，稍后刷新本页确认。',
+      'syncing': '已保存，正在核对模型白名单和角色目录…',
+      'synced': '已保存；模型白名单已同步，具名角色已注册。',
+      'syncRosterReady': '已保存；具名角色目录已更新。',
+      'syncRetry': '重新核对',
+      'syncPending': '已保存，但暂未确认生效。可重新核对，无需重复保存。',
       'invalid': '无法保存：{error}',
       'unavailable': '这个 profile 没有提供配置表单，请直接编辑 cordis.patch.yml。',
       'discard': '放弃修改',
@@ -236,9 +236,11 @@ window.__ModuleLoader__.load({
       'save': 'Save',
       'saving': 'Saving…',
       'saved': 'Saved.',
-      'syncing': 'Saved; syncing the official settings (the Host reloads the official presets, up to a minute)…',
-      'synced': 'Saved; the model allowlist and standard preset are in sync.',
-      'syncPending': 'Saved; the official settings are still syncing. Refresh this page in a moment to confirm.',
+      'syncing': 'Saved; checking the model allowlist and role roster…',
+      'synced': 'Saved; the model allowlist is in sync and the named roles are registered.',
+      'syncRosterReady': 'Saved; the named role roster is up to date.',
+      'syncRetry': 'Check again',
+      'syncPending': 'Saved, but the update is not confirmed yet. Check again without saving twice.',
       'invalid': 'Cannot save: {error}',
       'unavailable': 'This profile exposes no configuration form; edit cordis.patch.yml directly.',
       'discard': 'Discard',
@@ -619,16 +621,66 @@ window.__ModuleLoader__.load({
       return expected.every(id => seen.has(id))
     }
 
-    /** Confirm the standard preset and model allowlist, without treating missing snapshots as success. */
+    /** Check only public, observable state: the preset roster and model settings. */
     function officialSyncReady(values, presetState, modelState) {
-      if (presetState?.status !== 'ready') return false
+      if (presetState?.status !== 'ready' || !Array.isArray(presetState.value?.presets)) return false
       const expected = values.agents.map(agent => `hub-agent-${agent.id}`).sort()
-      const lists = officialAllowlists(presetState.value?.plugins)
-      if (lists.length === 0 || !lists.every(list => JSON.stringify(list.filter(id => id.startsWith('hub-agent-')).sort()) === JSON.stringify(expected))) return false
+      const presets = presetState.value.presets.filter(preset => preset.id.startsWith('hub-agent-'))
+      if (presets.some(preset => preset.broken !== undefined)) return false
+      if (JSON.stringify(presets.map(preset => preset.id).sort()) !== JSON.stringify(expected)) return false
       if (values.routes.length === 0) return true
       if (modelState?.status !== 'ready' || modelState.value?.enabled !== true) return false
       const pairs = routes => [...new Set(routes.map(route => routeKey(route.provider, route.model)))].sort()
       return JSON.stringify(pairs(values.routes)) === JSON.stringify(pairs(modelState.value.allowedModels ?? []))
+    }
+
+    /** Read public Remote/Settings contracts; preset entry ids are not form namespaces. */
+    async function readOfficialSyncState(ctx) {
+      const response = await ctx.remote.agentPresets.list()
+      return {
+        presets: response?.ok === true
+          ? { status: 'ready', value: response.value }
+          : { status: 'unavailable' },
+        models: ctx.configForms.get('subagent-model-selection-settings')?.getSnapshot?.(),
+      }
+    }
+
+    /**
+     * A bounded observer shared by the page and integration tests. The deadline is independent
+     * of requests, so a rejected or never-settling read cannot leave the page busy forever.
+     * Returns a disposer; late results from a replaced save or an unmounted page are ignored.
+     */
+    function observeOfficialSync({ values, readState, onState, timeoutMs = SYNC_TIMEOUT_MS,
+      intervalMs = SYNC_POLL_MS, setTimer = setTimeout, clearTimer = clearTimeout }) {
+      let finished = false
+      let pollTimer
+      let deadlineTimer
+      const finish = state => {
+        if (finished) return
+        finished = true
+        clearTimer(pollTimer)
+        clearTimer(deadlineTimer)
+        onState(state)
+      }
+      const schedule = () => {
+        if (!finished) pollTimer = setTimer(poll, intervalMs)
+      }
+      const poll = () => {
+        if (finished) return
+        Promise.resolve().then(readState).then(state => {
+          if (finished) return
+          if (officialSyncReady(values, state.presets, state.models)) finish('complete')
+          else schedule()
+        }, schedule).catch(schedule)
+      }
+      deadlineTimer = setTimer(() => finish('pending'), timeoutMs)
+      onState('checking')
+      poll()
+      return () => {
+        finished = true
+        clearTimer(pollTimer)
+        clearTimer(deadlineTimer)
+      }
     }
 
     /** The selection catalog the main agent receives, previewed from the draft. */
@@ -1123,9 +1175,9 @@ window.__ModuleLoader__.load({
       const [undo, setUndo] = React.useState(undefined)
       const [copied, setCopied] = React.useState(false)
       const [copyError, setCopyError] = React.useState(false)
-      const syncTimer = React.useRef(undefined)
+      const stopSync = React.useRef(() => {})
+      const lastSyncValues = React.useRef(undefined)
       const copyTimer = React.useRef(undefined)
-      const syncGeneration = React.useRef(0)
       const saving = React.useRef(false)
       const rootRef = React.useRef(null)
       const writable = form !== undefined && form.state?.status !== 'loading' && form.state?.writable !== false
@@ -1135,9 +1187,8 @@ window.__ModuleLoader__.load({
         disposed.current = false
         return () => {
           disposed.current = true
-          clearTimeout(syncTimer.current)
+          stopSync.current()
           clearTimeout(copyTimer.current)
-          syncGeneration.current++
         }
       }, [])
       // The page owns the keyboard shortcut, so it needs the focus: it takes it only when
@@ -1189,38 +1240,22 @@ window.__ModuleLoader__.load({
         }
       }, [ctx, loadCatalog])
 
-      /**
-       * Watch the official configuration until the Host has written the allowlists. Every write
-       * is one profile reload, so this takes seconds; the page says so instead of claiming
-       * success it cannot know.
-       */
+      /** Check the public model settings and preset roster; every check has a hard deadline. */
       const watchOfficialSync = React.useCallback((savedValues) => {
-        if (ctx.configForms === undefined) return
-        clearTimeout(syncTimer.current)
-        const generation = ++syncGeneration.current
+        stopSync.current()
+        lastSyncValues.current = savedValues
         if (!savedValues.manageOfficialSettings) return
-        setStatus({ kind: 'busy', text: t('syncing') })
-        const deadline = Date.now() + SYNC_TIMEOUT_MS
-        const tick = () => {
-          if (disposed.current || generation !== syncGeneration.current) return
-          try {
-            const presetState = ctx.configForms.get(OFFICIAL_PRESET_NAMESPACE)?.getSnapshot?.()
-            const modelState = ctx.configForms.get('subagent-model-selection-settings')?.getSnapshot?.()
-            if (officialSyncReady(savedValues, presetState, modelState)) {
-              setStatus({ kind: 'ok', text: t('synced') })
-              return
-            }
-          } catch {
-            // A reload may temporarily remove a served form; keep observing until the deadline.
-          }
-          if (Date.now() > deadline) {
-            setStatus({ kind: 'warn', text: t('syncPending') })
-            return
-          }
-          syncTimer.current = setTimeout(tick, SYNC_POLL_MS)
-        }
-        syncTimer.current = setTimeout(tick, SYNC_POLL_MS)
-      }, [ctx])
+        stopSync.current = observeOfficialSync({
+          values: savedValues,
+          readState: () => readOfficialSyncState(ctx),
+          onState: state => {
+            if (disposed.current) return
+            if (state === 'checking') setStatus({ kind: 'busy', text: t('syncing') })
+            else if (state === 'complete') setStatus({ kind: 'ok', text: t(savedValues.routes.length > 0 ? 'synced' : 'syncRosterReady') })
+            else setStatus({ kind: 'warn', text: t('syncPending'), retry: true })
+          },
+        })
+      }, [ctx, t])
 
       if (view === 'summary') {
         const limit = Number.isFinite(value.maxConcurrent) ? value.maxConcurrent : 4
@@ -1302,8 +1337,7 @@ window.__ModuleLoader__.load({
         }
         saving.current = true
         setBusy(true)
-        clearTimeout(syncTimer.current)
-        syncGeneration.current++
+        stopSync.current()
         try {
           const applied = await form.mutate(saveOps(values), form.state?.revision)
           if (applied !== true) throw new Error(t('save.refused'))
@@ -1322,8 +1356,7 @@ window.__ModuleLoader__.load({
         }
       }
       const discard = () => {
-        clearTimeout(syncTimer.current)
-        syncGeneration.current++
+        stopSync.current()
         setDraft(editorDraftsOf(baseline))
         setSubmitted(false)
         setStatus(undefined)
@@ -1501,6 +1534,7 @@ window.__ModuleLoader__.load({
           undo === undefined ? null : h('span', { className: 'sah-undo' },
             h('span', null, t('undo.deleted', { name: undoName })),
             h('button', { type: 'button', className: 'sah-linkbtn', onClick: undoLast }, t('undo.action'))),
+          !dirty && status?.retry === true ? h('button', { type: 'button', className: 'sah-linkbtn', onClick: () => watchOfficialSync(lastSyncValues.current) }, t('syncRetry')) : null,
           h('span', { className: 'sah-footer-keys' }, t('footer.shortcut')),
           h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: !dirty || busy, onClick: discard }, t('discard')),
           h('button', {
@@ -1548,6 +1582,8 @@ window.__ModuleLoader__.load({
       catalogPreview,
       officialAllowlists,
       officialSyncReady,
+      readOfficialSyncState,
+      observeOfficialSync,
       allowlistSynced,
       slugForModel,
       uniqueRouteId,

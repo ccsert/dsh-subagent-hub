@@ -25,7 +25,7 @@ const initial={manageOfficialSettings:true,maxConcurrent:4,routes:[
  {id:'flash',provider:'deepseek-official',model:'deepseek-flash',tags:['fast','cheap'],note:'DeepSeek Flash'},
  {id:'minimax',provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEffort:'max',tags:['reasoning','vision','免费'],note:'MiniMax M3.1 Flash'}
 ],agents:[{id:'reviewer',description:'审查代码改动，只报告问题，不修改文件',instructions:'逐个阅读改动，报告问题位置、原因和建议。',routes:['minimax']}]}
-window.qa={saves:[],failSave:false,throwSave:false,initial,clipboard:''}
+window.qa={saves:[],failSave:false,throwSave:false,initial,clipboard:'',syncMode:'ready',syncReads:0}
 let snapshot={status:'ready',writable:true,revision:1,value:initial}
 const listeners=new Set()
 const scope={getSnapshot(){return snapshot},subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn)},async mutate(ops,revision){
@@ -46,12 +46,20 @@ const ctx = {
       if (ns === 'subagent-model-selection-settings') {
         return { getSnapshot() { return { status: 'ready', value: { enabled: true, allowedModels: snapshot.value.routes.map(({ provider, model }) => ({ provider, model })) } } } }
       }
-      return { getSnapshot() { return { status: 'ready', value: { plugins: [{ name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', allowedAgentPresets: snapshot.value.agents.map(agent => 'hub-agent-' + agent.id) } }] } } } }
+      return { getSnapshot() { return { status: 'unavailable', writable: false } } }
     }
   },
   remote: {
     session: { async modelCatalog() { return { ok: true, value: { groups, failures: [] } } } },
-    agentPresets: { async list() { return { ok: true, value: { presets: [{ id: 'standard', name: '标准' }, { id: 'cordis', name: 'Cordis' }, { id: 'hub-agent-reviewer', name: 'Hub reviewer' }] } } } }
+    agentPresets: { async list() {
+      qa.syncReads++
+      if (qa.syncMode === 'hang') return new Promise(() => {})
+      if (qa.syncMode === 'error') throw new Error('模拟读取失败')
+      return { ok: true, value: { presets: [
+        { id: 'standard', name: '标准' }, { id: 'cordis', name: 'Cordis' },
+        ...(qa.syncMode === 'pending' ? [] : snapshot.value.agents.map(agent => ({ id: 'hub-agent-' + agent.id })))
+      ] } }
+    } }
   }
 }
 qa.value=()=>snapshot.value

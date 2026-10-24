@@ -109,6 +109,14 @@ check('concurrency: a second delegation is refused while one child is still runn
   assert.match(concurrency.blocked.message, /子 agent 正在运行（上限 1）/)
 })
 
+check('settings: saved official configuration can leave the syncing state', () => {
+  assert.equal(report.syncObservation?.presetNamespace, 'unavailable')
+  assert.equal(report.syncObservation?.modelNamespace, 'ready')
+  assert.equal(report.syncObservation?.canFinish, true, JSON.stringify(report.syncObservation))
+})
+check('settings: live-save feedback completes through the public role roster', () => {
+  assert.equal(report.checks.live?.sync?.canFinish, true, JSON.stringify(report.checks.live?.sync))
+})
 check('settings: the row exposes a writable form for routes, agents, and the official switch', () => {
   assert.ok(report.settings !== undefined, 'no subagent-hub settings descriptor')
   assert.equal(report.settings.writable, true)

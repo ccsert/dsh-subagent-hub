@@ -3,6 +3,7 @@
 // its route through the official preflight and then answers with scripted text.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
+import vm from 'node:vm'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 
@@ -110,6 +111,36 @@ export function apply(ctx, config) {
       }
       const descriptors = ctx.settings.describe()
       const hubDescriptor = descriptors.find(entry => entry.ns === 'subagent-hub')
+      // Read the actual browser module's completion predicate against the real describe mirror.
+      // A fixture that invents ready preset namespaces cannot catch a permanently pending page.
+      let browserEntry
+      vm.runInNewContext(readFileSync(new URL('../../../lib/client.js', import.meta.url), 'utf8'), {
+        window: { __ModuleLoader__: { load: entry => { browserEntry = entry } } },
+      })
+      const browser = browserEntry.factory(id => id === 'react' ? { createElement() {} } : {})
+      const observeSync = async () => {
+        const latest = ctx.settings.describe()
+        const snapshot = ns => {
+          const view = latest.find(entry => entry.ns === ns)
+          return view === undefined ? { status: 'unavailable' } : { status: 'ready', value: view.value }
+        }
+        const current = latest.find(entry => entry.ns === 'subagent-hub')
+        const state = await new Promise(resolve => browser.observeOfficialSync({
+          values: browser.valuesOf(browser.draftsOf(current?.value)),
+          readState: () => browser.readOfficialSyncState({
+            configForms: { get: ns => ({ getSnapshot: () => snapshot(ns) }) },
+            remote: { agentPresets: { list: async () => ({ ok: true, value: { presets: await ctx.agentPresets.list() } }) } },
+          }),
+          onState: state => { if (state !== 'checking') resolve(state) },
+          timeoutMs: 1000, intervalMs: 25, setTimer: setTimeout, clearTimer: clearTimeout,
+        }))
+        return {
+          modelNamespace: snapshot('subagent-model-selection-settings').status,
+          presetNamespace: snapshot('preset-standard').status,
+          canFinish: state === 'complete',
+        }
+      }
+      report.syncObservation = await observeSync()
       report.settings = hubDescriptor === undefined ? undefined : {
         writable: ctx.settings.writable,
         revision: hubDescriptor.revision,
@@ -201,6 +232,7 @@ export function apply(ctx, config) {
           schemaEnum: liveSchema?.parameters?.properties?.agent_preset?.enum,
           sectionHasScribe: (liveSection ?? '').includes('`hub-agent-scribe`'),
           scribe: await callerFor(liveRoot)({ agent_preset: 'hub-agent-scribe' }),
+          sync: await observeSync(),
         }
       }
 

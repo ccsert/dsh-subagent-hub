@@ -25,6 +25,15 @@ function loadClient() {
 const plain = value => JSON.parse(JSON.stringify(value))
 const t = (key, params) => params === undefined ? key : `${key}${JSON.stringify(params)}`
 
+const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+/** The keys of one dictionary block of the page, parsed out of the source. */
+const dictionaryKeys = (from, to) => new Set(
+  [...source.slice(source.indexOf(from), source.indexOf(to)).matchAll(/'([^']+)':/g)].map(match => match[1]),
+)
+const zhKeys = dictionaryKeys('const zh = {', 'const en = {')
+const enKeys = dictionaryKeys('const en = {', '// ── pure helpers')
+
 const saved = () => ({
   manageOfficialSettings: true,
   maxConcurrent: 4,
@@ -98,11 +107,13 @@ test('route ids are suggested from the model id and stay unique', () => {
 })
 
 test('provider, model and effort choices come from the Host catalog', () => {
-  const { providerChoices, modelChoices, effortChoices } = loadClient()
+  const { providerChoices, modelChoices, effortChoices, effortsOf } = loadClient()
   const groups = [{ id: 'p', name: 'Provider P', models: [{ id: 'flash', name: 'Flash', reasoning: { efforts: [{ id: 'high', name: 'High' }] } }] }]
   assert.deepEqual(plain(providerChoices(groups, '')), [{ value: 'p', label: 'Provider P (p)' }])
   assert.deepEqual(plain(modelChoices(groups, 'p', '')), [{ value: 'flash', label: 'Flash' }])
   assert.deepEqual(plain(effortChoices(groups, 'p', 'flash', '')), [{ value: 'high', label: 'High' }])
+  assert.deepEqual(plain(effortsOf(groups, 'p', 'flash')), [{ id: 'high', name: 'High' }])
+  assert.deepEqual(plain(effortsOf(groups, 'p', 'other')), [])
   // A stored value the catalog no longer lists stays selectable and is labelled as such.
   assert.match(providerChoices(groups, 'gone')[0].label, /gone \(不在当前目录\)/)
   assert.match(modelChoices(groups, 'p', 'old')[0].label, /old \(不在当前目录\)/)
@@ -162,6 +173,173 @@ test('the page renders general settings, route rows as dropdowns, agent summarie
   assert.ok(!html.includes('Report only.'), 'collapsed agent should not render its editor')
 })
 
+test('provider and model are one select, grouped per provider', () => {
+  const { ConfigPage, modelOptionValue } = loadClient()
+  const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx: { remote: undefined } }))
+  // The merged value carries the provider and the model.
+  assert.ok(html.includes(`value="${modelOptionValue('p', 'flash')}"`), 'merged model value missing')
+  assert.ok(html.includes(`value="${modelOptionValue('p', 'pro')}"`), 'merged model value missing')
+  // One group per provider, and the stored pair stays selectable even when the catalog is empty.
+  assert.match(html, /<optgroup label="[^"]+">/)
+  assert.ok(!html.includes('route.provider'), 'the provider select is gone')
+})
+
+test('the reasoning effort appears only for a model that advertises efforts', () => {
+  const { RouteCard, draftsOf } = loadClient()
+  const groups = [{
+    id: 'p',
+    name: 'Provider P',
+    models: [
+      { id: 'flash', name: 'Flash' },
+      { id: 'pro', name: 'Pro', reasoning: { efforts: [{ id: 'high', name: 'High' }] } },
+    ],
+  }]
+  const draft = draftsOf(saved())
+  const withoutEffort = renderToStaticMarkup(React.createElement(RouteCard, {
+    route: draft.routes[0], index: 0, total: 2, groups, catalogReady: true, known: [],
+    disabled: false, t, onChange() {}, onRemove() {}, onMove() {},
+  }))
+  assert.ok(!withoutEffort.includes('route.effort'), 'a model without efforts must not offer an effort select')
+  const withEffort = renderToStaticMarkup(React.createElement(RouteCard, {
+    route: draft.routes[1], index: 1, total: 2, groups, catalogReady: true, known: [],
+    disabled: false, t, onChange() {}, onRemove() {}, onMove() {},
+  }))
+  assert.ok(withEffort.includes('route.effort'), 'a model with efforts offers the effort select')
+  assert.ok(withEffort.includes('value="high"'), 'the stored effort stays selected')
+})
+
+test('a stored pair the catalog dropped stays selectable and is marked', () => {
+  const { modelGroups } = loadClient()
+  const groups = [{ id: 'p', name: 'Provider P', models: [{ id: 'flash', name: 'Flash' }] }]
+  const known = modelGroups(groups, 'p', 'flash', '不在当前目录')
+  assert.deepEqual(plain(known[0].options.map(option => option.value)), ['p|flash'])
+  const missingModel = modelGroups(groups, 'p', 'gone', '不在当前目录')
+  assert.match(missingModel[0].options[0].label, /gone \(不在当前目录\)/)
+  const missingProvider = modelGroups(groups, 'nope', 'gone', '不在当前目录')
+  assert.match(missingProvider[0].label, /nope \(不在当前目录\)/)
+  assert.deepEqual(plain(missingProvider[0].options.map(option => option.value)), ['nope|gone'])
+})
+
+test('the merged model value encodes the provider and the model', () => {
+  const { modelOptionValue, parseModelValue } = loadClient()
+  assert.equal(modelOptionValue('p', 'flash'), 'p|flash')
+  assert.equal(modelOptionValue('', ''), '')
+  assert.deepEqual(plain(parseModelValue('p|flash')), { provider: 'p', model: 'flash' })
+  assert.deepEqual(plain(parseModelValue('minimax-cn/MiniMax-M3.1-Flash')), { provider: 'minimax-cn/MiniMax-M3.1-Flash', model: '' })
+})
+
+test('field problems point at the offending field', () => {
+  const { draftsOf, fieldProblems } = loadClient()
+  const drafts = draftsOf(saved())
+  assert.deepEqual(plain(fieldProblems(drafts)), {}, 'a healthy draft has no field problems')
+
+  const duplicateRoute = draftsOf({ ...saved(), routes: [{ id: 'a', provider: 'p', model: 'm' }, { id: 'a', provider: 'q', model: 'n' }] })
+  assert.equal(fieldProblems(duplicateRoute)['route:0:id'], 'problem.route.id.duplicate')
+  assert.equal(fieldProblems(duplicateRoute)['route:1:id'], 'problem.route.id.duplicate')
+
+  const emptyName = draftsOf({ ...saved(), routes: [{ id: '', provider: 'p', model: 'm' }] })
+  assert.equal(fieldProblems(emptyName)['route:0:id'], 'problem.route.id.empty')
+
+  const badAgent = draftsOf({ ...saved(), agents: [{ id: 'Bad Id', description: 'x' }] })
+  assert.equal(fieldProblems(badAgent)['agent:0:id'], 'problem.agent.id.invalid')
+
+  const noDescription = draftsOf({ ...saved(), agents: [{ id: 'ok', description: '' }] })
+  assert.equal(fieldProblems(noDescription)['agent:0:description'], 'problem.agent.description.empty')
+
+  const unknownRoute = draftsOf({ ...saved(), agents: [{ id: 'ok', description: 'x', routes: ['nope'] }] })
+  assert.equal(fieldProblems(unknownRoute)['agent:0:routes'], 'problem.agent.routes.unknown')
+
+  const duplicateAgent = draftsOf({ ...saved(), agents: [{ id: 'a', description: 'x' }, { id: 'a', description: 'y' }] })
+  assert.deepEqual(plain(Object.keys(fieldProblems(duplicateAgent)).filter(key => key.endsWith(':id'))), ['agent:0:id', 'agent:1:id'])
+})
+
+test('the page marks the offending field inline', () => {
+  const { RouteCard, AgentCard, draftsOf, fieldProblems } = loadClient()
+  const drafts = draftsOf({
+    ...saved(),
+    routes: [{ id: '', provider: 'p', model: 'flash', tags: [], note: '' }],
+    agents: [{ id: 'Bad Id', description: '' }],
+  })
+  const problems = fieldProblems(drafts)
+  assert.equal(problems['route:0:id'], 'problem.route.id.empty')
+  const route = renderToStaticMarkup(React.createElement(RouteCard, {
+    route: drafts.routes[0], index: 0, total: 1, groups: [], catalogReady: true, known: [], problems,
+    disabled: false, t, onChange() {}, onRemove() {}, onMove() {},
+  }))
+  assert.ok(route.includes('sah-field-bad'), 'the route name field is marked')
+  assert.ok(route.includes('sah-field-error'), 'the route name field explains itself')
+  const agent = renderToStaticMarkup(React.createElement(AgentCard, {
+    agent: drafts.agents[0], index: 0, routes: drafts.routes, presets: [], known: [], problems,
+    defaultOpen: true, t, onChange() {}, onRemove() {},
+  }))
+  assert.match(agent, /sah-field-bad[^]*sah-field-error/)
+  assert.ok(agent.includes('problem.agent.id.invalid'), 'the invalid name is named')
+})
+
+test('renaming a route carries the agents that use it', () => {
+  const { draftsOf, renameRouteRefs } = loadClient()
+  const drafts = draftsOf(saved())
+  const renamed = renameRouteRefs(drafts, 'pro', 'pro-v2')
+  assert.deepEqual(plain(renamed.agents[0].routes), ['pro-v2'])
+  assert.deepEqual(plain(drafts.agents[0].routes), ['pro'], 'the source draft is untouched')
+  assert.deepEqual(plain(renameRouteRefs(drafts, 'pro', 'pro').agents[0].routes), ['pro'])
+})
+
+test('deleting a route drops it from the agents', () => {
+  const { draftsOf, dropRouteRefs } = loadClient()
+  const drafts = draftsOf(saved())
+  const dropped = dropRouteRefs(drafts, 'pro')
+  assert.deepEqual(plain(dropped.agents[0].routes), [])
+  assert.deepEqual(plain(drafts.agents[0].routes), ['pro'], 'the source draft is untouched')
+  assert.deepEqual(plain(dropped.routes.map(route => route.id)), ['flash', 'pro'], 'the routes are untouched')
+})
+
+test('the agent templates are ready-made starting points', () => {
+  const { AGENT_TEMPLATES } = loadClient()
+  assert.deepEqual(plain(AGENT_TEMPLATES.map(template => template.id)), ['reviewer', 'tester', 'researcher', ''])
+  for (const template of AGENT_TEMPLATES) {
+    for (const key of [template.label, template.description, template.instructions]) {
+      assert.ok(zhKeys.has(key), `${key} missing in zh`)
+      assert.ok(enKeys.has(key), `${key} missing in en`)
+    }
+  }
+})
+
+test('the page offers the agent templates and the concurrency quick picks', () => {
+  const { ConfigPage, AGENT_TEMPLATES } = loadClient()
+  const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx: { remote: undefined } }))
+  for (const template of AGENT_TEMPLATES) assert.ok(html.includes(template.label), `missing ${template.label}`)
+  // The quick picks sit next to the stepper: 1, 2, 4, 8 and unlimited.
+  assert.ok(html.includes('concurrency.unlimited'))
+  assert.match(html, /aria-pressed="true"[^>]*>4</)
+  assert.ok(html.includes('concurrency.quick'))
+})
+
+test('the save bar offers the shortcut, and the preview can be copied', () => {
+  const { ConfigPage } = loadClient()
+  const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx: { remote: undefined } }))
+  assert.ok(html.includes('footer.shortcut'), 'the save shortcut is advertised')
+  assert.ok(html.includes('preview.copy'), 'the preview can be copied')
+  // The page root takes the keyboard, so the shortcut never leaks into the shell.
+  assert.match(html, /<div class="sah"[^>]*tabindex="-1"/)
+})
+
+test('every translated string exists in both dictionaries', () => {
+  const used = new Set([...source.matchAll(/\bt\('([^']+)'/g)].map(match => match[1]))
+  assert.ok(used.size > 30, `only ${used.size} translated strings found`)
+  for (const key of used) {
+    assert.ok(zhKeys.has(key), `${key} missing in zh`)
+    assert.ok(enKeys.has(key), `${key} missing in en`)
+  }
+  // The field problems point at dictionary keys, not at raw text.
+  const { fieldProblems, draftsOf } = loadClient()
+  const problems = fieldProblems(draftsOf(saved()))
+  for (const key of Object.values(problems)) assert.ok(zhKeys.has(key), `${key} missing in zh`)
+})
+
 test('an expanded agent card edits name, purpose, instructions, allowed routes, and base preset', () => {
   const { AgentCard, draftsOf } = loadClient()
   const draft = draftsOf(saved())
@@ -210,9 +388,83 @@ const formMock = (value = saved(), status = 'ready') => {
   return form
 }
 
+test('editor row identities are stable and are never saved', () => {
+  const { editorDraftsOf, valuesOf, sameDraft } = loadClient()
+  const a = editorDraftsOf(saved())
+  const b = editorDraftsOf(saved())
+  assert.notEqual(a.routes[0]._key, b.routes[0]._key)
+  assert.equal(sameDraft(a, b), true)
+  assert.deepEqual(plain(valuesOf(a)), saved())
+  a.routes.push({ id: '', provider: '', model: '', tags: [], note: '', reasoningEffort: '' })
+  assert.equal(sameDraft(a, b), false, 'an added blank row still counts as a visible edit')
+  a.routes.pop()
+  a.agents[0].description = ''
+  assert.equal(sameDraft(a, b), false, 'an incomplete agent must not disappear from dirty tracking')
+})
+
+test('route references survive clearing and replacing a name', () => {
+  const { editorDraftsOf, changeRoute } = loadClient()
+  const initial = editorDraftsOf(saved())
+  const cleared = changeRoute(initial, 1, { ...initial.routes[1], id: '' })
+  assert.deepEqual(plain(cleared.agents[0].routes), ['pro'])
+  const renamed = changeRoute(cleared, 1, { ...cleared.routes[1], id: 'new-pro' })
+  assert.deepEqual(plain(renamed.agents[0].routes), ['new-pro'])
+  assert.equal(renamed.routes[1]._key, initial.routes[1]._key)
+  const duplicated = changeRoute(initial, 1, { ...initial.routes[1], id: 'flash' })
+  assert.deepEqual(plain(duplicated.agents[0].routes), ['pro'], 'a duplicate does not steal another route’s references')
+  const repaired = changeRoute(duplicated, 1, { ...duplicated.routes[1], id: 'fixed' })
+  assert.deepEqual(plain(repaired.agents[0].routes), ['fixed'])
+})
+
+test('undo restores references by original agent identity, not row position', () => {
+  const { editorDraftsOf, restoreDeletion, dropRouteRefs } = loadClient()
+  const initial = editorDraftsOf({ ...saved(), agents: [
+    ...saved().agents,
+    { id: 'tester', description: 'Tests code', instructions: '', routes: ['flash'] },
+  ] })
+  const item = initial.routes[1]
+  const entry = { kind: 'route', index: 1, item, refs: [{ key: initial.agents[0]._key, index: 0 }] }
+  const deleted = dropRouteRefs({ ...initial, routes: [initial.routes[0]] }, 'pro')
+  const reordered = { ...deleted, agents: [...deleted.agents].reverse() }
+  const restored = restoreDeletion(reordered, entry)
+  assert.deepEqual(plain(restored.agents.find(agent => agent.id === 'reviewer').routes), ['pro'])
+  assert.deepEqual(plain(restored.agents.find(agent => agent.id === 'tester').routes), ['flash'])
+  assert.deepEqual(plain(restored.routes.map(route => route.id)), ['flash', 'pro'])
+})
+
+test('merged model choices round-trip separator characters and unicode', () => {
+  const { modelOptionValue, parseModelValue } = loadClient()
+  const pair = { provider: 'custom|中国', model: 'models/a|b%20' }
+  assert.deepEqual(plain(parseModelValue(modelOptionValue(pair.provider, pair.model))), pair)
+})
+
+test('visible field labels and errors are bound to their controls', () => {
+  const { RouteCard, draftsOf } = loadClient()
+  const route = draftsOf(saved()).routes[0]
+  const html = renderToStaticMarkup(React.createElement(RouteCard, {
+    route, index: 0, total: 1, groups: catalogGroups(), known: [], t,
+    problems: { 'route:0:id': 'problem.route.id.empty' }, onChange() {}, onMove() {}, onRemove() {},
+  }))
+  assert.match(html, /<label[^>]*for="[^"]+"/)
+  assert.match(html, /aria-invalid="true"/)
+  assert.match(html, /aria-describedby="[^"]+-error"/)
+})
+
+test('sync success checks the model allowlist and removal of stale hub preset ids', () => {
+  const { officialSyncReady } = loadClient()
+  const value = saved()
+  const preset = ids => ({ status: 'ready', value: { plugins: [{ name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', allowedAgentPresets: ids } }] } })
+  const models = { status: 'ready', value: { enabled: true, allowedModels: value.routes.map(({ provider, model }) => ({ provider, model })) } }
+  assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer', 'foreign-agent']), models), true)
+  assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer']), { status: 'loading' }), false)
+  assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer', 'hub-agent-old']), models), false)
+  assert.equal(officialSyncReady(value, preset(['hub-agent-reviewer']), { status: 'ready', value: { enabled: true, allowedModels: [] } }), false)
+  assert.equal(officialSyncReady({ ...value, agents: [] }, preset([]), models), true)
+})
+
 test('apply registers the dictionary, the row page, and a Settings section', () => {
   const { apply, inject, ROW_CONFIG_KEY, ENTRY_ID } = loadClient()
-  assert.deepEqual(plain(inject), ['slots', 'locale', 'configForms', 'remote', 'remote.session'])
+  assert.deepEqual(plain(inject), ['slots', 'locale', 'configForms', 'remote', 'remote.session', 'remote.agentPresets'])
   assert.equal(ROW_CONFIG_KEY, 'dsh-subagent-hub#subagent-hub')
   assert.equal(ENTRY_ID, 'subagent-hub')
   const calls = { slots: [] }

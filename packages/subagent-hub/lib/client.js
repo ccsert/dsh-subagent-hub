@@ -37,7 +37,7 @@ window.__ModuleLoader__.load({
       'summary.managedOn': '托管中',
       'summary.managedOff': '未托管',
       'summary.unlimited': '不限',
-      'intro': '为官方 subagent 工具补充“怎么选”：具名子 agent 注册成官方预设，模型路由同步为官方模型白名单，主 agent 在系统提示里看到选择目录。保存后立即生效，新会话可用。',
+      'intro': '先选择子 agent 可以使用的模型，再按需要添加审查、测试或调研角色。保存后应用配置；新增角色在新会话中可用。',
       'badge.routes': '{count} 条路由',
       'badge.agents': '{count} 个具名 agent',
       'badge.managed': '官方配置 {state}',
@@ -52,6 +52,8 @@ window.__ModuleLoader__.load({
       'concurrency.unlimitedHint': '设为 0 表示不限制（仍受官方全局并行容量约束）。',
       'concurrency.decrease': '减少',
       'concurrency.increase': '增加',
+      'concurrency.quick': '常用值',
+      'concurrency.unlimited': '不限',
       'official.switch': '托管官方委派配置',
       'official.hint': '开启后，自动把具名 agent 加入官方 subagent 工具的 agent_preset 可选列表，并把下方路由同步为官方子代理模型白名单。关闭则不改动任何官方配置。',
       'routes.title': '模型路由',
@@ -63,11 +65,9 @@ window.__ModuleLoader__.load({
       'routes.retry': '重试',
       'routes.empty': '模型目录为空，请先在“模型”设置里配置 Provider。',
       'routes.unavailable': '部分 Provider 暂不可用：{names}',
-      'route.provider': 'Provider',
       'route.model': '模型',
       'route.effort': '推理强度',
       'route.effortDefault': '模型默认',
-      'route.pickProvider': '选择 Provider',
       'route.pickModel': '选择模型',
       'route.missing': '不在当前目录',
       'route.id': '路由名',
@@ -78,6 +78,17 @@ window.__ModuleLoader__.load({
       'route.moveUp': '上移',
       'route.moveDown': '下移',
       'route.remove': '删除路由',
+      'route.unnamed': '未命名路由',
+      'problem.route.id.empty': '请填写路由名',
+      'problem.route.id.duplicate': '请换一个未使用的路由名',
+      'problem.route.model.empty': '请选择模型',
+      'problem.route.pair.duplicate': '该模型已被其他路由占用',
+      'problem.agent.id.empty': '请填写名称',
+      'problem.agent.id.invalid': '使用小写字母开头，后接小写字母、数字或短横线，最多 48 个字符',
+      'problem.agent.id.duplicate': '请换一个未使用的名称',
+      'problem.agent.description.empty': '请填写用途说明',
+      'problem.agent.routes.unknown': '请重新选择可用路由：',
+      'problem.concurrency': '并发上限必须是不小于 0 的整数',
       'agents.title': '具名子 agent',
       'agents.hint': '每个具名 agent 会注册为官方预设 hub-agent-<名称>，主 agent 通过 agent_preset 选择它。',
       'agents.add': '新增具名 agent',
@@ -101,16 +112,38 @@ window.__ModuleLoader__.load({
       'agent.toggle': '展开或收起',
       'preview.title': '预览：主 agent 看到的选择目录',
       'preview.empty': '配置路由或具名 agent 后，这里会显示主 agent 看到的目录。',
+      'preview.copy': '复制',
+      'preview.copied': '已复制',
+      'preview.copyFailed': '复制失败，请展开目录后手动选择并复制。',
+      'save.refused': '保存未应用。配置可能已在其他页面更新，请保留修改并重试。',
+      'common.removeTag': '删除标签 {tag}',
+      'common.readOnly': '此配置当前只读。',
       'footer.dirty': '有未保存的修改',
       'save': '保存',
       'saving': '保存中…',
       'saved': '已保存。',
       'syncing': '已保存，正在同步官方配置（Host 需要重载官方预设，可能要几十秒）…',
-      'synced': '已保存，官方配置已同步。',
+      'synced': '已保存；模型白名单与标准预设已同步。',
       'syncPending': '已保存；官方配置仍在同步，稍后刷新本页确认。',
       'invalid': '无法保存：{error}',
       'unavailable': '这个 profile 没有提供配置表单，请直接编辑 cordis.patch.yml。',
       'discard': '放弃修改',
+      'invalid.fields': '无法保存：请修正标红的字段',
+      'undo.deleted': '已删除 {name}',
+      'undo.action': '撤销',
+      'footer.shortcut': 'Ctrl / ⌘ + S 保存',
+      'template.reviewer.label': '代码审查',
+      'template.reviewer.description': '审查代码改动，只报告问题，不修改文件',
+      'template.reviewer.instructions': '你负责代码审查。逐个阅读改动，找出正确性、边界条件与安全问题。只报告发现，不要修改任何文件，也不要提交代码。',
+      'template.tester.label': '测试',
+      'template.tester.description': '为改动补充测试，并验证现有用例',
+      'template.tester.instructions': '你负责测试。为给定改动设计并补充测试用例，覆盖正常路径与边界条件；能运行测试时运行它并报告结果。',
+      'template.researcher.label': '调研',
+      'template.researcher.description': '查资料、对比方案，给出结论与出处',
+      'template.researcher.instructions': '你负责调研。围绕问题收集资料，比较可行方案，输出结论、理由与出处链接。不修改代码。',
+      'template.blank.label': '空白',
+      'template.blank.description': '',
+      'template.blank.instructions': '',
     }
     const en = {
       'nav': 'Subagent Hub',
@@ -118,7 +151,7 @@ window.__ModuleLoader__.load({
       'summary.managedOn': 'managed',
       'summary.managedOff': 'not managed',
       'summary.unlimited': 'unlimited',
-      'intro': 'Tells the official subagent tool “what to pick”: named subagents become official presets, model routes become the official model allowlist, and the main agent sees a selection catalog. Saving applies to new sessions immediately.',
+      'intro': 'Choose the models available to subagents, then add review, testing or research roles as needed. Save to apply; new roles are available in new sessions.',
       'badge.routes': '{count} routes',
       'badge.agents': '{count} named agents',
       'badge.managed': 'official config {state}',
@@ -133,6 +166,8 @@ window.__ModuleLoader__.load({
       'concurrency.unlimitedHint': '0 means unlimited (the official global parallel capacity still applies).',
       'concurrency.decrease': 'Decrease',
       'concurrency.increase': 'Increase',
+      'concurrency.quick': 'Quick picks',
+      'concurrency.unlimited': 'Unlimited',
       'official.switch': 'Manage the official delegation settings',
       'official.hint': 'When on, named agents are added to the official subagent tool\'s agent_preset choices and the routes below become the official subagent model allowlist. When off, no official setting is touched.',
       'routes.title': 'Model routes',
@@ -144,11 +179,9 @@ window.__ModuleLoader__.load({
       'routes.retry': 'Retry',
       'routes.empty': 'The model catalog is empty; configure a provider under Models first.',
       'routes.unavailable': 'Some providers are unavailable: {names}',
-      'route.provider': 'Provider',
       'route.model': 'Model',
       'route.effort': 'Reasoning effort',
       'route.effortDefault': 'Model default',
-      'route.pickProvider': 'Choose a provider',
       'route.pickModel': 'Choose a model',
       'route.missing': 'not in the catalog',
       'route.id': 'Route name',
@@ -159,6 +192,17 @@ window.__ModuleLoader__.load({
       'route.moveUp': 'Move up',
       'route.moveDown': 'Move down',
       'route.remove': 'Remove route',
+      'route.unnamed': 'Unnamed route',
+      'problem.route.id.empty': 'Route name is required',
+      'problem.route.id.duplicate': 'Choose a route name that is not already in use',
+      'problem.route.model.empty': 'Choose a model',
+      'problem.route.pair.duplicate': 'This model is already routed',
+      'problem.agent.id.empty': 'Name is required',
+      'problem.agent.id.invalid': 'Start with a lowercase letter; use up to 48 lowercase letters, digits or dashes',
+      'problem.agent.id.duplicate': 'Choose a name that is not already in use',
+      'problem.agent.description.empty': 'Purpose is required',
+      'problem.agent.routes.unknown': 'Choose available routes instead of:',
+      'problem.concurrency': 'The concurrency limit must be a non-negative whole number',
       'agents.title': 'Named subagents',
       'agents.hint': 'Each named agent becomes the official preset hub-agent-<name>; the main agent selects it through agent_preset.',
       'agents.add': 'Add named agent',
@@ -182,16 +226,38 @@ window.__ModuleLoader__.load({
       'agent.toggle': 'Expand or collapse',
       'preview.title': 'Preview: the catalog the main agent sees',
       'preview.empty': 'Configure a route or a named agent to preview the main agent\'s catalog.',
+      'preview.copy': 'Copy',
+      'preview.copied': 'Copied',
+      'preview.copyFailed': 'Copy failed. Expand the preview and select the text to copy it.',
+      'save.refused': 'The save was not applied. Configuration may have changed in another page; keep your edits and try again.',
+      'common.removeTag': 'Remove tag {tag}',
+      'common.readOnly': 'This configuration is read-only.',
       'footer.dirty': 'Unsaved changes',
       'save': 'Save',
       'saving': 'Saving…',
       'saved': 'Saved.',
       'syncing': 'Saved; syncing the official settings (the Host reloads the official presets, up to a minute)…',
-      'synced': 'Saved; the official settings are in sync.',
+      'synced': 'Saved; the model allowlist and standard preset are in sync.',
       'syncPending': 'Saved; the official settings are still syncing. Refresh this page in a moment to confirm.',
       'invalid': 'Cannot save: {error}',
       'unavailable': 'This profile exposes no configuration form; edit cordis.patch.yml directly.',
       'discard': 'Discard',
+      'invalid.fields': 'Cannot save: fix the highlighted fields',
+      'undo.deleted': 'Deleted {name}',
+      'undo.action': 'Undo',
+      'footer.shortcut': 'Ctrl / Cmd + S saves',
+      'template.reviewer.label': 'Code review',
+      'template.reviewer.description': 'Reviews code changes and reports findings without editing files',
+      'template.reviewer.instructions': 'You review code changes. Read every diff hunk and look for correctness, edge cases and security issues. Report findings only; never edit a file and never commit.',
+      'template.tester.label': 'Testing',
+      'template.tester.description': 'Adds tests for a change and verifies the existing suite',
+      'template.tester.instructions': 'You write tests. Design and add test cases for the given change, covering the happy path and the edge cases; run them when you can and report the results.',
+      'template.researcher.label': 'Research',
+      'template.researcher.description': 'Collects material, compares options, and reports a conclusion',
+      'template.researcher.instructions': 'You research. Gather material around the question, compare the workable options, and report the conclusion, the reasons and the sources. Do not change code.',
+      'template.blank.label': 'Blank',
+      'template.blank.description': '',
+      'template.blank.instructions': '',
     }
 
     // ── pure helpers ────────────────────────────────────────────────────────────────────────────
@@ -199,6 +265,70 @@ window.__ModuleLoader__.load({
     const hasRouteContent = route => Boolean(route.id || route.provider || route.model || route.reasoningEffort || route.note || route.tags.length > 0)
     const hasAgentContent = agent => Boolean(agent.id || agent.description || agent.instructions || agent.routes.length > 0 || agent.needs.length > 0 || agent.basePreset !== 'standard')
     const routeKey = (provider, model) => `${provider}\0${model}`
+
+    /** Separator between the provider and the model inside one merged model value. */
+    const MODEL_SEPARATOR = '|'
+
+    /**
+     * Quick templates for a new named agent. Every text is a dictionary key, so the page can
+     * localise it; the blank template starts empty and only carries its label.
+     */
+    const AGENT_TEMPLATES = [
+      { id: 'reviewer', label: 'template.reviewer.label', description: 'template.reviewer.description', instructions: 'template.reviewer.instructions' },
+      { id: 'tester', label: 'template.tester.label', description: 'template.tester.description', instructions: 'template.tester.instructions' },
+      { id: 'researcher', label: 'template.researcher.label', description: 'template.researcher.description', instructions: 'template.researcher.instructions' },
+      { id: '', label: 'template.blank.label', description: 'template.blank.description', instructions: 'template.blank.instructions' },
+    ]
+
+    /** The value of one merged model option: the provider and the model in one string. */
+    function modelOptionValue(provider, model) {
+      if ((provider ?? '') === '' && (model ?? '') === '') return ''
+      return `${encodeURIComponent(provider ?? '')}${MODEL_SEPARATOR}${encodeURIComponent(model ?? '')}`
+    }
+
+    /** Split a merged model value back into its provider and its model. */
+    function parseModelValue(value) {
+      const text = String(value ?? '')
+      const at = text.indexOf(MODEL_SEPARATOR)
+      if (at < 0) return { provider: text, model: '' }
+      const decode = part => { try { return decodeURIComponent(part) } catch { return part } }
+      return { provider: decode(text.slice(0, at)), model: decode(text.slice(at + 1)) }
+    }
+
+    /**
+     * Model options of every catalog provider, grouped for one merged select. A stored pair the
+     * catalog no longer lists stays selectable and is marked as missing.
+     */
+    function modelGroups(groups, provider = '', model = '', missing = '不在当前目录') {
+      const out = groups.map(group => ({
+        id: group.id,
+        label: group.name || group.id,
+        options: group.models.map(item => ({ value: modelOptionValue(group.id, item.id), label: item.name || item.id })),
+      }))
+      if ((provider ?? '') === '' && (model ?? '') === '') return out
+      let group = out.find(item => item.id === provider)
+      if (group === undefined) {
+        // A stored pair can name a model without a provider; label it by what it does know.
+        const name = provider === '' ? model : provider
+        group = { id: provider, label: missing ? `${name} (${missing})` : name, options: [] }
+        out.unshift(group)
+      }
+      const value = modelOptionValue(provider, model)
+      if (!group.options.some(option => option.value === value)) {
+        const label = model === ''
+          ? (missing ? `${provider} (${missing})` : provider)
+          : (missing ? `${model} (${missing})` : model)
+        group.options.unshift({ value, label })
+      }
+      return out
+    }
+
+    /** The reasoning efforts one model advertises, without the stored fallback. */
+    function effortsOf(groups, provider, model) {
+      const group = groups.find(item => item.id === provider)
+      const found = group?.models.find(item => item.id === model)
+      return found?.reasoning?.efforts ?? []
+    }
 
     /** Suggested route id for a catalog model: a short, readable slug. */
     function slugForModel(model) {
@@ -345,6 +475,127 @@ window.__ModuleLoader__.load({
       return undefined
     }
 
+    /**
+     * Per-field validation problems of one draft, keyed `route:<index>:<field>` and
+     * `agent:<index>:<field>`. The values are dictionary keys, so the page can localise them;
+     * blank rows are ignored, exactly like in {@link draftProblem}.
+     */
+    function fieldProblems(drafts) {
+      const problems = {}
+      const routeIdCount = new Map()
+      const pairCount = new Map()
+      const agentIdCount = new Map()
+      const bump = (counter, key) => counter.set(key, (counter.get(key) ?? 0) + 1)
+
+      for (const route of drafts.routes) {
+        if (!hasRouteContent(route)) continue
+        if (route.id !== '') bump(routeIdCount, route.id)
+        if (route.provider !== '' && route.model !== '') bump(pairCount, routeKey(route.provider, route.model))
+      }
+      for (const agent of drafts.agents) {
+        if (!hasAgentContent(agent)) continue
+        if (agent.id !== '') bump(agentIdCount, agent.id)
+      }
+
+      drafts.routes.forEach((route, index) => {
+        if (!hasRouteContent(route)) return
+        const key = field => `route:${index}:${field}`
+        if (route.id === '') problems[key('id')] = 'problem.route.id.empty'
+        else if (routeIdCount.get(route.id) > 1) problems[key('id')] = 'problem.route.id.duplicate'
+        if (route.provider === '' || route.model === '') problems[key('model')] = 'problem.route.model.empty'
+        else if (pairCount.get(routeKey(route.provider, route.model)) > 1) problems[key('model')] = 'problem.route.pair.duplicate'
+      })
+
+      const routeIds = new Set(drafts.routes.filter(hasRouteContent).map(route => route.id).filter(id => id !== ''))
+      drafts.agents.forEach((agent, index) => {
+        if (!hasAgentContent(agent)) return
+        const key = field => `agent:${index}:${field}`
+        if (agent.id === '') problems[key('id')] = 'problem.agent.id.empty'
+        else if (!/^[a-z][a-z0-9-]{0,47}$/.test(agent.id)) problems[key('id')] = 'problem.agent.id.invalid'
+        else if (agentIdCount.get(agent.id) > 1) problems[key('id')] = 'problem.agent.id.duplicate'
+        if (agent.description === '') problems[key('description')] = 'problem.agent.description.empty'
+        if (agent.routes.some(id => !routeIds.has(id))) problems[key('routes')] = 'problem.agent.routes.unknown'
+      })
+
+      if (!Number.isInteger(drafts.maxConcurrent) || drafts.maxConcurrent < 0) {
+        problems['general:maxConcurrent'] = 'problem.concurrency'
+      }
+      return problems
+    }
+
+    /** Agents that referenced a renamed route now reference the new name. */
+    function renameRouteRefs(drafts, oldId, newId) {
+      if (!oldId || oldId === newId) return drafts
+      return {
+        ...drafts,
+        agents: drafts.agents.map(agent => (agent.routes.includes(oldId)
+          ? { ...agent, routes: agent.routes.map(id => (id === oldId ? newId : id)) }
+          : agent)),
+      }
+    }
+
+    /** Agents stop referencing a deleted route. */
+    function dropRouteRefs(drafts, id) {
+      if (!id) return drafts
+      return {
+        ...drafts,
+        agents: drafts.agents.map(agent => (agent.routes.includes(id)
+          ? { ...agent, routes: agent.routes.filter(item => item !== id) }
+          : agent)),
+      }
+    }
+
+    /** Put an item back into a list at the place it came from. */
+    function insertAt(list, index, item) {
+      const next = [...list]
+      next.splice(Math.min(Math.max(index, 0), next.length), 0, item)
+      return next
+    }
+
+    let rowSequence = 0
+    const rowKey = () => `sah-row-${++rowSequence}`
+
+    /** Editor state has stable row identities; valuesOf strips these before saving. */
+    function editorDraftsOf(value) {
+      const draft = draftsOf(value)
+      return {
+        ...draft,
+        routes: draft.routes.map(route => ({ ...route, _key: rowKey(), _referenceId: route.id })),
+        agents: draft.agents.map(agent => ({ ...agent, _key: rowKey() })),
+      }
+    }
+
+    /** Compare every visible row, including incomplete rows, without editor-only identity. */
+    function sameDraft(a, b) {
+      return JSON.stringify(draftsOf(a)) === JSON.stringify(draftsOf(b))
+    }
+
+    /** Preserve references while a name is temporarily blank or duplicates another name. */
+    function changeRoute(draft, index, route) {
+      const previous = draft.routes[index]
+      if (previous === undefined) return draft
+      const oldId = previous._referenceId ?? previous.id
+      const canRename = route.id.trim() !== '' && !draft.routes.some((item, at) => at !== index && item.id === route.id)
+      const nextRoute = { ...route, _key: previous._key, _referenceId: canRename ? route.id : oldId }
+      const next = { ...draft, routes: draft.routes.map((item, at) => at === index ? nextRoute : item) }
+      return canRename ? renameRouteRefs(next, oldId, route.id) : next
+    }
+
+    /** Undo restores route references to the original agents, even after other rows move. */
+    function restoreDeletion(draft, entry) {
+      if (entry.kind === 'agent') return { ...draft, agents: insertAt(draft.agents, entry.index, entry.item) }
+      const id = entry.item._referenceId ?? entry.item.id
+      return {
+        ...draft,
+        routes: insertAt(draft.routes, entry.index, entry.item),
+        agents: draft.agents.map(agent => {
+          const reference = entry.refs.find(ref => ref.key === agent._key)
+          if (reference === undefined || agent.routes.includes(id)) return agent
+          return { ...agent, routes: insertAt(agent.routes, reference.index, id) }
+        }),
+      }
+    }
+
     /** The spawn delegation rows of one official preset, with their `allowedAgentPresets`. */
     function officialAllowlists(plugins) {
       const lists = []
@@ -366,6 +617,18 @@ window.__ModuleLoader__.load({
       if (expected.length === 0) return true
       const seen = new Set(lists.flat())
       return expected.every(id => seen.has(id))
+    }
+
+    /** Confirm the standard preset and model allowlist, without treating missing snapshots as success. */
+    function officialSyncReady(values, presetState, modelState) {
+      if (presetState?.status !== 'ready') return false
+      const expected = values.agents.map(agent => `hub-agent-${agent.id}`).sort()
+      const lists = officialAllowlists(presetState.value?.plugins)
+      if (lists.length === 0 || !lists.every(list => JSON.stringify(list.filter(id => id.startsWith('hub-agent-')).sort()) === JSON.stringify(expected))) return false
+      if (values.routes.length === 0) return true
+      if (modelState?.status !== 'ready' || modelState.value?.enabled !== true) return false
+      const pairs = routes => [...new Set(routes.map(route => routeKey(route.provider, route.model)))].sort()
+      return JSON.stringify(pairs(values.routes)) === JSON.stringify(pairs(modelState.value.allowedModels ?? []))
     }
 
     /** The selection catalog the main agent receives, previewed from the draft. */
@@ -403,22 +666,22 @@ window.__ModuleLoader__.load({
     const CSS = `
 .sah{--sah-border:var(--dsw-alias-border-l2,#36373b);--sah-line:var(--dsw-alias-border-l1,#2c2d31);--sah-panel:var(--dsw-alias-bg-layer-2,#232529);--sah-raised:var(--dsw-alias-bg-layer-3,#202126);--sah-text:var(--dsw-alias-label-primary,#e6e6e6);--sah-sub:var(--dsw-alias-label-secondary,#b8b8b8);--sah-mute:var(--dsw-alias-label-tertiary,#8c8c8c);--sah-accent:var(--dsw-alias-state-business-primary,#5686fe);--sah-danger:var(--dsw-alias-state-error-primary,#ef4444);--sah-warn:var(--dsw-alias-state-warn-primary,#c69026);--sah-ok:var(--dsw-alias-state-success-primary,#3aa76d);--sah-hover:var(--dsw-alias-interactive-bg-hover,rgba(255,255,255,.05));display:flex;flex-direction:column;gap:16px;max-width:960px;font-size:13px;line-height:1.5;color:var(--sah-text)}
 .sah *{box-sizing:border-box}
-.sah-hero{display:flex;flex-direction:column;gap:10px}
-.sah-intro{margin:0;color:var(--sah-sub);font-size:12.5px;line-height:19px;max-width:76ch}
-.sah-summary{display:flex;flex-wrap:wrap;gap:6px}
+.sah-hero{display:flex;flex-direction:column;gap:8px}
+.sah-intro{margin:0;color:var(--sah-sub);font-size:12.5px;line-height:20px;max-width:76ch}
+.sah-summary{display:flex;flex-wrap:wrap;gap:8px}
 .sah-badge{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border:1px solid var(--sah-border);border-radius:999px;font-size:12px;color:var(--sah-sub);background:var(--sah-panel)}
 .sah-badge-dot{width:6px;height:6px;border-radius:50%;background:var(--sah-mute)}
 .sah-badge-on .sah-badge-dot{background:var(--sah-ok)}
 .sah-panel{border:1px solid var(--sah-border);border-radius:12px;background:var(--sah-panel);overflow:hidden}
-.sah-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 16px 12px}
-.sah-panel-heading{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sah-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:16px 16px 8px}
+.sah-panel-heading{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sah-title{margin:0;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;line-height:20px}
 .sah-icon{display:inline-flex;color:var(--sah-sub)}
 .sah-hint{margin:0;color:var(--sah-mute);font-size:12px;line-height:18px;max-width:72ch}
-.sah-panel-body{display:flex;flex-direction:column;gap:10px;padding:0 16px 16px}
+.sah-panel-body{display:flex;flex-direction:column;gap:16px;padding:8px 16px 16px}
 .sah-setting{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:12px 0;border-top:1px solid var(--sah-line)}
-.sah-setting:first-child{border-top:0;padding-top:2px}
-.sah-setting-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sah-setting:first-child{border-top:0;padding-top:4px}
+.sah-setting-text{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sah-setting-title{font-size:13px;font-weight:500}
 .sah-setting-hint{font-size:12px;line-height:18px;color:var(--sah-mute);max-width:64ch}
 .sah-setting-control{flex:none}
@@ -427,24 +690,34 @@ window.__ModuleLoader__.load({
 .sah-toggle:disabled{opacity:.45;cursor:default}
 .sah-toggle-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .16s}
 .sah-toggle-on .sah-toggle-thumb{transform:translateX(16px)}
-.sah-toggle:focus-visible,.sah-stepper button:focus-visible,.sah-iconbtn:focus-visible,.sah-btn:focus-visible,.sah-agent-toggle:focus-visible,.sah-disclosure:focus-visible{outline:2px solid var(--sah-accent);outline-offset:2px}
+.sah:focus-visible{outline:none}
+.sah-tagbox button:focus-visible,.sah-linkbtn:focus-visible,.sah-stepper input:focus-visible,.sah-toggle:focus-visible,.sah-stepper button:focus-visible,.sah-iconbtn:focus-visible,.sah-btn:focus-visible,.sah-agent-toggle:focus-visible,.sah-disclosure:focus-visible,.sah-chipbtn:focus-visible,.sah-pick button:focus-visible,.sah-suggest button:focus-visible{outline:2px solid var(--sah-accent);outline-offset:2px}
+.sah-concurrency{display:flex;align-items:center;gap:8px}
 .sah-stepper{display:inline-flex;align-items:center;height:32px;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-raised);overflow:hidden}
 .sah-stepper button{width:32px;height:100%;border:0;background:transparent;color:var(--sah-sub);font-size:16px;cursor:pointer}
 .sah-stepper button:hover:not(:disabled){background:var(--sah-hover);color:var(--sah-text)}
 .sah-stepper button:disabled{opacity:.35;cursor:default}
 .sah-stepper input{width:48px;height:100%;border:0;border-left:1px solid var(--sah-border);border-right:1px solid var(--sah-border);background:transparent;color:var(--sah-text);font:inherit;text-align:center;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
 .sah-stepper input::-webkit-inner-spin-button,.sah-stepper input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.sah-chipbtn{height:28px;min-width:28px;padding:0 10px;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-panel);color:var(--sah-sub);font:inherit;font-size:12.5px;line-height:1;cursor:pointer;transition:border-color .16s,background .16s,color .16s}
+.sah-chipbtn:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed,#5d5e63);color:var(--sah-text)}
+.sah-chipbtn[aria-pressed="true"]{border-color:var(--sah-accent);background:color-mix(in srgb,var(--sah-accent) 14%,transparent);color:var(--sah-text)}
+.sah-chipbtn:disabled{opacity:.4;cursor:default}
 .sah-list{display:flex;flex-direction:column;gap:8px}
 .sah-route-card,.sah-agent-card{border:1px solid var(--sah-border);border-radius:10px;background:var(--sah-raised);transition:border-color .16s}
 .sah-route-card:hover,.sah-agent-card:hover{border-color:var(--dsw-alias-label-dimmed,#5d5e63)}
-.sah-route-card{display:flex;flex-direction:column;gap:10px;padding:12px}
-.sah-route-main{display:grid;grid-template-columns:24px minmax(0,1fr) minmax(0,1.3fr) minmax(0,.9fr) auto;gap:10px;align-items:end}
-.sah-route-meta{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr) minmax(0,1fr);gap:10px;padding:10px 0 0 34px;border-top:1px dashed var(--sah-line)}
-.sah-order{height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:var(--sah-panel);color:var(--sah-mute);font-size:12px;font-variant-numeric:tabular-nums}
-.sah-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.sah-route-card{display:flex;flex-direction:column;gap:12px;padding:12px}
+.sah-route-main{display:grid;grid-template-columns:28px minmax(0,1fr) minmax(0,150px) auto;gap:8px;align-items:start}
+.sah-route-main-solo{grid-template-columns:28px minmax(0,1fr) auto}
+.sah-route-meta{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.6fr) minmax(0,1fr);gap:8px;padding:12px 0 0 36px;border-top:1px dashed var(--sah-line)}
+.sah-order{height:32px;margin-top:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:var(--sah-panel);color:var(--sah-mute);font-size:12px;font-variant-numeric:tabular-nums}
+.sah-field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .sah-field-wide{grid-column:1/-1}
 .sah-label{font-size:12px;line-height:16px;color:var(--sah-sub)}
 .sah-field-hint{font-size:11.5px;line-height:16px;color:var(--sah-mute)}
+.sah-field-error{font-size:11.5px;line-height:16px;color:var(--sah-danger)}
+.sah-field-bad .sah-input,.sah-field-bad .sah-select,.sah-field-bad .sah-textarea{border-color:var(--sah-danger)}
+.sah-field-bad .sah-input:focus,.sah-field-bad .sah-select:focus,.sah-field-bad .sah-textarea:focus{box-shadow:0 0 0 3px color-mix(in srgb,var(--sah-danger) 20%,transparent)}
 .sah-select,.sah-input,.sah-textarea{width:100%;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-panel);color:var(--sah-text);font:inherit;font-size:13px;transition:border-color .16s}
 .sah-select,.sah-input{height:32px;padding:0 10px}
 .sah-select{padding-right:26px;text-overflow:ellipsis}
@@ -452,7 +725,7 @@ window.__ModuleLoader__.load({
 .sah-select:hover:not(:disabled),.sah-input:hover:not(:disabled),.sah-textarea:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed,#5d5e63)}
 .sah-select:focus,.sah-input:focus,.sah-textarea:focus{outline:none;border-color:var(--sah-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--sah-accent) 22%,transparent)}
 .sah-select:disabled,.sah-input:disabled{color:var(--sah-mute);cursor:default}
-.sah-row-actions{display:flex;gap:2px;height:32px;align-items:center}
+.sah-row-actions{display:flex;gap:2px;height:32px;margin-top:20px;align-items:center}
 .sah-iconbtn{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:var(--sah-mute);cursor:pointer;font-size:14px}
 .sah-iconbtn:hover:not(:disabled){background:var(--sah-hover);color:var(--sah-text)}
 .sah-iconbtn-danger:hover:not(:disabled){color:var(--sah-danger);background:color-mix(in srgb,var(--sah-danger) 14%,transparent)}
@@ -460,61 +733,85 @@ window.__ModuleLoader__.load({
 .sah-tagbox{display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:32px;padding:3px 6px;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-panel)}
 .sah-tagbox:focus-within{border-color:var(--sah-accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--sah-accent) 22%,transparent)}
 .sah-tagbox input{flex:1 1 80px;min-width:80px;height:24px;border:0;background:transparent;color:var(--sah-text);font:inherit;font-size:12.5px;outline:none}
-.sah-chip{display:inline-flex;align-items:center;gap:3px;height:22px;padding:0 8px;border:1px solid var(--sah-border);border-radius:999px;background:var(--sah-raised);font-size:12px;color:var(--sah-sub);white-space:nowrap}
+.sah-chip{max-width:100%;overflow-wrap:anywhere;white-space:normal;min-height:24px;height:auto;display:inline-flex;align-items:center;gap:3px;padding:0 8px;border:1px solid var(--sah-border);border-radius:999px;background:var(--sah-raised);font-size:12px;color:var(--sah-sub)}
 .sah-chip button{border:0;background:transparent;color:inherit;cursor:pointer;padding:0;font:inherit;line-height:1;opacity:.7}
 .sah-chip button:hover{opacity:1;color:var(--sah-danger)}
 .sah-suggest{display:flex;flex-wrap:wrap;gap:4px}
 .sah-suggest button{height:22px;padding:0 8px;border:1px dashed var(--sah-border);border-radius:999px;background:transparent;color:var(--sah-mute);font:inherit;font-size:11.5px;cursor:pointer}
 .sah-suggest button:hover{color:var(--sah-text);border-color:var(--sah-accent)}
-.sah-pick{display:flex;flex-wrap:wrap;gap:6px}
-.sah-pick button{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-panel);color:var(--sah-sub);font:inherit;font-size:12.5px;cursor:pointer;transition:border-color .16s,background .16s}
+.sah-pick{display:flex;flex-wrap:wrap;gap:8px}
+.sah-pick button{max-width:100%;overflow-wrap:anywhere;white-space:normal;min-height:28px;height:auto;flex-wrap:wrap;display:inline-flex;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--sah-border);border-radius:8px;background:var(--sah-panel);color:var(--sah-sub);font:inherit;font-size:12.5px;cursor:pointer;transition:border-color .16s,background .16s,color .16s}
 .sah-pick button:hover:not(:disabled){border-color:var(--dsw-alias-label-dimmed,#5d5e63);color:var(--sah-text)}
 .sah-pick button[aria-pressed="true"]{border-color:var(--sah-accent);background:color-mix(in srgb,var(--sah-accent) 14%,transparent);color:var(--sah-text)}
 .sah-pick-route{font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11px;color:var(--sah-mute)}
+.sah-templates,.sah-chips{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sah-templates-label{font-size:12px;color:var(--sah-mute)}
 .sah-agent-head{display:flex;align-items:center;gap:8px;padding:8px 8px 8px 0}
 .sah-agent-toggle{flex:1;min-width:0;display:flex;align-items:center;gap:12px;padding:4px 4px 4px 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sah-agent-toggle:hover{background:var(--sah-hover)}
 .sah-avatar{flex:none;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:color-mix(in srgb,var(--sah-accent) 18%,transparent);color:var(--sah-accent);font-weight:600}
 .sah-agent-text{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.sah-agent-name{display:flex;align-items:center;gap:8px;font-weight:500;min-width:0}
+.sah-agent-name{display:flex;align-items:center;gap:8px;font-weight:500;min-width:0;flex-wrap:wrap;overflow-wrap:anywhere}
+.sah-flag{width:7px;height:7px;flex:none;border-radius:50%;background:var(--sah-danger)}
 .sah-agent-desc{color:var(--sah-mute);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sah-code{font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11px;font-weight:400;color:var(--sah-mute);padding:1px 6px;border-radius:4px;background:var(--sah-panel)}
+.sah-code{overflow-wrap:anywhere;max-width:100%;font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11px;font-weight:400;color:var(--sah-mute);padding:1px 6px;border-radius:4px;background:var(--sah-panel)}
 .sah-agent-badges{display:flex;gap:4px;flex:none;max-width:40%;overflow:hidden}
 .sah-chevron{display:inline-flex;color:var(--sah-mute);transition:transform .16s}
 .sah-chevron-open{transform:rotate(180deg)}
 .sah-agent-body{display:flex;flex-direction:column;gap:12px;padding:12px 16px 16px;border-top:1px solid var(--sah-line)}
 .sah-grid-2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px}
-.sah-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border:1px solid transparent;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
+.sah-btn{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 14px;border:1px solid transparent;border-radius:8px;font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap}
 .sah-btn:disabled{opacity:.4;cursor:default}
 .sah-btn-outline{border-color:var(--sah-border);background:transparent;color:var(--sah-sub)}
 .sah-btn-outline:hover:not(:disabled){background:var(--sah-hover);color:var(--sah-text)}
 .sah-btn-primary{background:var(--sah-text);color:var(--sah-raised)}
 .sah-btn-primary:hover:not(:disabled){opacity:.9}
-.sah-empty{display:flex;flex-direction:column;align-items:center;gap:10px;padding:22px 16px;border:1px dashed var(--sah-border);border-radius:10px;color:var(--sah-mute);font-size:12.5px;text-align:center}
+.sah-btn-sm{height:28px;padding:0 10px;font-size:12.5px;font-weight:400}
+.sah-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 16px;border:1px dashed var(--sah-border);border-radius:10px;color:var(--sah-mute);font-size:12.5px;text-align:center}
 .sah-notice{margin:0;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sah-sub)}
 .sah-notice-error{color:var(--sah-danger)}
 .sah-linkbtn{border:0;background:transparent;color:var(--sah-accent);font:inherit;font-size:12px;cursor:pointer;padding:0}
+.sah-linkbtn:hover{text-decoration:underline}
+.sah-preview-head{display:flex;align-items:center;gap:8px;padding-right:12px}
 .sah-preview{margin:0;padding:12px 14px;border-radius:8px;background:var(--sah-raised);color:var(--sah-sub);font-family:var(--dsw-font-mono,ui-monospace,Menlo,monospace);font-size:11.5px;line-height:18px;white-space:pre-wrap;overflow:auto;max-height:320px}
-.sah-disclosure{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.sah-disclosure{flex:1;min-width:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 16px;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
 .sah-disclosure:hover{background:var(--sah-hover)}
-.sah-footer{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:8px;padding:12px 16px;margin-top:4px;border:1px solid var(--sah-border);border-radius:12px;background:color-mix(in srgb,var(--sah-panel) 92%,transparent);backdrop-filter:blur(8px)}
+.sah-footer{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:12px;padding:12px 16px;margin-top:4px;border:1px solid var(--sah-border);border-radius:12px;background:color-mix(in srgb,var(--sah-panel) 92%,transparent);backdrop-filter:blur(8px)}
 .sah-footer-left{flex:1;min-width:0;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sah-sub)}
 .sah-dirty-dot{width:7px;height:7px;border-radius:50%;background:var(--sah-warn);flex:none}
 .sah-status-error{color:var(--sah-danger)}
 .sah-status-warn{color:var(--sah-warn)}
 .sah-status-ok{color:var(--sah-ok)}
-@media (max-width:760px){.sah-route-main{grid-template-columns:24px 1fr 1fr}.sah-route-main>.sah-row-actions{grid-column:1/-1;justify-content:flex-end}.sah-route-meta,.sah-grid-2{grid-template-columns:1fr;padding-left:0}.sah-agent-badges{display:none}}
+.sah-undo{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--sah-sub);min-width:0;overflow-wrap:anywhere;flex-wrap:wrap}
+.sah-footer-keys{font-size:11.5px;color:var(--sah-mute);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.sah *{transition:none!important;animation:none!important}}
+@media (forced-colors:active){.sah-toggle,.sah-chipbtn[aria-pressed="true"],.sah-pick button[aria-pressed="true"]{border:2px solid Highlight}.sah *:focus-visible{outline:2px solid Highlight;box-shadow:none}}
+@media (max-width:480px){.sah-panel-head{flex-wrap:wrap}.sah-agent-toggle{gap:8px}.sah-avatar{display:none}.sah-preview-head{flex-wrap:wrap}.sah-footer-left{flex-basis:100%}.sah-footer{gap:8px}.sah-btn{padding-inline:10px}.sah-route-main,.sah-route-main-solo{grid-template-columns:20px minmax(0,1fr)}.sah-order{min-width:0}.sah-concurrency{max-width:100%}.sah-setting-control{max-width:100%}}
+@media (max-width:760px){.sah-route-main,.sah-route-main-solo{grid-template-columns:28px minmax(0,1fr)}.sah-route-main .sah-field{grid-column:2}.sah-route-main .sah-row-actions{grid-column:1/-1;justify-content:flex-end;margin-top:0}.sah-route-meta,.sah-grid-2{grid-template-columns:1fr;padding-left:0}.sah-agent-badges{display:none}.sah-setting{flex-direction:column;align-items:flex-start;gap:8px}.sah-footer{flex-wrap:wrap}.sah-footer-keys{display:none}.sah-concurrency{flex-wrap:wrap}}
 `
 
     const style = () => h('style', { key: 'css' }, CSS)
     /** An official icon when the shell supplies one, otherwise a text glyph. */
     const glyph = (name, fallback, size = 14) => (P[name] === undefined ? fallback : h(P[name], { size }))
 
-    /** A labelled control with an optional hint; a div so composite controls keep their own focus. */
-    function Field({ label, hint, wide, children }) {
-      return h('div', { className: `sah-field${wide ? ' sah-field-wide' : ''}` },
-        h('span', { className: 'sah-label' }, label),
-        children,
-        hint ? h('span', { className: 'sah-field-hint' }, hint) : null)
+    /** Bind the visible label, hint and inline error to the actual focusable control. */
+    function Field({ label, hint, error, wide, children }) {
+      const id = React.useId()
+      const descriptions = [hint ? `${id}-hint` : '', error === undefined ? '' : `${id}-error`].filter(Boolean).join(' ') || undefined
+      const child = React.Children.only(children)
+      const control = ['input', 'select', 'textarea'].includes(child.type) || [TextInput, Select, GroupedSelect, TagInput].includes(child.type)
+      const props = {
+        id: control ? id : undefined,
+        'aria-labelledby': `${id}-label`,
+        'aria-describedby': descriptions,
+        'aria-invalid': error === undefined ? undefined : true,
+        ...(control ? {} : { role: 'group', tabIndex: -1 }),
+      }
+      return h('div', { className: `sah-field${wide ? ' sah-field-wide' : ''}${error === undefined ? '' : ' sah-field-bad'}` },
+        control ? h('label', { id: `${id}-label`, className: 'sah-label', htmlFor: id }, label) : h('span', { id: `${id}-label`, className: 'sah-label' }, label),
+        React.cloneElement(child, props),
+        error === undefined ? null : h('span', { id: `${id}-error`, className: 'sah-field-error' }, error),
+        hint ? h('span', { id: `${id}-hint`, className: 'sah-field-hint' }, hint) : null)
     }
 
     /** Native select, styled like the official settings selects. */
@@ -527,20 +824,35 @@ window.__ModuleLoader__.load({
       }, options.map(option => h('option', { key: option.value, value: option.value }, option.label)))
     }
 
+    /** Native select whose options are grouped, one group per provider. */
+    function GroupedSelect({ value, groups, placeholder, onChange, ...extra }) {
+      return h('select', {
+        className: 'sah-select',
+        value,
+        onChange: event => onChange(event.target.value),
+        ...extra,
+      },
+      placeholder === undefined
+        ? null
+        : h('option', { key: '__placeholder', value: '' }, placeholder),
+      groups.map(group => h('optgroup', { key: group.id, label: group.label },
+        group.options.map(option => h('option', { key: option.value, value: option.value }, option.label)))))
+    }
+
     /** Native text input, styled like the official settings inputs. */
     function TextInput({ value, onChange, ...extra }) {
       return h('input', { className: 'sah-input', value, onChange: event => onChange(event.target.value), ...extra })
     }
 
     /** A tag chip with an optional remove control. */
-    function Chip({ tag, onRemove }) {
+    function Chip({ tag, onRemove, removeLabel }) {
       return h('span', { className: 'sah-chip' },
         tag,
-        onRemove === undefined ? null : h('button', { type: 'button', onClick: () => onRemove(tag), 'aria-label': `remove ${tag}` }, '×'))
+        onRemove === undefined ? null : h('button', { type: 'button', onClick: () => onRemove(tag), 'aria-label': removeLabel ?? tag }, '×'))
     }
 
     /** Chips plus an inline input that adds a tag on Enter, then one-click suggestions. */
-    function TagInput({ tags, onChange, placeholder, suggestions = [], disabled }) {
+    function TagInput({ tags, onChange, placeholder, suggestions = [], disabled, t, ...inputProps }) {
       const [text, setText] = React.useState('')
       const commit = () => {
         const next = addTag(tags, text)
@@ -550,14 +862,16 @@ window.__ModuleLoader__.load({
       const offered = suggestions.filter(tag => !tags.includes(tag))
       return h(React.Fragment, null,
         h('div', { className: 'sah-tagbox' },
-          tags.map(tag => h(Chip, { key: tag, tag, onRemove: disabled ? undefined : value => onChange(removeTag(tags, value)) })),
+          tags.map(tag => h(Chip, { key: tag, tag, removeLabel: t?.('common.removeTag', { tag }), onRemove: disabled ? undefined : value => onChange(removeTag(tags, value)) })),
           h('input', {
+            ...inputProps,
             value: text,
             disabled,
             placeholder: tags.length === 0 ? placeholder : '',
             onChange: event => setText(event.target.value),
             onBlur: commit,
             onKeyDown: (event) => {
+              if (event.isComposing || event.nativeEvent?.isComposing) return
               if (event.key === 'Enter' || event.key === ',') {
                 event.preventDefault()
                 commit()
@@ -656,51 +970,59 @@ window.__ModuleLoader__.load({
       return choices
     }
 
-    /** One model route: provider / model / effort on top, then its name, tags and note. */
-    function RouteCard({ route, index, total, groups, catalogReady = true, known, onChange, onRemove, onMove, disabled, t }) {
+    /** One model route: the merged model pick and the effort on top, then name, tags and note. */
+    function RouteCard({ route, index, total, groups, catalogReady = true, known, problems = {}, onChange, onRemove, onMove, disabled, t }) {
       const set = patch => onChange({ ...route, ...patch })
       // Only a loaded catalog can say a stored value is gone.
       const missing = catalogReady ? t('route.missing') : null
       const derived = route.id === '' || route.id === slugForModel(route.model)
-      const pickProvider = provider => onChange({ ...route, provider, model: '', reasoningEffort: '', ...(derived ? { id: '' } : {}) })
-      const pickModel = model => onChange({ ...route, model, reasoningEffort: '', ...(derived ? { id: slugForModel(model) } : {}) })
+      // The effort select only appears when the model offers efforts, or one is already stored.
+      const efforts = effortChoices(groups, route.provider, route.model, route.reasoningEffort, missing)
+      const pickModel = value => {
+        const picked = parseModelValue(value)
+        onChange({ ...route, provider: picked.provider, model: picked.model, reasoningEffort: '', ...(derived ? { id: slugForModel(picked.model) } : {}) })
+      }
+      const errorText = field => {
+        const key = problems[`route:${index}:${field}`]
+        return key === undefined ? undefined : t(key)
+      }
       return h('div', { className: 'sah-route-card' },
-        h('div', { className: 'sah-route-main' },
+        h('div', { className: `sah-route-main${efforts.length > 0 ? '' : ' sah-route-main-solo'}` },
           h('span', { className: 'sah-order' }, String(index + 1)),
-          h(Field, { label: t('route.provider') }, h(Select, {
-            value: route.provider,
-            disabled,
-            options: [{ value: '', label: t('route.pickProvider') }, ...providerChoices(groups, route.provider, missing)],
-            onChange: pickProvider,
-          })),
-          h(Field, { label: t('route.model') }, h(Select, {
-            value: route.model,
-            disabled: disabled || route.provider === '',
-            options: [{ value: '', label: t('route.pickModel') }, ...modelChoices(groups, route.provider, route.model, missing)],
-            onChange: pickModel,
-          })),
-          h(Field, { label: t('route.effort') }, h(Select, {
-            value: route.reasoningEffort,
-            disabled: disabled || route.model === '',
-            options: [{ value: '', label: t('route.effortDefault') }, ...effortChoices(groups, route.provider, route.model, route.reasoningEffort, missing)],
-            onChange: value => set({ reasoningEffort: value }),
-          })),
+          h(Field, { label: t('route.model'), error: errorText('model') },
+            h(GroupedSelect, {
+              value: modelOptionValue(route.provider, route.model),
+              disabled,
+              placeholder: t('route.pickModel'),
+              groups: modelGroups(groups, route.provider, route.model, missing),
+              onChange: pickModel,
+            })),
+          efforts.length > 0
+            ? h(Field, { label: t('route.effort') },
+              h(Select, {
+                value: route.reasoningEffort,
+                disabled,
+                options: [{ value: '', label: t('route.effortDefault') }, ...efforts],
+                onChange: value => set({ reasoningEffort: value }),
+              }))
+            : null,
           h('div', { className: 'sah-row-actions' },
             h(IconButton, { title: t('route.moveUp'), disabled: disabled || index === 0, onClick: () => onMove(index, -1) }, glyph('IconChevronUpOutlineRegular', '↑')),
             h(IconButton, { title: t('route.moveDown'), disabled: disabled || index === total - 1, onClick: () => onMove(index, 1) }, glyph('IconChevronDownOutlineRegular', '↓')),
             h(IconButton, { title: t('route.remove'), danger: true, disabled, onClick: onRemove }, glyph('IconTrashOutlineRegular', '×')))),
         h('div', { className: 'sah-route-meta' },
-          h(Field, { label: t('route.id'), hint: t('route.idHint') },
+          h(Field, { label: t('route.id'), hint: t('route.idHint'), error: errorText('id') },
             h(TextInput, { value: route.id, disabled, placeholder: 'flash', onChange: value => set({ id: value }) })),
           h(Field, { label: t('route.tags') },
-            h(TagInput, { tags: route.tags, disabled, placeholder: t('route.tagPlaceholder'), suggestions: known, onChange: tags => set({ tags }) })),
+            h(TagInput, { t, tags: route.tags, disabled, placeholder: t('route.tagPlaceholder'), suggestions: known, onChange: tags => set({ tags }) })),
           h(Field, { label: t('route.note') },
             h(TextInput, { value: route.note, disabled, placeholder: 'DeepSeek Flash', onChange: value => set({ note: value }) }))))
     }
 
     /** One named agent: a collapsible card whose header summarises it. */
-    function AgentCard({ agent, index, routes, presets, known, onChange, onRemove, disabled, defaultOpen, t }) {
+    function AgentCard({ agent, index, routes, presets, known, problems = {}, onChange, onRemove, disabled, defaultOpen, forceOpen = false, t }) {
       const [open, setOpen] = React.useState(defaultOpen === true)
+      React.useEffect(() => { if (forceOpen) setOpen(true) }, [forceOpen])
       const set = patch => onChange({ ...agent, ...patch })
       const usable = routes.filter(route => route.id && route.provider && route.model)
       const toggleRoute = id => set({ routes: agent.routes.includes(id) ? agent.routes.filter(item => item !== id) : [...agent.routes, id] })
@@ -708,6 +1030,16 @@ window.__ModuleLoader__.load({
       if (agent.basePreset && !presetOptions.some(option => option.value === agent.basePreset)) {
         presetOptions.unshift({ value: agent.basePreset, label: `${agent.basePreset} (${t('route.missing')})` })
       }
+      const errorText = field => {
+        const key = problems[`agent:${index}:${field}`]
+        if (key === undefined) return undefined
+        if (key !== 'problem.agent.routes.unknown') return t(key)
+        // Name the routes the agent points at but the table no longer has.
+        const unknown = agent.routes.filter(id => !usable.some(route => route.id === id))
+        return h(React.Fragment, null, t(key), unknown.length > 0 ? ` ${unknown.join(', ')}` : '')
+      }
+      // A collapsed card still has to say that something is wrong with it.
+      const broken = ['id', 'description', 'routes'].some(field => problems[`agent:${index}:${field}`] !== undefined)
       return h('div', { className: 'sah-agent-card' },
         h('div', { className: 'sah-agent-head' },
           h('button', {
@@ -721,6 +1053,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'sah-agent-text' },
             h('span', { className: 'sah-agent-name' },
               agent.id || t('agent.unnamed'),
+              broken ? h('span', { className: 'sah-field-error' }, t('invalid.fields')) : null,
               h('code', { className: 'sah-code' }, `hub-agent-${agent.id || '<id>'}`)),
             h('span', { className: 'sah-agent-desc' }, agent.description || t('agent.noDescription'))),
           h('span', { className: 'sah-agent-badges' },
@@ -732,9 +1065,9 @@ window.__ModuleLoader__.load({
           h(IconButton, { title: t('agent.remove'), danger: true, disabled, onClick: onRemove }, glyph('IconTrashOutlineRegular', '×'))),
         open ? h('div', { className: 'sah-agent-body' },
           h('div', { className: 'sah-grid-2' },
-            h(Field, { label: t('agent.id'), hint: t('agent.idHint') },
+            h(Field, { label: t('agent.id'), hint: t('agent.idHint'), error: errorText('id') },
               h(TextInput, { value: agent.id, disabled, placeholder: 'reviewer', onChange: value => set({ id: value.trim().toLowerCase() }) })),
-            h(Field, { label: t('agent.description'), hint: t('agent.descriptionHint') },
+            h(Field, { label: t('agent.description'), hint: t('agent.descriptionHint'), error: errorText('description') },
               h(TextInput, { value: agent.description, disabled, placeholder: 'Reviews a diff and reports findings', onChange: value => set({ description: value }) }))),
           h(Field, { label: t('agent.instructions'), hint: t('agent.instructionsHint'), wide: true },
             h('textarea', {
@@ -745,7 +1078,7 @@ window.__ModuleLoader__.load({
               placeholder: 'Report findings only; never edit files.',
               onChange: event => set({ instructions: event.target.value }),
             })),
-          h(Field, { label: t('agents.routesLabel'), hint: t('agents.routesHint'), wide: true },
+          h(Field, { label: t('agents.routesLabel'), hint: t('agents.routesHint'), error: errorText('routes'), wide: true },
             usable.length === 0
               ? h('span', { className: 'sah-field-hint' }, t('agents.noRoutes'))
               : h('div', { className: 'sah-pick' }, usable.map(route => h('button', {
@@ -759,7 +1092,7 @@ window.__ModuleLoader__.load({
             h(Field, { label: t('agents.basePreset'), hint: t('agents.basePresetHint') },
               h(Select, { value: agent.basePreset, disabled, options: presetOptions, onChange: value => set({ basePreset: value }) })),
             h(Field, { label: t('agents.needs') },
-              h(TagInput, { tags: agent.needs, disabled, placeholder: t('route.tagPlaceholder'), suggestions: known, onChange: needs => set({ needs }) })))) : null)
+              h(TagInput, { t, tags: agent.needs, disabled, placeholder: t('route.tagPlaceholder'), suggestions: known, onChange: needs => set({ needs }) })))) : null)
     }
 
     // ── page ─────────────────────────────────────────────────────────────────────────────────────
@@ -778,22 +1111,54 @@ window.__ModuleLoader__.load({
     /** The page itself: general settings, model routes, named agents, preview, save bar. */
     function ConfigPage({ view = 'page', form, t, ctx = {} }) {
       const value = form?.state?.value ?? {}
-      const initial = React.useMemo(() => draftsOf(value), [])
+      const initial = React.useMemo(() => editorDraftsOf(value), [])
       const [draft, setDraft] = React.useState(initial)
       const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [] })
       const [presets, setPresets] = React.useState([{ id: 'standard', name: 'standard' }])
       const [status, setStatus] = React.useState(undefined)
       const [busy, setBusy] = React.useState(false)
-      const [fresh, setFresh] = React.useState(() => new Set())
+      const [baseline, setBaseline] = React.useState(() => draftsOf(value))
+      const [submitted, setSubmitted] = React.useState(false)
       const [previewOpen, setPreviewOpen] = React.useState(false)
-      const writable = form !== undefined && form.state?.writable !== false
+      const [undo, setUndo] = React.useState(undefined)
+      const [copied, setCopied] = React.useState(false)
+      const [copyError, setCopyError] = React.useState(false)
+      const syncTimer = React.useRef(undefined)
+      const copyTimer = React.useRef(undefined)
+      const syncGeneration = React.useRef(0)
+      const saving = React.useRef(false)
+      const rootRef = React.useRef(null)
+      const writable = form !== undefined && form.state?.status !== 'loading' && form.state?.writable !== false
       const hydrated = React.useRef(form?.state?.status !== 'loading')
       const disposed = React.useRef(false)
-      React.useEffect(() => () => { disposed.current = true }, [])
+      React.useEffect(() => {
+        disposed.current = false
+        return () => {
+          disposed.current = true
+          clearTimeout(syncTimer.current)
+          clearTimeout(copyTimer.current)
+          syncGeneration.current++
+        }
+      }, [])
+      // The page owns the keyboard shortcut, so it needs the focus: it takes it only when
+      // nothing else has it, and never scrolls the shell.
+      React.useEffect(() => {
+        const element = rootRef.current
+        if (element === null || typeof element.focus !== 'function') return
+        const doc = element.ownerDocument
+        const active = doc?.activeElement
+        if (active !== undefined && active !== null && active !== doc?.body) return
+        try {
+          element.focus({ preventScroll: true })
+        } catch {
+          element.focus()
+        }
+      }, [])
       React.useEffect(() => {
         if (hydrated.current || form?.state?.status !== 'ready') return
         hydrated.current = true
-        setDraft(draftsOf(form.state.value))
+        setDraft(editorDraftsOf(form.state.value))
+        setBaseline(draftsOf(form.state.value))
       }, [form?.state?.status, form?.state?.revision])
 
       const loadCatalog = React.useCallback(async () => {
@@ -831,24 +1196,30 @@ window.__ModuleLoader__.load({
        */
       const watchOfficialSync = React.useCallback((savedValues) => {
         if (ctx.configForms === undefined) return
-        const expected = savedValues.agents.map(agent => `hub-agent-${agent.id}`)
-        if (!savedValues.manageOfficialSettings || expected.length === 0) return
+        clearTimeout(syncTimer.current)
+        const generation = ++syncGeneration.current
+        if (!savedValues.manageOfficialSettings) return
         setStatus({ kind: 'busy', text: t('syncing') })
         const deadline = Date.now() + SYNC_TIMEOUT_MS
         const tick = () => {
-          if (disposed.current) return
-          const snapshot = ctx.configForms.get(OFFICIAL_PRESET_NAMESPACE)?.getSnapshot?.()
-          if (allowlistSynced(officialAllowlists(snapshot?.value?.plugins), expected)) {
-            setStatus({ kind: 'ok', text: t('synced') })
-            return
+          if (disposed.current || generation !== syncGeneration.current) return
+          try {
+            const presetState = ctx.configForms.get(OFFICIAL_PRESET_NAMESPACE)?.getSnapshot?.()
+            const modelState = ctx.configForms.get('subagent-model-selection-settings')?.getSnapshot?.()
+            if (officialSyncReady(savedValues, presetState, modelState)) {
+              setStatus({ kind: 'ok', text: t('synced') })
+              return
+            }
+          } catch {
+            // A reload may temporarily remove a served form; keep observing until the deadline.
           }
           if (Date.now() > deadline) {
             setStatus({ kind: 'warn', text: t('syncPending') })
             return
           }
-          setTimeout(tick, SYNC_POLL_MS)
+          syncTimer.current = setTimeout(tick, SYNC_POLL_MS)
         }
-        setTimeout(tick, SYNC_POLL_MS)
+        syncTimer.current = setTimeout(tick, SYNC_POLL_MS)
       }, [ctx])
 
       if (view === 'summary') {
@@ -865,11 +1236,20 @@ window.__ModuleLoader__.load({
       const maxConcurrent = draft.maxConcurrent
       const values = valuesOf(draft)
       const problem = draftProblem(draft)
-      const dirty = JSON.stringify(values) !== JSON.stringify(valuesOf(draftsOf(value)))
+      const problems = fieldProblems(draft)
+      const dirty = !sameDraft(draft, baseline)
       const locked = !writable || busy
 
-      const updateRoute = (index, route) => setDraft(current => ({ ...current, routes: current.routes.map((item, at) => at === index ? route : item) }))
-      const removeRoute = index => setDraft(current => ({ ...current, routes: current.routes.filter((_, at) => at !== index) }))
+      const updateRoute = (index, route) => setDraft(current => changeRoute(current, index, route))
+      const removeRoute = index => {
+        const item = draft.routes[index]
+        if (item === undefined) return
+        const id = item._referenceId ?? item.id
+        const refs = draft.agents.filter(agent => agent.routes.includes(id))
+          .map(agent => ({ key: agent._key, index: agent.routes.indexOf(id) }))
+        setUndo({ kind: 'route', index, item, refs })
+        setDraft(current => dropRouteRefs({ ...current, routes: current.routes.filter((_, at) => at !== index) }, id))
+      }
       const moveRoute = (index, delta) => setDraft((current) => {
         const routes = [...current.routes]
         const target = index + delta
@@ -878,48 +1258,131 @@ window.__ModuleLoader__.load({
         routes.splice(target, 0, row)
         return { ...current, routes }
       })
-      const addRoute = () => setDraft(current => ({ ...current, routes: [...current.routes, { id: '', provider: '', model: '', reasoningEffort: '', tags: [], note: '' }] }))
+      const addRoute = () => setDraft(current => ({ ...current, routes: [...current.routes, { _key: rowKey(), _referenceId: '', id: '', provider: '', model: '', reasoningEffort: '', tags: [], note: '' }] }))
       const updateAgent = (index, agent) => setDraft(current => ({ ...current, agents: current.agents.map((item, at) => at === index ? agent : item) }))
-      const removeAgent = index => setDraft(current => ({ ...current, agents: current.agents.filter((_, at) => at !== index) }))
-      const addAgent = () => {
-        const id = uniqueRouteId('agent', new Set(draft.agents.map(agent => agent.id)))
-        setFresh(current => new Set(current).add(draft.agents.length))
-        setDraft(current => ({ ...current, agents: [...current.agents, { id, description: '', instructions: '', routes: [], needs: [], basePreset: 'standard' }] }))
+      const removeAgent = index => {
+        const item = draft.agents[index]
+        if (item === undefined) return
+        setUndo({ kind: 'agent', index, item })
+        setDraft(current => ({ ...current, agents: current.agents.filter((_, at) => at !== index) }))
+      }
+      /** Add a named agent from a template; the new card opens expanded. */
+      const addAgent = template => {
+        const source = template ?? { id: '', description: '', instructions: '' }
+        const taken = new Set(draft.agents.map(agent => agent.id))
+        const id = source.id === '' ? '' : uniqueRouteId(source.id, taken)
+        setDraft(current => ({
+          ...current,
+          agents: [...current.agents, {
+            _key: rowKey(), _fresh: true,
+            id,
+            description: source.description === undefined ? '' : t(source.description),
+            instructions: source.instructions === undefined ? '' : t(source.instructions),
+            routes: [],
+            needs: [],
+            basePreset: 'standard',
+          }],
+        }))
+      }
+      /** Put the last deleted route or agent back where it was. */
+      const undoLast = () => {
+        if (undo === undefined) return
+        const entry = undo
+        setUndo(undefined)
+        setDraft(current => restoreDeletion(current, entry))
       }
 
       const save = async () => {
+        if (!writable || saving.current) return
+        setSubmitted(true)
         if (problem !== undefined) {
-          setStatus({ kind: 'error', text: t('invalid', { error: problem }) })
+          setStatus({ kind: 'error', text: t('invalid.fields') })
+          requestAnimationFrame(() => rootRef.current?.querySelector('[aria-invalid="true"]')?.focus())
           return
         }
+        saving.current = true
         setBusy(true)
+        clearTimeout(syncTimer.current)
+        syncGeneration.current++
         try {
-          await form.mutate(saveOps(values), form.state?.revision)
+          const applied = await form.mutate(saveOps(values), form.state?.revision)
+          if (applied !== true) throw new Error(t('save.refused'))
+          setBaseline(draftsOf(values))
+          setDraft(editorDraftsOf(values))
+          setSubmitted(false)
           setStatus({ kind: 'ok', text: t('saved') })
+          setCopyError(false)
+          setUndo(undefined)
           watchOfficialSync(values)
         } catch (error) {
-          setStatus({ kind: 'error', text: String(error?.message ?? error) })
+          setStatus({ kind: 'error', text: t('invalid', { error: String(error?.message ?? error) }) })
         } finally {
+          saving.current = false
           setBusy(false)
         }
       }
       const discard = () => {
-        setDraft(draftsOf(value))
+        clearTimeout(syncTimer.current)
+        syncGeneration.current++
+        setDraft(editorDraftsOf(baseline))
+        setSubmitted(false)
         setStatus(undefined)
+        setCopyError(false)
+        setCopied(false)
+        setUndo(undefined)
+      }
+      /** Copy the catalog preview; the clipboard is optional and may refuse. */
+      const copyPreview = async () => {
+        if (preview === '') return
+        try {
+          const clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard
+          if (clipboard === undefined || typeof clipboard.writeText !== 'function') throw new Error('clipboard unavailable')
+          await clipboard.writeText(preview)
+          setCopied(true)
+          setCopyError(false)
+          clearTimeout(copyTimer.current)
+          copyTimer.current = setTimeout(() => { if (!disposed.current) setCopied(false) }, 1600)
+        } catch {
+          setCopyError(true)
+          setPreviewOpen(true)
+        }
+      }
+      /** Ctrl / Cmd + S saves, but only when there is something valid to save. */
+      const onKeyDown = event => {
+        if (event.metaKey !== true && event.ctrlKey !== true) return
+        if (event.key !== 's' && event.key !== 'S') return
+        event.preventDefault()
+        if (dirty && writable && !busy) save()
       }
 
       const preview = catalogPreview(draft)
-      const footerText = status !== undefined
+      const undoName = undo === undefined
+        ? ''
+        : undo.kind === 'route'
+          ? (undo.item.id || t('route.unnamed'))
+          : (undo.item.id || t('agent.unnamed'))
+      const quickLimits = [1, 2, 4, 8, 0]
+      const templateRow = h('div', { className: 'sah-templates' },
+        h('span', { className: 'sah-templates-label' }, t('agents.add')),
+        AGENT_TEMPLATES.map(template => h('button', {
+          key: template.label,
+          type: 'button',
+          className: 'sah-chipbtn',
+          disabled: locked,
+          onClick: () => addAgent(template),
+        }, t(template.label))))
+      const footerText = status !== undefined && (!dirty || status.kind === 'error')
         ? h('span', { className: `sah-status-${status.kind === 'busy' ? 'warn' : status.kind}`, role: 'status' }, status.text)
         : problem !== undefined && dirty
-          ? h('span', { className: 'sah-status-error' }, t('invalid', { error: problem }))
+          ? h('span', { className: 'sah-status-error' }, t('invalid.fields'))
           : dirty
             ? h(React.Fragment, null, h('span', { className: 'sah-dirty-dot' }), h('span', null, t('footer.dirty')))
             : null
 
-      return h('div', { className: 'sah' },
+      return h('div', { className: 'sah', ref: rootRef, tabIndex: -1, onKeyDown },
         style(),
-        form === undefined ? h('p', { className: 'sah-notice sah-notice-error' }, t('unavailable')) : null,
+        form === undefined ? h('p', { className: 'sah-notice sah-notice-error' }, t('unavailable'))
+          : !writable ? h('p', { className: 'sah-notice' }, t('common.readOnly')) : null,
         h('div', { className: 'sah-hero' },
           h('p', { className: 'sah-intro' }, t('intro')),
           h('div', { className: 'sah-summary' },
@@ -933,7 +1396,17 @@ window.__ModuleLoader__.load({
           h(SettingRow, {
             title: t('concurrency.limit'),
             hint: maxConcurrent === 0 ? t('concurrency.unlimitedHint') : t('concurrency.hint', { count: maxConcurrent }),
-          }, h(Stepper, { value: maxConcurrent, disabled: locked, label: t('concurrency.limit'), t, onChange: next => setDraft(current => ({ ...current, maxConcurrent: next })) })),
+          }, h('div', { className: 'sah-concurrency' },
+            h(Stepper, { value: maxConcurrent, disabled: locked, label: t('concurrency.limit'), t, onChange: next => setDraft(current => ({ ...current, maxConcurrent: next })) }),
+            h('div', { className: 'sah-chips', role: 'group', 'aria-label': t('concurrency.quick') },
+              quickLimits.map(limit => h('button', {
+                key: String(limit),
+                type: 'button',
+                className: 'sah-chipbtn',
+                'aria-pressed': maxConcurrent === limit,
+                disabled: locked,
+                onClick: () => setDraft(current => ({ ...current, maxConcurrent: limit })),
+              }, limit === 0 ? t('concurrency.unlimited') : String(limit)))))),
           h(SettingRow, { title: t('official.switch'), hint: t('official.hint') },
             h(Toggle, {
               checked: draft.manageOfficialSettings,
@@ -962,13 +1435,14 @@ window.__ModuleLoader__.load({
             h('span', null, t('routes.none')),
             h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: locked, onClick: addRoute }, glyph('IconPlusOutlineRegular', '+'), t('routes.add')))
           : h('div', { className: 'sah-list' }, draft.routes.map((route, index) => h(RouteCard, {
-            key: index,
+            key: route._key,
             route,
             index,
             total: draft.routes.length,
             groups: catalog.groups,
             catalogReady: catalog.status === 'ready',
             known,
+            problems,
             disabled: locked,
             t,
             onChange: next => updateRoute(index, next),
@@ -979,46 +1453,60 @@ window.__ModuleLoader__.load({
           icon: glyph('IconUsersOutlineRegular', null),
           title: t('agents.title'),
           hint: t('agents.hint'),
-          action: draft.agents.length === 0 ? null : h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: locked, onClick: addAgent },
-            glyph('IconPlusOutlineRegular', '+'), t('agents.add')),
         },
         draft.agents.length === 0
           ? h('div', { className: 'sah-empty' },
             h('span', null, t('agents.none')),
-            h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: locked, onClick: addAgent }, glyph('IconPlusOutlineRegular', '+'), t('agents.add')))
-          : h('div', { className: 'sah-list' }, draft.agents.map((agent, index) => h(AgentCard, {
-            key: index,
-            agent,
-            index,
-            routes: draft.routes,
-            presets,
-            known,
-            disabled: locked,
-            defaultOpen: fresh.has(index),
-            t,
-            onChange: next => updateAgent(index, next),
-            onRemove: () => removeAgent(index),
-          })))),
+            templateRow)
+          : h(React.Fragment, null,
+            templateRow,
+            h('div', { className: 'sah-list' }, draft.agents.map((agent, index) => h(AgentCard, {
+              key: agent._key,
+              agent,
+              index,
+              routes: draft.routes,
+              presets,
+              known,
+              problems,
+              disabled: locked,
+              defaultOpen: agent._fresh === true,
+              forceOpen: submitted && Object.keys(problems).some(key => key.startsWith(`agent:${index}:`)),
+              t,
+              onChange: next => updateAgent(index, next),
+              onRemove: () => removeAgent(index),
+            }))))),
         h('section', { className: 'sah-panel' },
-          h('button', {
-            type: 'button',
-            className: 'sah-disclosure',
-            'aria-expanded': previewOpen,
-            onClick: () => setPreviewOpen(!previewOpen),
-          },
-          h('span', { className: 'sah-title' }, glyph('IconBrowseOutlineRegular', null), t('preview.title')),
-          h('span', { className: `sah-chevron${previewOpen ? ' sah-chevron-open' : ''}` }, glyph('IconChevronDownOutlineRegular', '▾'))),
+          h('div', { className: 'sah-preview-head' },
+            h('button', {
+              type: 'button',
+              className: 'sah-disclosure',
+              'aria-expanded': previewOpen,
+              onClick: () => setPreviewOpen(!previewOpen),
+            },
+            h('span', { className: 'sah-title' }, glyph('IconBrowseOutlineRegular', null), t('preview.title')),
+            h('span', { className: `sah-chevron${previewOpen ? ' sah-chevron-open' : ''}` }, glyph('IconChevronDownOutlineRegular', '▾'))),
+            h('button', {
+              type: 'button',
+              className: 'sah-btn sah-btn-outline sah-btn-sm',
+              disabled: preview === '',
+              onClick: copyPreview,
+            }, copied ? t('preview.copied') : t('preview.copy'))),
           previewOpen ? h('div', { className: 'sah-panel-body' },
             preview === ''
               ? h('p', { className: 'sah-notice' }, t('preview.empty'))
               : h('pre', { className: 'sah-preview' }, preview)) : null),
+        copyError ? h('p', { className: 'sah-notice sah-notice-error', role: 'status' }, t('preview.copyFailed')) : null,
         h('div', { className: 'sah-footer' },
-          h('div', { className: 'sah-footer-left' }, footerText),
+          h('div', { className: 'sah-footer-left', role: 'status' }, footerText),
+          undo === undefined ? null : h('span', { className: 'sah-undo' },
+            h('span', null, t('undo.deleted', { name: undoName })),
+            h('button', { type: 'button', className: 'sah-linkbtn', onClick: undoLast }, t('undo.action'))),
+          h('span', { className: 'sah-footer-keys' }, t('footer.shortcut')),
           h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: !dirty || busy, onClick: discard }, t('discard')),
           h('button', {
             type: 'button',
             className: 'sah-btn sah-btn-primary',
-            disabled: !writable || !dirty || busy || problem !== undefined,
+            disabled: !writable || !dirty || busy,
             onClick: save,
           }, busy ? t('saving') : t('save'))))
     }
@@ -1043,7 +1531,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session'],
+      inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session', 'remote.agentPresets'],
       apply,
       // Pure helpers, exported for tests only.
       ConfigPage,
@@ -1059,6 +1547,7 @@ window.__ModuleLoader__.load({
       draftProblem,
       catalogPreview,
       officialAllowlists,
+      officialSyncReady,
       allowlistSynced,
       slugForModel,
       uniqueRouteId,
@@ -1066,6 +1555,19 @@ window.__ModuleLoader__.load({
       addTag,
       removeTag,
       knownTags,
+      AGENT_TEMPLATES,
+      fieldProblems,
+      editorDraftsOf,
+      sameDraft,
+      changeRoute,
+      restoreDeletion,
+      renameRouteRefs,
+      dropRouteRefs,
+      insertAt,
+      modelOptionValue,
+      parseModelValue,
+      modelGroups,
+      effortsOf,
       NS,
       ROW_CONFIG_KEY,
       ENTRY_ID,

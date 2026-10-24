@@ -4,7 +4,7 @@ DSH 插件：给**官方**子代理派发补上“怎么选”的信息——具
 目标运行时 `@deepseek-ai/dsh` 0.2.1-rc.2。
 
 v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_subagent`、不再有右侧栏页与自建设置页。
-0.4.1 恢复了配置能力，但只挂在官方 Plugins 页的一张卡片上。旧方案保留在 git tag **v0.3.0**。
+0.4.1 恢复配置卡片，0.4.2 加入官方设置导航；两处共用同一表单。旧方案保留在 git tag **v0.3.0**。
 
 ## 它做什么
 
@@ -21,14 +21,16 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 | 区块 | 交互 |
 |---|---|
-| 基础设置 | 每会话并发上限（步进器）；是否托管官方委派配置（开关） |
-| 模型路由 | 每条一行：Provider / Model / 推理强度三个**下拉**（取自 Host 模型目录）；id 自动跟随模型名、可改；标签是可增删的胶囊；顺序即 `allowedModels` 顺序 |
-| 具名子 agent | id + description；instructions 文本域；允许使用的路由为**胶囊**（点击切换）；能力标签胶囊；基础预设为下拉；显示最终的 `hub-agent-<id>` |
-| 目录预览 | 折叠区实时显示主 agent 会看到的“模型 → 标签 / 具名 agent → 用途” |
+| 基础设置 | 并发步进器与 1 / 2 / 4 / 8 / 不限快捷值；官方委派配置托管开关 |
+| 模型路由 | 按 Provider 分组选择模型，推理档位按需显示；路由名自动建议、可改，改名会更新 agent 的引用；标签可输入或点选，支持删除撤销 |
+| 具名子 agent | 审查 / 测试 / 调研 / 空白模板；折叠摘要、用途与角色指令、可选模型、能力标签、基础预设；删除可撤销 |
+| 目录预览 | 折叠查看并复制主 agent 的选择目录；复制不可用时可手动选择文本 |
+
+Ctrl/Cmd+S 或底部按钮均可保存。字段错误会就近显示，保存失败保留草稿；删除后可在保存条撤销。
 
 保存是一次原子写入；Host 会重新注册受影响的预设并同步官方 allowlist。新增/删除具名 agent 对**新会话**立即生效；已经开始的会话保留原有工具 schema。模型路由改动同样即时同步到 `subagent-model-selection`。
 
-保存之后页面会显示同步进度：官方 allowlist 写在官方预设行里，每写一行就是一次 profile 重载（你的 profile 有多个预设，重建整棵预设树需要几秒到几十秒），所以状态会从「已保存」→「正在同步官方 allowlist」→「已同步」依次变化；如果超过两分钟还没同步完，会提示稍后刷新确认。
+保存之后页面会显示同步进度：官方 allowlist 写在官方预设行里，每写一行就是一次 profile 重载（你的 profile 有多个预设，重建整棵预设树需要几秒到几十秒），页面会核对标准预设与模型白名单，匹配后显示「已同步」；如果超过两分钟还没同步完，会提示稍后刷新确认。
 
 不想用界面时，下面这些字段仍然可以直接写在 profile 的 `cordis.patch.yml` 里，效果相同。
 
@@ -37,6 +39,7 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 ```yaml
 - id: subagent-hub
   config:
+    maxConcurrent: 4              # 0 = 不限，每个会话的子 agent 并发上限
     manageOfficialSettings: false  # true: 由本插件写官方 allowlist（见下）
     routes:                        # 顺序即 allowedModels 顺序
       - { id: flash, provider: deepseek-official, model: deepseek-flash, tags: [fast, cheap], note: 'DeepSeek Flash' }
@@ -95,16 +98,26 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 - 不注册任何派发工具；`delegate` / `define_subagent` 已删除。
 - 不派生 `<base>+hub` 预设；新会话不需要选任何特殊预设。
 - 不选模型、不做路由回退、不写会话投影；并发只做“每会话上限”的派发前拒绝，不做 token 预算。
-- 不提供独立侧栏页或自建设置页：子 agent 目录用官方 `dsh-client-ui-subagent`，本插件只在官方 Plugins 页提供一张配置卡片。
+- 不提供独立侧栏页或自建设置页：子 agent 目录用官方 `dsh-client-ui-subagent`，本插件通过官方设置导航和 Plugins 页配置同一份数据。
 - 具名 agent 只来自插件配置：官方 `allowedAgentPresets` 是静态列表，会话内创建 / 工作区文件 / 外部来源无法可靠进入它（v1 的这四层已删除）。
 
 ## 测试
 
 ```sh
-bash test.sh   # 53 项单元测试 + 17 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 71 项单元测试 + 17 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
 e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新。
+
+浏览器交互验收：
+
+```sh
+node packages/subagent-hub/test/browser/render-fixture.mjs
+# 生成 output/playwright/settings.html，内嵌本地 React 与实际客户端模块。
+# 使用本地静态文件服务或浏览器自动化打开；所有保存仅写入内存，无模型调用。
+```
+
+详细检查范围与证据见 [配置页验收记录](../../docs/ui-acceptance.md)。
 
 ## 已知限制
 

@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.8.0（0.4.0 方向性重构 + 官方配置界面 + 并发上限）完成，单元测试 53 项 + 真实运行时 e2e 17 项。
+> 状态：0.9.0（官方机制 + 每会话并发上限 + 配置交互精修），单元测试 71 项 + 真实运行时 e2e 17 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -17,7 +17,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | 模型路由 | 插件自己选模型并写 `agentOptions` | 映射成官方 `subagent-model-selection` 的 `allowedModels` |
 | 能力标签 | 自有 `needs` 参数 | 新增 system prompt 段落，告诉主 agent 什么任务配什么 |
 | 路由约束 | 自有 `delegate` 在执行时限制 | 官方 `agent_preset` + `tools/pre-execute` 守卫 |
-| 界面 | 右侧栏页 + 自建设置页 | 无独立界面；官方 Plugins 页的行配置卡片 |
+| 界面 | 右侧栏页 + 自建设置页 | 官方设置导航与 Plugins 行配置，共用表单；子 agent 运行界面沿用官方 |
 | 派发工具 | 自有 `delegate` | 官方 `subagent` / `subagent_fork` |
 
 ## 2. 原则
@@ -31,7 +31,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
 | D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
 | D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
-| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不再有 v1 的侧栏页与自建设置页 |
+| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不恢复 v1 的独立侧栏；0.4.2 起在官方设置导航增加入口，共用同一表单 |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
@@ -102,8 +102,16 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 - prompt 与 guard 直接读取按需重建的 catalog，因此目录和路由约束立即反映新配置；
 - 注册具名预设与写官方 allowlist 都由同一个后台 worker 承担：启动时的 `init` 可能处在 HMR 事务里，此时写配置会被判定为嵌套事务而失败；worker 在事务之外串行执行，并保证“注册 → 同步”只做一次；
 - 官方 allowlist 的每次写入都是一次 profile 重载（官方预设树会被重建），因此写入按“内容不同才写”收敛，并优先写模型允许列表（它立刻带来 `provider`/`model` 参数）；客户端轮询官方配置，把同步进度如实显示出来；
-- 客户端只用官方机制取数据：模型目录来自 `ctx.remote.session.modelCatalog()`（按 provider 分组的可用模型），官方预设列表来自 `ctx.remote.agentPresets.list()`；因此路由与具名 agent 的字段是**选择**而不是手填，标签是胶囊，基础预算是下拉；界面使用官方 `@deepseek-ai/dsh-client-ui-primitives` 的表单外壳与控件，旧 shell 缺组件时降级为原生元素；
+- 客户端只用官方机制取数据：模型目录来自 `ctx.remote.session.modelCatalog()`（按 provider 分组的可用模型），官方预设列表来自 `ctx.remote.agentPresets.list()`；因此路由与具名 agent 的字段是**选择**而不是手填，标签是胶囊，基础预设是下拉；界面沿用官方主题变量，使用原生表单控件与可选官方图标，不依赖外部 UI 资源；
 - 已有会话保留其 composition（官方行为），新会话拿到新的 `agent_preset` 枚举与 `provider`/`model` 允许列表。
+
+### 4.6a 客户端编辑状态（0.9.0）
+
+`draftsOf` / `valuesOf` 保持配置形状不变。编辑器另外给每行分配稳定的 `_key`，路由保留 `_referenceId`；这两个字段不会写入配置。草稿比较包含所有未完成行，避免空字段被序列化过滤后误判为“没有修改”。改名只有在非空且不冲突时更新引用，删除与撤销按 agent 行身份恢复引用，不依赖可变化的数组位置。
+
+保存必须等待 `form.mutate` 明确返回 `true` 才更新本地基准，失败保留草稿。成功后核对标准预设的 `hub-agent-*` 列表与模型白名单；快照尚未就绪不算成功。新一轮保存、放弃和卸载都会清理旧轮询，避免过期结果覆盖状态。
+
+字段标签、错误与帮助通过 `label` / `aria-labelledby` / `aria-describedby` 关联；保存错误可聚焦到相应字段。浏览器 fixture 内嵌实际 Client 模块与测试数据，验证用户交互但不触碰真实 profile，详见 [验收记录](ui-acceptance.md)。
 
 ### 4.7 删除清单（v1 → v2）
 
@@ -147,7 +155,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：53 项单元测试 + 17 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：71 项单元测试 + 17 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

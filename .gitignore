@@ -2,3 +2,5 @@ node_modules/
 dist/
 .DS_Store
 spikes/*/report.json
+output/
+.playwright-cli/

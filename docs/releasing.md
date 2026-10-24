@@ -6,7 +6,7 @@ The current distribution channel is a GitHub Release with an npm-format archive 
 
 1. Update the version in [the package manifest](../packages/subagent-hub/package.json), README badges, archive examples, and [CHANGELOG](../CHANGELOG.md).
 2. Keep the root and packaged MIT licenses identical. Review installation instructions and package-facing absolute documentation links.
-3. Update screenshots from actual components when their appearance changes. Record image generation and demo-data provenance in [assets](assets/README.md).
+3. Update screenshots from actual components when their appearance changes. Record image generation and demo-data provenance in [assets](assets/README.md), and keep the [storefront screenshot declaration](../packages/subagent-hub/screenshots.json) aligned. This monorepo declaration uses GitHub-hosted absolute image URLs because relative paths cannot leave the plugin directory.
 4. Run the release gates:
 
    ```bash

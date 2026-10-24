@@ -44,7 +44,22 @@ export function apply(ctx, config) {
   const children = new Map()
   const flush = () => writeFileSync(config.out, JSON.stringify(report, null, 2))
 
-  ctx.on('llm/stream', () => scripted('child done'))
+  // A child whose prompt carries HOLD stays open, so the report can observe the
+  // per-session concurrency limit while one child is still running.
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  ctx.on('llm/stream', (options) => {
+    const text = (options?.messages ?? []).map(message => textOf(message)).join('\n')
+    if (text.includes('HUB-E2E-HOLD')) {
+      return (async function* () {
+        await held
+        yield* scripted('held child done')
+      })()
+    }
+    return scripted('child done')
+  })
+  report.releaseHold = () => release()
+
 
   ctx.on('agent/request', async function (payload, next) {
     const resolved = await next()
@@ -151,6 +166,13 @@ export function apply(ctx, config) {
       report.checks.namedInherited = await call({ agent_preset: 'hub-agent-reviewer' })
       // A generic child is not route-confined: the guard must not restrict it.
       report.checks.generic = await call({ provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+
+      // Concurrency: hold one child open, then a second delegation must be refused.
+      report.stage = 'concurrency'; flush()
+      const heldChild = await call({ provider: 'deepseek-official', model: 'deepseek-flash', prompt: 'HUB-E2E-HOLD wait' })
+      const blocked = await call({ provider: 'deepseek-official', model: 'deepseek-flash' })
+      report.checks.concurrency = { held: heldChild, blocked }
+      report.releaseHold()
 
       // Live edit through the same Host settings service the page form uses: add a named agent,
       // wait for the plugin's reconciliation, then verify presets, allowlists, schema, and persona.

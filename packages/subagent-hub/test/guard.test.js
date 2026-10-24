@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { GUARD_PREFIX, effectiveRoute, guardVerdict } from '../lib/guard.js'
+import { GUARD_PREFIX, concurrencyVerdict, effectiveRoute, guardVerdict } from '../lib/guard.js'
 import { buildCatalog } from '../lib/catalog.js'
 
 const catalog = buildCatalog({
@@ -58,6 +58,22 @@ test('a half-specified pair is left to the official tool pairing error', () => {
 test('an unknown route reference denies instead of silently unconstraining', () => {
   const reason = guardVerdict({ arguments: { agent_preset: 'hub-agent-broken', provider: 'p', model: 'flash' }, parent: parent('p', 'flash'), catalog: catalogWithBroken })
   assert.match(reason, /references unknown route "missing"/)
+})
+
+test('the concurrency limit refuses a delegation past the cap', () => {
+  const base = { toolName: 'subagent', delegationTools: ['subagent', 'subagent_fork'], limit: 2 }
+  assert.equal(concurrencyVerdict({ ...base, running: 1 }), undefined)
+  const reason = concurrencyVerdict({ ...base, running: 2 })
+  assert.ok(reason.startsWith(GUARD_PREFIX), reason)
+  assert.match(reason, /2 个子 agent 正在运行（上限 2）/)
+  assert.match(reason, /等其中一个结束后再派发/)
+})
+
+test('the concurrency limit ignores other tools and an unlimited setting', () => {
+  const base = { toolName: 'read', delegationTools: ['subagent'], limit: 1, running: 5 }
+  assert.equal(concurrencyVerdict(base), undefined)
+  assert.equal(concurrencyVerdict({ ...base, toolName: 'subagent', limit: 0 }), undefined)
+  assert.equal(concurrencyVerdict({ ...base, toolName: 'subagent', limit: -1 }), undefined)
 })
 
 test('effective route prefers explicit arguments, then the parent request header, then creation options', () => {

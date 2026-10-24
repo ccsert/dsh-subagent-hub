@@ -100,6 +100,15 @@ check('bundle: the client module is scanned and served from lib/client.js', () =
   assert.equal(report.client.inGraph, true)
   assert.match(report.client.clientPath ?? '', /lib\/client\.js$/)
 })
+check('concurrency: a second delegation is refused while one child is still running', () => {
+  const concurrency = report.checks.concurrency
+  assert.ok(concurrency !== undefined, 'concurrency stage did not run')
+  assert.equal(concurrency.held.isError, false, 'the held child should start')
+  assert.equal(concurrency.blocked.isError, true)
+  assert.match(concurrency.blocked.message, /^subagent-hub:/)
+  assert.match(concurrency.blocked.message, /子 agent 正在运行（上限 1）/)
+})
+
 check('settings: the row exposes a writable form for routes, agents, and the official switch', () => {
   assert.ok(report.settings !== undefined, 'no subagent-hub settings descriptor')
   assert.equal(report.settings.writable, true)

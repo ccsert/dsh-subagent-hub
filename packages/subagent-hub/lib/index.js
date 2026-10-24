@@ -17,7 +17,7 @@ import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
-import { GUARD_PREFIX, guardVerdict } from './guard.js'
+import { GUARD_PREFIX, concurrencyVerdict, guardVerdict } from './guard.js'
 import { promptSection } from './prompt.js'
 import { MODEL_SETTINGS_ID, PRESET_PLUGIN, modelSettingsFor, officialSettingsPlan, patchPresetRows, sameAllowedModels } from './official-settings.js'
 
@@ -55,6 +55,11 @@ export default class SubagentHub extends Service {
       basePreset: z.string().default('standard'),
     })).default([]).volatile().description('Named agents. Each one is registered as an Agent Preset and exposed '
       + 'through the official tool\'s static `allowedAgentPresets` list.'),
+    maxConcurrent: z.natural().default(4).volatile()
+      .description('How many child agents one Session may run at the same time; 0 means no limit. '
+        + 'Enforced before a delegation starts, so the main agent is told to wait instead of piling up children.'),
+    delegationTools: z.array(z.string()).default(['subagent', 'subagent_fork']).volatile()
+      .description('Tool names that start a child agent. The official delegation tools are named `subagent` and `subagent_fork`.'),
     manageOfficialSettings: z.boolean().default(false).volatile()
       .description('When true, write `allowedAgentPresets` onto the official delegation tool rows and '
         + 'mirror `routes` into the Host `subagent-model-selection` setting through configEditor. '
@@ -70,6 +75,10 @@ export default class SubagentHub extends Service {
     /** @type {Map<string, Promise<any[]>>} parsed rows per base preset */
     this.baseRows = new Map()
     this.disposers = []
+    /** @type {Map<string, Set<string>>} running child ids per parent session */
+    this.running = new Map()
+    /** @type {Map<string, string>} parent session of every running child */
+    this.parentOf = new Map()
     this.cache = { routesRaw: undefined, agentsRaw: undefined, catalog: undefined }
     this.presetSignature = undefined
     this.disposed = false
@@ -112,6 +121,9 @@ export default class SubagentHub extends Service {
     // The Plugins page form writes volatile fields; the Loader commits them in place and announces
     // the changed paths on this plugin's own fiber.
     this.disposers.push(this.ctx.on('loader/volatile-update', paths => this.onVolatileUpdate(paths)))
+    // The official runtime announces every child's start and end; count them per parent.
+    this.disposers.push(this.ctx.on('subagent/start', info => this.onSubagentStart(info)))
+    this.disposers.push(this.ctx.on('subagent/end', info => this.onSubagentEnd(info)))
     // Registration and the official allowlist sync both belong to the worker: this init may run
     // inside an HMR transaction, and a config write there would be refused as nested. The
     // worker's first pass registers the named presets and syncs the official allowlists.
@@ -290,12 +302,52 @@ export default class SubagentHub extends Service {
   sectionText(scope) {
     const params = this.exposedParameters(scope)
     if (params === undefined) return ''
-    return promptSection({ catalog: this.catalog, params })
+    return promptSection({ catalog: this.catalog, params, limit: read(this.config.maxConcurrent) ?? 0 })
   }
 
-  /** Reject a delegation that would put a route-confined named agent on another model. */
+  /** Child agents of one Session that are still running, from the start/end ledger. */
+  runningChildren(caller) {
+    const parentId = caller?.session?.header?.id ?? caller?.id
+    if (parentId === undefined) return 0
+    return this.running.get(String(parentId))?.size ?? 0
+  }
+
+  /** Record a published child under its delegating parent. */
+  onSubagentStart(info) {
+    const child = this.ctx.get('agents')?.get?.(info.id)
+    const parentId = child?.session?.header?.parentSession
+    if (parentId === undefined) return
+    const key = String(parentId)
+    let set = this.running.get(key)
+    if (set === undefined) this.running.set(key, set = new Set())
+    set.add(String(info.id))
+    this.parentOf.set(String(info.id), key)
+  }
+
+  /** Drop a settled child from its parent's running set. */
+  onSubagentEnd(info) {
+    const id = String(info.id)
+    const key = this.parentOf.get(id)
+    if (key === undefined) return
+    this.parentOf.delete(id)
+    const set = this.running.get(key)
+    set?.delete(id)
+    if (set?.size === 0) this.running.delete(key)
+  }
+
+  /**
+   * Refuse a delegation that would break the session's concurrency limit or put a route-confined
+   * named agent on another model.
+   */
   preExecute(exec, next) {
     try {
+      const busy = concurrencyVerdict({
+        toolName: exec.name,
+        delegationTools: read(this.config.delegationTools) ?? [],
+        limit: read(this.config.maxConcurrent) ?? 0,
+        running: this.runningChildren(exec.agent),
+      })
+      if (busy !== undefined) return Promise.resolve({ kind: 'deny', reason: busy })
       const reason = guardVerdict({ arguments: exec.arguments, parent: exec.agent, catalog: this.catalog })
       if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
     } catch (error) {

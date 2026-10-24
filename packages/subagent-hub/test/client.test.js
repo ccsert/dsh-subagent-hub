@@ -27,6 +27,7 @@ const t = (key, params) => params === undefined ? key : `${key}${JSON.stringify(
 
 const saved = () => ({
   manageOfficialSettings: true,
+  maxConcurrent: 4,
   routes: [
     { id: 'flash', provider: 'p', model: 'flash', tags: ['fast'], note: 'Flash' },
     { id: 'pro', provider: 'p', model: 'pro', reasoningEffort: 'high' },
@@ -51,13 +52,21 @@ test('drafts round-trip a saved value, keep note, and drop blank rows', () => {
   assert.deepEqual(plain(valuesOf(drafts)), saved(), 'completely blank rows are not saved')
 })
 
-test('save performs one atomic three-field write', () => {
+test('save performs one atomic write of every field', () => {
   const { saveOps } = loadClient()
-  assert.deepEqual(plain(saveOps({ manageOfficialSettings: false, routes: [], agents: [] })), [
+  assert.deepEqual(plain(saveOps({ manageOfficialSettings: false, maxConcurrent: 4, routes: [], agents: [] })), [
     { op: 'set', path: ['routes'], value: [] },
     { op: 'set', path: ['agents'], value: [] },
     { op: 'set', path: ['manageOfficialSettings'], value: false },
+    { op: 'set', path: ['maxConcurrent'], value: 4 },
   ])
+})
+
+test('the concurrency limit must be a non-negative whole number', () => {
+  const { draftsOf, draftProblem } = loadClient()
+  assert.equal(draftProblem(draftsOf(saved())), undefined)
+  assert.match(draftProblem(draftsOf({ ...saved(), maxConcurrent: -1 })), /non-negative whole number/)
+  assert.match(draftProblem(draftsOf({ ...saved(), maxConcurrent: 1.5 })), /non-negative whole number/)
 })
 
 test('validation catches duplicate route ids, duplicate routes, bad agent ids, and unknown route refs', () => {
@@ -125,29 +134,46 @@ test('summary shows counts and the managed state', () => {
   const html = renderToStaticMarkup(React.createElement(ConfigPage, {
     view: 'summary', form: { state: { status: 'ready', writable: true, revision: 1, value: saved() } }, t,
   }))
-  assert.match(html, /summary.*&quot;routes&quot;:2.*&quot;agents&quot;:1/)
+  assert.match(html, /summary.*&quot;routes&quot;:2.*&quot;agents&quot;:1.*&quot;limit&quot;:4/)
   assert.match(html, /summary\.managedOn/)
 })
 
-test('the page renders route rows as dropdowns, agent cards, and a save footer', () => {
+test('the page renders general settings, route rows as dropdowns, agent summaries, and a save bar', () => {
   const { ConfigPage } = loadClient()
   const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
   const ctx = {
     remote: {
       session: { modelCatalog: async () => ({ ok: true, value: { groups: catalogGroups(), failures: [] } }) },
-      agentPresets: { list: async () => ({ ok: true, value: { presets: [{ id: 'standard', name: 'Standard' }, { id: 'cordis', name: 'Cordis' }] } }) },
+      agentPresets: { list: async () => ({ ok: true, value: { presets: [{ id: 'standard', name: 'Standard' }] } }) },
     },
   }
   const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx }))
   for (const needle of [
-    'sah-intro', 'official.switch', 'routes.title', 'sah-route', 'sah-select',
+    'sah-intro', 'general.title', 'concurrency.limit', 'official.switch', 'routes.title', 'sah-route-card',
     'value="flash"', 'value="pro"', 'value="high"', 'value="Flash"',
-    'value="reviewer"', 'Report only.', 'agents.title', 'agents.routesLabel',
-    'hub-agent-reviewer', 'preview.title', 'save', 'discard',
+    'agents.title', 'hub-agent-reviewer', 'Reviews diffs', 'preview.title', 'save', 'discard',
   ]) assert.ok(html.includes(needle), `missing ${needle}`)
-  // The route identity is a dropdown, not a typed provider/model pair.
+  // Route identity is chosen from dropdowns; the concurrency cap is a stepper; the switch is a switch.
   assert.match(html, /<select[^>]*class="sah-select"/)
+  assert.match(html, /class="sah-stepper"/)
+  assert.match(html, /role="switch" aria-checked="true"/)
   assert.ok(html.includes('routes.loading'), 'catalog loading notice missing')
+  // Existing named agents start collapsed: the summary shows, the editor does not.
+  assert.ok(!html.includes('Report only.'), 'collapsed agent should not render its editor')
+})
+
+test('an expanded agent card edits name, purpose, instructions, allowed routes, and base preset', () => {
+  const { AgentCard, draftsOf } = loadClient()
+  const draft = draftsOf(saved())
+  const html = renderToStaticMarkup(React.createElement(AgentCard, {
+    agent: draft.agents[0], index: 0, routes: draft.routes, presets: [{ id: 'standard', name: 'Standard' }],
+    known: ['fast'], defaultOpen: true, t, onChange() {}, onRemove() {},
+  }))
+  for (const needle of ['value="reviewer"', 'Report only.', 'agents.routesLabel', 'agents.basePreset', 'p/pro']) {
+    assert.ok(html.includes(needle), `missing ${needle}`)
+  }
+  assert.match(html, /aria-pressed="true"[^>]*>pro/)
+  assert.match(html, /aria-pressed="false"[^>]*>flash/)
 })
 
 test('the official allowlist is read out of the preset rows', () => {

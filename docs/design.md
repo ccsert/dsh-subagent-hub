@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.7.0（0.4.0 方向性重构 + 官方配置界面 + 同步反馈）完成，单元测试 49 项 + 真实运行时 e2e 16 项。
+> 状态：0.8.0（0.4.0 方向性重构 + 官方配置界面 + 并发上限）完成，单元测试 53 项 + 真实运行时 e2e 17 项。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -77,6 +77,10 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 `subagent_fork` 不可能出现 `agent_preset`：官方 fork provider 的 `agentPreset` capability 为 `false` 且继承父上下文，配置了也加载失败。因此 `manageOfficialSettings` 只改写 spawn 行。
 
+### 4.5a 每会话并发上限（0.8.0）
+
+派发虽然由官方工具执行，但官方运行时会对每个子 agent 发出 `subagent/start` 与 `subagent/end`。插件在 `start` 时用 `ctx.agents.get(id)` 取子会话 header 的 `parentSession`，按父会话维护“运行中”集合，在 `end` 时移除。`tools/pre-execute` 守卫在调用名属于 `delegationTools`（默认 `subagent`、`subagent_fork`）且父会话运行中的子 agent 数已达 `maxConcurrent` 时返回 deny，理由以 `subagent-hub:` 开头。`maxConcurrent: 0` 不限制。官方 `subagent.maxActiveSubagents` 仍是全局上限，两者同时生效。
+
 ### 4.5 `manageOfficialSettings`（默认关闭）
 
 为 `true` 时，等具名预设注册完成后，用 `configEditor` 做幂等同步（已一致就不重写，避免每次启动触发预设重载）：
@@ -107,7 +111,7 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 |---|---|
 | `lib/client.js`、locale、`icon.svg`、`package.json` 的 `dsh.client`/UI exports | 0.4.0 不再有界面；0.4.1 只把 `lib/client.js` + `dsh.client` + locale 作为 Plugins 页配置卡片恢复，不恢复侧栏页 |
 | `lib/delegate.js`（`delegate` + `define_subagent`） | 不再有自有派发工具 |
-| `lib/budget.js`、`maxConcurrent` / `maxTokensPerSession` | 预算机制没有落点：不经过本插件派发 |
+| `lib/budget.js`、`maxTokensPerSession` | token 预算没有落点：不经过本插件派发。`maxConcurrent` 在 0.8.0 以“每会话并发上限”回归，见 4.5a |
 | `lib/projection.js`、`subagentHub` / `subagentHubDefine` 投影 | 只服务路由面板与会话层定义 |
 | `deriveHubPreset` | 不再派生 `<base>+hub` |
 | `basePresets` | 只用于派生 `+hub` |
@@ -143,7 +147,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：49 项单元测试 + 16 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：53 项单元测试 + 17 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

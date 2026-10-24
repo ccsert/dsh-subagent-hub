@@ -13,10 +13,10 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
 /**
  * Compose the section text. Parameters that the official tool does not expose in this
  * composition are described as informational instead of inviting a failing call.
- * @param {{ catalog: PromptCatalog, params: PromptParameters }} input
+ * @param {{ catalog: PromptCatalog, params: PromptParameters, limit?: number }} input
  * @returns {string} section markdown, or '' when there is nothing to say.
  */
-export function promptSection({ catalog, params }) {
+export function promptSection({ catalog, params, limit = 0 }) {
   const { agents, routes, tags, problems } = catalog
   if (agents.length === 0 && routes.size === 0) return ''
   const lines = ['## Choosing a subagent']
@@ -41,6 +41,9 @@ export function promptSection({ catalog, params }) {
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
     const restricted = agents.some(agent => (agent.routes?.length ?? 0) > 0)
     if (restricted) lines.push('When a named agent lists routes, the child `provider`/`model` must be one of that agent\'s routes; any other route is rejected before the child starts.')
+  }
+  if (limit > 0) {
+    lines.push('', `At most ${limit} child agents may run at the same time in one Session; a delegation beyond that is refused, so wait for one to finish instead of queueing more.`)
   }
   if (problems.length > 0) lines.push('', `Ignored configuration problems: ${problems.join('; ')}`)
   return lines.join('\n')

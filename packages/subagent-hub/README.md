@@ -21,7 +21,7 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 | 区块 | 交互 |
 |---|---|
-| 官方委派配置 | 一个开关：是否由本插件托管官方 allowlist |
+| 基础设置 | 每会话并发上限（步进器）；是否托管官方委派配置（开关） |
 | 模型路由 | 每条一行：Provider / Model / 推理强度三个**下拉**（取自 Host 模型目录）；id 自动跟随模型名、可改；标签是可增删的胶囊；顺序即 `allowedModels` 顺序 |
 | 具名子 agent | id + description；instructions 文本域；允许使用的路由为**胶囊**（点击切换）；能力标签胶囊；基础预设为下拉；显示最终的 `hub-agent-<id>` |
 | 目录预览 | 折叠区实时显示主 agent 会看到的“模型 → 标签 / 具名 agent → 用途” |
@@ -53,6 +53,7 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 | 字段 | 默认 | 含义 |
 |---|---|---|
+| `maxConcurrent` | `4` | 每个会话同时运行的子 agent 上限，0 = 不限；超出时官方 `subagent` / `subagent_fork` 在派发前被拒绝 |
 | `routes` | `[]` | 子模型白名单。每条变成官方 `allowedModels` 的一项，`tags` 用于 prompt 目录与选择说明 |
 | `agents` | `[]` | 具名 agent。每个注册为 `hub-agent-<id>` 官方预设 |
 | `manageOfficialSettings` | `false` | `true` 时写官方 `allowedAgentPresets` / `subagent-model-selection` |
@@ -93,14 +94,14 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 
 - 不注册任何派发工具；`delegate` / `define_subagent` 已删除。
 - 不派生 `<base>+hub` 预设；新会话不需要选任何特殊预设。
-- 不选模型、不做路由回退、不做预算、不写会话投影。
+- 不选模型、不做路由回退、不写会话投影；并发只做“每会话上限”的派发前拒绝，不做 token 预算。
 - 不提供独立侧栏页或自建设置页：子 agent 目录用官方 `dsh-client-ui-subagent`，本插件只在官方 Plugins 页提供一张配置卡片。
 - 具名 agent 只来自插件配置：官方 `allowedAgentPresets` 是静态列表，会话内创建 / 工作区文件 / 外部来源无法可靠进入它（v1 的这四层已删除）。
 
 ## 测试
 
 ```sh
-bash test.sh   # 48 项单元测试 + 16 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 53 项单元测试 + 17 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
 e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新。

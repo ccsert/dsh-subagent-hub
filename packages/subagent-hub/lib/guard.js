@@ -45,6 +45,19 @@ function parentOptions(parent) {
 }
 
 /**
+ * Whether one delegation must be refused because the session already runs too many children.
+ * `limit` is the plugin's per-session cap; 0 (or less) means unlimited.
+ * @param {{ toolName: string, delegationTools: string[], limit: number, running: number }} input
+ * @returns {string | undefined} a model-readable rejection reason, or undefined to allow.
+ */
+export function concurrencyVerdict({ toolName, delegationTools, limit, running }) {
+  if (!Number.isFinite(limit) || limit <= 0) return undefined
+  if (!delegationTools.includes(toolName)) return undefined
+  if (running < limit) return undefined
+  return `${GUARD_PREFIX} 这个会话已有 ${running} 个子 agent 正在运行（上限 ${limit}）。等其中一个结束后再派发，或者自己把剩下的工作做完。`
+}
+
+/**
  * Whether one official delegation call must be rejected.
  * @param {{ arguments?: GuardArguments, parent?: any, catalog: GuardCatalog }} input
  * @returns {string | undefined} a model-readable rejection reason, or undefined to allow.

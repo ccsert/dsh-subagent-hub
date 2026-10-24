@@ -43,6 +43,7 @@ cat >>"$DSH_HOME/profiles/web/cordis.patch.yml" <<YAML
     routes:
       - { id: flash, provider: deepseek-official, model: deepseek-flash, tags: [fast, cheap], note: 'DeepSeek Flash' }
       - { id: pro, provider: deepseek-official, model: deepseek-v4-pro, tags: [reasoning], note: 'DeepSeek V4 Pro' }
+    maxConcurrent: 1
     agents:
       - id: reviewer
         description: Reviews a diff and reports findings

@@ -473,6 +473,7 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   const calls = { slots: [] }
   const ctx = {
     effect: fn => { calls.effects = (calls.effects ?? 0) + 1; return fn() },
+    inject: (services, register) => { calls.services = services; return register(ctx) },
     locale: { register: (ns, dicts) => { calls.locale = [ns, Object.keys(dicts)] }, bind: () => t },
     configForms: {
       whileServed: (namespaces, register) => { calls.served = namespaces; return register(new Set(namespaces)) },
@@ -486,7 +487,8 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   apply(ctx)
   assert.deepEqual(plain(calls.locale), ['subagentHub', ['en', 'zh']])
   assert.deepEqual(plain(calls.served), ['subagent-hub'])
-  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['plugins.row.config', 'settings.section'])
+  assert.deepEqual(plain(calls.services), ['sessions'])
+  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['conversation.session.header.utilities', 'plugins.row.config', 'settings.section'])
   const row = calls.slots.find(slot => slot.options.name === 'plugins.row.config')
   assert.deepEqual(plain(row.options), { name: 'plugins.row.config', key: 'dsh-subagent-hub#subagent-hub', locale: 'subagentHub' })
   const section = calls.slots.find(slot => slot.options.name === 'settings.section')

@@ -95,6 +95,24 @@ check('the profile patch keeps the writes as ordinary profile overrides', () => 
   }
 })
 
+check('model badge: a named child displays its actual persisted request route', () => {
+  assert.equal(checks.namedAllowed.modelBadge?.kind, 'recorded')
+  assert.equal(checks.namedAllowed.modelBadge?.last.provider, 'deepseek-official')
+  assert.equal(checks.namedAllowed.modelBadge?.last.model, 'deepseek-flash')
+})
+check('model badge: a child override displays pro rather than the parent flash route', () => {
+  assert.equal(checks.generic.modelBadge?.kind, 'recorded')
+  assert.equal(checks.generic.modelBadge?.last.model, 'deepseek-v4-pro')
+  assert.notEqual(checks.generic.modelBadge?.last.model, report.parentModel.model)
+})
+check('model badge: a child with creation options but no request is still waiting', () => {
+  assert.equal(report.modelBadge?.dormant.kind, 'waiting')
+  assert.equal(report.modelBadge?.dormant.last, undefined)
+})
+check('model badge: the main session remains hidden', () => {
+  assert.equal(report.modelBadge?.main.kind, 'hidden')
+})
+
 // ── Plugins-page configuration form and live editing ─────────────────────────────────────────
 check('bundle: the client module is scanned and served from lib/client.js', () => {
   assert.equal(report.client.inGraph, true)

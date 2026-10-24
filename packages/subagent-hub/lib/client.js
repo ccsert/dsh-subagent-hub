@@ -30,6 +30,20 @@ window.__ModuleLoader__.load({
     const SYNC_POLL_MS = 1500
 
     const zh = {
+      'modelBadge.label': '模型',
+      'modelBadge.summary': '模型：{provider} · {model}',
+      'modelBadge.waiting': '模型：尚未请求',
+      'modelBadge.waitingShort': '尚未请求',
+      'modelBadge.unknown': '模型：未确认',
+      'modelBadge.unknownShort': '未确认',
+      'modelBadge.details': '子 agent 模型信息',
+      'modelBadge.recorded': '最近请求记录',
+      'modelBadge.provider': '供应商',
+      'modelBadge.model': '模型',
+      'modelBadge.effort': '推理强度',
+      'modelBadge.next': '下一次选择（尚未请求）',
+      'modelBadge.note': '按本会话历史中最近一次请求显示。',
+      'modelBadge.unavailableNote': '尚未获得模型请求记录，读取到记录后会自动更新。',
       'nav': '子代理中枢',
       'summary': '{routes} 条模型路由 · {agents} 个具名子 agent · 并发上限 {limit} · 官方设置：{managed}',
       'summary.managedOn': '托管中',
@@ -146,6 +160,20 @@ window.__ModuleLoader__.load({
       'template.blank.instructions': '',
     }
     const en = {
+      'modelBadge.label': 'Model',
+      'modelBadge.summary': 'Model: {provider} · {model}',
+      'modelBadge.waiting': 'Model: no request yet',
+      'modelBadge.waitingShort': 'No request yet',
+      'modelBadge.unknown': 'Model: unconfirmed',
+      'modelBadge.unknownShort': 'Unconfirmed',
+      'modelBadge.details': 'Subagent model information',
+      'modelBadge.recorded': 'Latest request record',
+      'modelBadge.provider': 'Provider',
+      'modelBadge.model': 'Model',
+      'modelBadge.effort': 'Reasoning effort',
+      'modelBadge.next': 'Next selection (not requested yet)',
+      'modelBadge.note': 'Based on the latest request in this session history.',
+      'modelBadge.unavailableNote': 'No model request record is available yet. This updates when a record arrives.',
       'nav': 'Subagent Hub',
       'summary': '{routes} model routes · {agents} named subagents · concurrency {limit} · official settings: {managed}',
       'summary.managedOn': 'managed',
@@ -1545,9 +1573,163 @@ window.__ModuleLoader__.load({
           }, busy ? t('saving') : t('save'))))
     }
 
+    // ── read-only subagent request model ───────────────────────────────────────────────────────
+
+    const EMPTY_SESSION = Object.freeze({ subagent: null })
+    const MODEL_BADGE_SLOT = 'conversation.session.header.utilities'
+    const MODEL_BADGE_CSS = `
+.sah-runtime-model{position:relative;min-width:0;max-width:260px;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:1.4;-webkit-app-region:no-drag}
+.sah-runtime-model summary{display:flex;align-items:center;gap:5px;min-height:28px;max-width:min(260px,42vw);padding:4px 7px;list-style:none;border:1px solid var(--dsw-alias-border-l1,#36373b);border-radius:6px;background:transparent;cursor:pointer;user-select:none}
+.sah-runtime-model summary::-webkit-details-marker{display:none}
+.sah-runtime-model summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#5686fe);outline-offset:2px}
+.sah-runtime-model[open] summary{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))}
+.sah-runtime-model-label,.sah-runtime-model-arrow{flex:none;color:var(--dsw-alias-label-tertiary,#8c8c8c)}
+.sah-runtime-model-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary,#e6e6e6)}
+.sah-runtime-model-panel{position:fixed;top:64px;right:12px;z-index:1000;box-sizing:border-box;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:12px;border:1px solid var(--dsw-alias-border-l1,#36373b);border-radius:10px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-primary,#e6e6e6);box-shadow:0 4px 16px rgba(0,0,0,.16);user-select:text}
+.sah-runtime-model-panel p{margin:0 0 8px;overflow-wrap:anywhere}
+.sah-runtime-model-panel dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0}
+.sah-runtime-model-panel dt{color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-runtime-model-panel dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,monospace}
+.sah-runtime-model-note{margin-top:10px!important;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-runtime-model-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+@media(hover:hover){.sah-runtime-model summary:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))}}
+@media(forced-colors:active){.sah-runtime-model summary:focus-visible{outline-color:Highlight}}
+`
+
+    /** The projection is the public wire value, not a Settings form or a model catalog entry. */
+    function modelBadgeData(session, projection) {
+      if (!session?.subagent) return { kind: 'hidden' }
+      const route = value => {
+        if (typeof value?.provider !== 'string' || !value.provider.trim()
+          || typeof value?.model !== 'string' || !value.model.trim()) return undefined
+        return { provider: value.provider, model: value.model,
+          ...(typeof value.reasoningEffort === 'string' && value.reasoningEffort ? { reasoningEffort: value.reasoningEffort } : {}) }
+      }
+      const last = route(projection?.lastUsed)
+      const next = route(projection?.next)
+      if (last !== undefined) return { kind: 'recorded', last,
+        ...(next !== undefined && JSON.stringify(last) !== JSON.stringify(next) ? { next } : {}) }
+      if (projection?.lastUsed === null && (projection.next === null || next !== undefined)) {
+        return { kind: 'waiting', ...(next === undefined ? {} : { next }) }
+      }
+      return { kind: 'unknown' }
+    }
+
+    /** Resolve the retained session only; never start, retain, or change a session to show its model. */
+    function modelBadgeShares(sessions, sessionId) {
+      const session = sessions.binding(sessionId)?.session
+      return { session, projection: session?.projections.faceOf('modelSelection') }
+    }
+
+    function useSnapshot(face, fallback) {
+      const subscribe = React.useCallback(listener => face?.subscribe(listener) ?? (() => {}), [face])
+      const read = React.useCallback(() => face?.getSnapshot() ?? fallback, [face, fallback])
+      return React.useSyncExternalStore(subscribe, read, read)
+    }
+
+    function ModelBadge({ session, projection, t }) {
+      const sessionState = useSnapshot(session, EMPTY_SESSION)
+      const modelState = useSnapshot(projection, undefined)
+      const data = modelBadgeData(sessionState, modelState)
+      const detailsRef = React.useRef(null)
+      const panelRef = React.useRef(null)
+      const panelId = React.useId()
+      const [open, setOpen] = React.useState(false)
+      const [announcement, setAnnouncement] = React.useState('')
+      React.useEffect(() => {
+        if (detailsRef.current) detailsRef.current.open = false
+        setOpen(false)
+      }, [session])
+      const fullLabel = data.kind === 'recorded'
+        ? t('modelBadge.summary', data.last)
+        : t(data.kind === 'waiting' ? 'modelBadge.waiting' : 'modelBadge.unknown')
+      React.useEffect(() => {
+        setAnnouncement(data.kind === 'hidden' ? '' : fullLabel)
+      }, [data.kind, fullLabel])
+      React.useEffect(() => {
+        if (!open) return
+        const details = detailsRef.current
+        const panel = panelRef.current
+        if (!details || !panel) return
+        const doc = details.ownerDocument
+        const win = doc.defaultView
+        const position = () => {
+          const rect = details.querySelector('summary').getBoundingClientRect()
+          // CSS zoom scales fixed descendants too. Measure that scale and coordinate origin
+          // instead of mixing viewport pixels with the ancestor's CSS coordinates.
+          panel.style.left = '0px'
+          panel.style.top = '0px'
+          panel.style.right = 'auto'
+          const origin = panel.getBoundingClientRect()
+          const scaleX = origin.width / panel.offsetWidth || 1
+          const scaleY = origin.height / panel.offsetHeight || 1
+          panel.style.width = `${Math.min(320, (win.innerWidth - 24) / scaleX)}px`
+          panel.style.maxHeight = `${(win.innerHeight - 24) / scaleY}px`
+          const box = panel.getBoundingClientRect()
+          const left = Math.max(12, Math.min(rect.right - box.width, win.innerWidth - box.width - 12))
+          const top = Math.max(12, Math.min(rect.bottom + 8, win.innerHeight - box.height - 12))
+          panel.style.left = `${(left - origin.left) / scaleX}px`
+          panel.style.top = `${(top - origin.top) / scaleY}px`
+        }
+        const outside = event => { if (!details.contains(event.target)) details.open = false }
+        position()
+        win.addEventListener('resize', position)
+        win.addEventListener('scroll', position, true)
+        doc.addEventListener('pointerdown', outside, true)
+        return () => {
+          win.removeEventListener('resize', position)
+          win.removeEventListener('scroll', position, true)
+          doc.removeEventListener('pointerdown', outside, true)
+        }
+      }, [open, fullLabel, data.last?.reasoningEffort, data.next?.provider, data.next?.model, data.next?.reasoningEffort])
+      if (data.kind === 'hidden') return null
+      const rows = route => h('dl', null,
+        h('dt', null, t('modelBadge.provider')), h('dd', null, route.provider),
+        h('dt', null, t('modelBadge.model')), h('dd', null, route.model),
+        route.reasoningEffort === undefined ? null : h(React.Fragment, null,
+          h('dt', null, t('modelBadge.effort')), h('dd', null, route.reasoningEffort)))
+      return h(React.Fragment, null,
+        h('style', null, MODEL_BADGE_CSS),
+        h('details', { className: 'sah-runtime-model', ref: detailsRef,
+          onToggle: event => setOpen(event.currentTarget.open),
+          onKeyDown: event => {
+            if (event.key === 'Escape' && detailsRef.current?.open) {
+              event.preventDefault()
+              event.stopPropagation()
+              detailsRef.current.open = false
+              detailsRef.current.querySelector('summary')?.focus()
+            }
+          },
+        },
+        h('summary', { 'aria-label': fullLabel, 'aria-controls': panelId, title: fullLabel },
+          h('span', { className: 'sah-runtime-model-label' }, t('modelBadge.label')),
+          h('span', { className: 'sah-runtime-model-value' }, data.kind === 'recorded'
+            ? `${data.last.provider} · ${data.last.model.split('/').filter(Boolean).at(-1) ?? data.last.model}`
+            : t(data.kind === 'waiting' ? 'modelBadge.waitingShort' : 'modelBadge.unknownShort')),
+          h('span', { className: 'sah-runtime-model-arrow', 'aria-hidden': true }, '▾')),
+        h('div', { className: 'sah-runtime-model-panel', ref: panelRef, id: panelId, role: 'group', 'aria-label': t('modelBadge.details') },
+          h('p', null, h('strong', null, t(data.kind === 'recorded' ? 'modelBadge.recorded' : data.kind === 'waiting' ? 'modelBadge.waiting' : 'modelBadge.unknown'))),
+          data.kind === 'recorded' ? rows(data.last) : null,
+          data.next === undefined ? null : h(React.Fragment, null,
+            h('p', { className: 'sah-runtime-model-note' }, t('modelBadge.next')), rows(data.next)),
+          h('p', { className: 'sah-runtime-model-note' }, t(data.kind === 'unknown' ? 'modelBadge.unavailableNote' : 'modelBadge.note')))),
+        h('span', { role: 'status', className: 'sah-runtime-model-sr' }, announcement))
+    }
+
+    function registerModelBadge(ctx, t) {
+      ctx.inject(['sessions'], scope => scope.slots.inject(MODEL_BADGE_SLOT, () => scope.slots.register({
+        name: MODEL_BADGE_SLOT,
+        key: 'subagent-hub-model',
+        order: -10,
+        locale: NS,
+        inject: sessionId => modelBadgeShares(scope.sessions, sessionId),
+      }, props => h(ModelBadge, { ...props, t: props.t ?? t }))))
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'subagent-hub: dictionaries')
       const t = ctx.locale.bind(NS)
+      registerModelBadge(ctx, t)
       // The same form is reachable from the Plugins page row and from a top-level
       // Settings section, which is where people expect plugin configuration.
       ctx.effect(() => ctx.configForms.whileServed([ENTRY_ID], () => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
@@ -1568,6 +1750,11 @@ window.__ModuleLoader__.load({
       inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session', 'remote.agentPresets'],
       apply,
       // Pure helpers, exported for tests only.
+      ModelBadge,
+      modelBadgeData,
+      modelBadgeShares,
+      registerModelBadge,
+      MODEL_BADGE_SLOT,
       ConfigPage,
       SectionPage,
       RouteCard,

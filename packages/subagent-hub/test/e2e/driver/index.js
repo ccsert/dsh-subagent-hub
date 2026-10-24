@@ -10,7 +10,7 @@ import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 export const name = 'hub-e2e-driver'
 export const inject = [
   'agents', 'agentPresets', 'tools', 'agentDefaultModel', 'subagentModelSelection',
-  'systemPrompt', 'configEditor', 'subagentHub', 'settings',
+  'systemPrompt', 'configEditor', 'subagentHub', 'settings', 'sessionProjections',
 ]
 
 const TOOL_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
@@ -71,6 +71,7 @@ export function apply(ctx, config) {
     if (agent.session.header.parentSession === undefined) return
     const assembly = await ctx.systemPrompt.assemble({ scope: agent })
     children.set(agent.id, {
+      session: agent.session,
       preset: agent.session.header.agentPreset,
       prompt: assembly.sections.map(section => section.text).join('\n'),
     })
@@ -185,7 +186,26 @@ export function apply(ctx, config) {
         const id = result.value.subagentId
         await waitFor(() => children.get(id))
         const request = await waitFor(() => requests.get(id))
-        return { isError: false, id, preset: children.get(id)?.preset, prompt: children.get(id)?.prompt, request }
+        const session = children.get(id)?.session
+        const model = session === undefined ? undefined : await waitFor(() => {
+          const value = ctx.sessionProjections.snapshot(session, ['modelSelection']).values.modelSelection
+          return value?.lastUsed ? value : undefined
+        }, 2000)
+        return { isError: false, id, preset: children.get(id)?.preset, prompt: children.get(id)?.prompt, request,
+          modelBadge: session === undefined ? undefined : browser.modelBadgeData(childState(session), model) }
+      }
+      const childState = session => ({ subagent: session.header.parentSession === undefined ? null : { address: {} } })
+      const dormantHandle = await ctx.agents.create({
+        sessionId: `session-${randomUUID()}`,
+        agentOptions: { provider: 'deepseek-official', model: 'deepseek-v4-pro' },
+        meta: { cwd: config.cwd, agentPreset: 'standard', parentSession: root.id },
+        setup: async agentCtx => { await ctx.agentPresets.mount(agentCtx, 'standard') },
+      })
+      report.modelBadge = {
+        dormant: browser.modelBadgeData(childState(dormantHandle.agent.session),
+          ctx.sessionProjections.snapshot(dormantHandle.agent.session, ['modelSelection']).values.modelSelection),
+        main: browser.modelBadgeData(childState(root.session),
+          ctx.sessionProjections.snapshot(root.session, ['modelSelection']).values.modelSelection),
       }
       const call = callerFor(root)
 

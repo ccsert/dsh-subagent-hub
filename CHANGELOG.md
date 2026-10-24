@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0 — 子会话标题栏显示最近请求的模型
+
+- 通过官方 `conversation.session.header.utilities` 列表槽位加入紧凑的只读模型标识，仅在子会话出现。标题栏显示供应商与模型简名，展开可读取完整供应商 id、模型 id 和记录中的推理强度。
+- 数据来自官方 `modelSelection.lastUsed`，由持久化 `request/header` 推进；不使用主模型、角色定义或配置标签猜测。`next` 与最近请求不同的时候单列“下一次选择（尚未请求）”；尚无请求显示“尚未请求”，投影缺失显示“未确认”。
+- 直接订阅已有 Session 的公开 projection face，历史会话和后续请求共用数据来源；展示不会保留/创建 Session、切换模型或发起模型 RPC。切换会话时关闭详情并释放旧订阅。
+- 使用原生 details/summary，支持键盘展开、Esc 关闭并归还焦点、点击外部关闭；更新使用稳定的状态播报。沿用主题变量，详情支持长 id 折行、320px 和祖先 200% CSS 缩放。
+- Client 依赖补充官方 Session Controller 与 Conversation 模块，缺少可用会话能力时不影响原配置页。
+- 验证：87 项单测、23 项临时 profile 的真实运行时 e2e 全通过。新增真实子请求的 projection 验证，包括子模型不同于父模型、只有创建选项而尚未请求、主会话不展示。浏览器使用实际贡献组件及安装版本的官方标题栏 CSS 验证交互、布局与订阅清理，详见 [模型标识验收](docs/model-badge-acceptance.md)。
+
 ## 0.9.1 — 修复保存后同步提示无法成功结束
 
 - **根因**：客户端把 `preset-standard`（预设条目 id）当作可读取的 Settings 表单命名空间；真实 Host 没有服务这个表单，其状态一直是 `unavailable`，导致后台已经写入也无法进入成功分支。0.9.0 的浏览器 fixture 错误地返回了一个 ready 预设快照，漏掉了这个问题。

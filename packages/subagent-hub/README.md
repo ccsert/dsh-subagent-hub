@@ -15,6 +15,21 @@ v0.4.0 起不再派生 `<base>+hub` 预设、不再提供 `delegate` / `define_s
 - **可选的官方配置托管**：`manageOfficialSettings: true` 时，通过 `configEditor` 幂等写入官方工具行的 `allowedAgentPresets` 和 Host 的 `subagent-model-selection` 设置。默认 `false`，不替用户改别人的配置。
 - **配置界面**：同一张表单放在两个官方入口——**设置 → 子代理中枢**（推荐）和官方 Plugins 页的 `subagent-hub` 行 **Configure**；保存即时生效，不需要重启，也不用再手改 YAML。
 
+## 在子会话查看模型
+
+打开一个子 agent 对话，标题栏右侧会显示类似 **模型 · magpie · MiniMax-M3.1-Flash** 的紧凑标识，点开可查看完整供应商 id、模型 id 和记录中的推理强度。
+
+| 状态 | 含义 |
+|---|---|
+| 最近请求记录 | 官方会话历史最近一次 `request/header` 里的路由 |
+| 下一次选择（尚未请求） | 后续计划选择；不会替换标题栏里的最近请求记录 |
+| 尚未请求 | 已读到会话状态，但尚无模型请求记录 |
+| 未确认 | 当前没有可读取的模型投影，保留未知状态 |
+
+标识只读现有 Session 的公开投影，后续请求记录到达时自动更新；主会话不显示，也不会因此切换模型或启动子 agent。Esc 或点击外部可关闭详情，键盘 Enter / Space 可展开。
+
+这里显示供应商的路由 id，不推断收费。若子会话继承了历史，记录也可能来自继承的前缀；新的模型请求出现后会更新。请求记录不等于调用已成功完成。
+
 ## 在界面上配置
 
 打开 **设置 → 子代理中枢**，或 **Plugins → dsh-subagent-hub → 子代理中枢行 → Configure**（两处是同一张表单）：
@@ -104,20 +119,21 @@ Ctrl/Cmd+S 或底部按钮均可保存。字段错误会就近显示，保存失
 ## 测试
 
 ```sh
-bash test.sh   # 78 项单元测试 + 19 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
+bash test.sh   # 87 项单元测试 + 23 项 e2e 断言（临时 DSH_HOME，无模型凭据，不碰你的 profile）
 ```
 
-e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新；还会运行实际 Client 的同步 observer，确认初始状态和 live 保存后都能结束核对。
+e2e 在临时 `DSH_HOME` 里启动真实 `dsh` web profile，用脚本化 `llm/stream` 拦截模型请求，验证：官方参数可见、官方设置被写入、越界路由被守卫拒绝、具名 agent 经 `agent_preset` 生效且 persona 含 instructions；以及 client bundle 上架、子会话模型展示读取实际请求投影而不是父模型或创建选项、Plugins 页配置表单存在、通过 Host settings 服务 live 新增具名 agent 后预设/allowlist/schema/persona 全部更新；还会运行实际 Client 的同步 observer，确认初始状态和 live 保存后都能结束核对。
 
 浏览器交互验收：
 
 ```sh
 node packages/subagent-hub/test/browser/render-fixture.mjs
+node packages/subagent-hub/test/browser/render-model-fixture.mjs
 # 生成 output/playwright/settings.html，内嵌本地 React 与实际客户端模块。
 # 使用本地静态文件服务或浏览器自动化打开；所有保存仅写入内存，无模型调用。
 ```
 
-详细检查范围与证据见 [配置页验收记录](../../docs/ui-acceptance.md)。
+详细检查范围与证据见 [配置页验收记录](../../docs/ui-acceptance.md) 和 [模型标识验收](../../docs/model-badge-acceptance.md)。
 
 ## 已知限制
 

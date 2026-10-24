@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.9.1（修复同步提示错误观测），单元测试 78 项 + 真实运行时 e2e 19 项；另有浏览器交互验收。
+> 状态：0.10.0（子会话最近请求模型展示），单元测试 87 项 + 真实运行时 e2e 23 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -17,12 +17,12 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | 模型路由 | 插件自己选模型并写 `agentOptions` | 映射成官方 `subagent-model-selection` 的 `allowedModels` |
 | 能力标签 | 自有 `needs` 参数 | 新增 system prompt 段落，告诉主 agent 什么任务配什么 |
 | 路由约束 | 自有 `delegate` 在执行时限制 | 官方 `agent_preset` + `tools/pre-execute` 守卫 |
-| 界面 | 右侧栏页 + 自建设置页 | 官方设置导航与 Plugins 行配置，共用表单；子 agent 运行界面沿用官方 |
+| 界面 | 右侧栏页 + 自建设置页 | 官方设置导航与 Plugins 行配置，共用表单；子 agent 运行界面沿用官方，标题栏补充只读模型标识 |
 | 派发工具 | 自有 `delegate` | 官方 `subagent` / `subagent_fork` |
 
 ## 2. 原则
 
-**不注册任何派发工具，不派生任何 `<base>+hub` 预设。** 派发、子 agent 生命周期、模型实际调用全部由官方运行时执行；本插件只做三件事：注册具名 agent 预设、提供选择信息、守住模型路由约束。
+**不注册任何派发工具，不派生任何 `<base>+hub` 预设。** 派发、子 agent 生命周期、模型实际调用全部由官方运行时执行；本插件只做三件事：注册具名 agent 预设、提供选择信息、守住模型路由约束。界面通过官方槽位提供配置和只读运行信息。
 
 ## 3. 已定决策
 
@@ -31,7 +31,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
 | D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
 | D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
-| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不恢复 v1 的独立侧栏；0.4.2 起在官方设置导航增加入口，共用同一表单 |
+| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不恢复 v1 的独立侧栏；0.4.2 起在官方设置导航增加入口，共用同一表单；0.10.0 在官方子会话标题栏补充只读模型标识 |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
@@ -112,6 +112,14 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 保存必须等待 `form.mutate` 明确返回 `true` 才更新本地基准，失败保留草稿。成功后通过公开的 `agentPresets.list()` 核对角色注册，通过 `subagent-model-selection-settings` 的表单快照核对模型白名单。`preset-standard` 是预设条目 id，真实 Host 不把它服务为 Settings 表单；0.9.0 对它的轮询无法成功结束，已在 0.9.1 修正。快照未就绪不算成功。observer 有独立的 15 秒截止计时，网络请求不返回也能退出忙碌状态；用户可只读重新核对。新一轮保存、放弃、卸载以及超时都会拒绝旧请求的晚到结果。
 
 字段标签、错误与帮助通过 `label` / `aria-labelledby` / `aria-describedby` 关联；保存错误可聚焦到相应字段。浏览器 fixture 内嵌实际 Client 模块与测试数据，验证用户交互但不触碰真实 profile，详见 [验收记录](ui-acceptance.md)。
+
+### 4.6b 子会话最近请求模型（0.10.0）
+
+Client 通过可选的 `sessions` 注入，注册官方 session 范围的 `conversation.session.header.utilities` 列表贡献。`binding(sessionId).session` 提供当前保留代的 Session face；读取其生命周期 `subagent` 判断子会话，读取 `session.projections.faceOf('modelSelection')` 订阅模型记录。整个路径不保留新 Session、不调用模型选择 RPC、不查询模型目录；缺少 binding 时不展示。
+
+公开投影的 `lastUsed` 来自 `request/header.config`；`next` 表示 pending selection 或 lastUsed。只把 lastUsed 用作最近请求显示，next 不同则作为“尚未请求”的计划另列。null 的 lastUsed 表示尚无请求，缺少/不完整投影表示未确认。继承历史也属于 Session 历史，因此不声称这是 fork 后首个新请求，也不据请求记录判断成功或费用。
+
+原生 details/summary 保留键盘和展开语义；状态播报在可折叠内容之外。会话 binding 替换时关闭详情，React 外部存储订阅释放旧代。浮层按视口定位，测量祖先 CSS zoom 的比例和原点，防止混用视口与局部坐标。
 
 ### 4.7 删除清单（v1 → v2）
 

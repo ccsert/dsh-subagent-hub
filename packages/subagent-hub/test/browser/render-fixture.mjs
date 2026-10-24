@@ -20,7 +20,7 @@ let dictionaries
 const locale={register(ns,dict){dictionaries=dict},bind(){return t}}
 const language=new URLSearchParams(location.search).get('lang')==='en'?'en':'zh'
 function t(key,params={}){return (dictionaries[language][key]??key).replace(/\\{(\\w+)\\}/g,(_,key)=>params[key]??'')}
-ui.apply({effect(fn){fn()},locale,configForms:{whileServed(){}},slots:{}})
+ui.apply({effect(fn){fn()},inject(){},locale,configForms:{whileServed(){}},slots:{}})
 const initial={manageOfficialSettings:true,maxConcurrent:4,routes:[
  {id:'flash',provider:'deepseek-official',model:'deepseek-flash',tags:['fast','cheap'],note:'DeepSeek Flash'},
  {id:'minimax',provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEffort:'max',tags:['reasoning','vision','免费'],note:'MiniMax M3.1 Flash'}

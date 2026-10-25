@@ -66,9 +66,15 @@ A Release inherits repository visibility. Creating a Release in a private reposi
 
 Before npm publication, verify the owner account, an unused version, authentication, and the archive. Existing name/version pairs are immutable. Publish the already checked archive; do not rebuild a different artifact between review and publication.
 
+The account uses `auth-and-writes` two-factor authentication, so npm requires **staged publishing** and a proof-of-presence check; a token that bypasses 2FA only authorizes the upload. Staging needs npm 12, which the bundled CLI may not provide:
+
 ```bash
 npm whoami
-npm publish output/releases/dsh-subagent-hub-0.11.0.tgz --access public
+npx --yes npm@12.2.1 stage publish output/releases/dsh-subagent-hub-0.11.0.tgz
+npx --yes npm@12.2.1 stage list          # copy the stage id
+npx --yes npm@12.2.1 stage approve <stage-id>
 ```
 
-After a successful registry publication, verify `npm view dsh-subagent-hub version dist.integrity` and update the documented installation channel. Never commit npm tokens or put them in release notes.
+`stage approve` prints `https://www.npmjs.com/auth/cli/<id>`; a maintainer must authenticate there, and the command then completes the release. An immediate approval usually returns `409` because the automated review is still running: wait a few minutes, then approve again with a fresh authentication. Never approve a `stage view` whose `shasum` differs from the checked archive.
+
+After a successful registry publication, verify `npm view dsh-subagent-hub version dist-tags dist.integrity`, download the published tarball and confirm its SHA-256 matches the GitHub Release asset, then update the documented installation channel. Never commit npm tokens or put them in release notes.

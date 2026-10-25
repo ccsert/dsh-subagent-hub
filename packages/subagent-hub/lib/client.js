@@ -127,7 +127,9 @@ window.__ModuleLoader__.load({
       'preview.copy': '复制',
       'preview.copied': '已复制',
       'preview.copyFailed': '复制失败，请展开目录后手动选择并复制。',
-      'save.refused': '保存未应用。配置可能已在其他页面更新，请保留修改并重试。',
+      'save.refused': '保存未应用，修改仍保留。请重试；如仍失败，请按 ⌘⇧R 重启 Harness 后再保存。',
+      'save.conflict': '配置已在其他页面更新，已同步最新版本，修改仍保留。再次保存会用当前内容覆盖。',
+      'overview.restartHint': 'Harness 尚未加载此设置。请按 ⌘⇧R 重启 Harness 后再开启；其他设置可正常保存。',
       'common.removeTag': '删除标签 {tag}',
       'common.readOnly': '此配置当前只读。',
       'footer.dirty': '有未保存的修改',
@@ -257,7 +259,9 @@ window.__ModuleLoader__.load({
       'preview.copy': 'Copy',
       'preview.copied': 'Copied',
       'preview.copyFailed': 'Copy failed. Expand the preview and select the text to copy it.',
-      'save.refused': 'The save was not applied. Configuration may have changed in another page; keep your edits and try again.',
+      'save.refused': 'The save was not applied; your edits are kept. Try again, and if it still fails, restart Harness with ⌘⇧R and save.',
+      'save.conflict': 'Configuration changed in another page. The latest version is loaded and your edits are kept; saving again overwrites it with this page.',
+      'overview.restartHint': 'Harness has not loaded this setting yet. Restart Harness with ⌘⇧R to turn it on; other settings save normally.',
       'common.removeTag': 'Remove tag {tag}',
       'common.readOnly': 'This configuration is read-only.',
       'footer.dirty': 'Unsaved changes',
@@ -417,6 +421,7 @@ window.__ModuleLoader__.load({
       const routes = Array.isArray(value?.routes) ? value.routes : []
       const agents = Array.isArray(value?.agents) ? value.agents : []
       return {
+        showAgentOverview: value?.showAgentOverview === true,
         manageOfficialSettings: value?.manageOfficialSettings === true,
         maxConcurrent: Number.isFinite(value?.maxConcurrent) ? Number(value.maxConcurrent) : 4,
         routes: routes.map(route => ({
@@ -462,14 +467,17 @@ window.__ModuleLoader__.load({
           ...(agent.needs.length > 0 ? { needs: agent.needs } : {}),
           ...(agent.basePreset && agent.basePreset !== 'standard' ? { basePreset: agent.basePreset } : {}),
         }))
-      return { manageOfficialSettings: drafts.manageOfficialSettings === true, maxConcurrent: drafts.maxConcurrent, routes, agents }
+      return { showAgentOverview: drafts.showAgentOverview === true, manageOfficialSettings: drafts.manageOfficialSettings === true, maxConcurrent: drafts.maxConcurrent, routes, agents }
     }
 
     /** The atomic mutate operations one save performs, against a single revision. */
-    function saveOps(values) {
+    // A Host still running an older schema refuses the whole write over one unknown path, so
+    // `showAgentOverview` is only written once the Host's resolved section carries that field.
+    function saveOps(values, overviewSupported = true) {
       return [
         { op: 'set', path: ['routes'], value: values.routes },
         { op: 'set', path: ['agents'], value: values.agents },
+        ...(overviewSupported ? [{ op: 'set', path: ['showAgentOverview'], value: values.showAgentOverview === true }] : []),
         { op: 'set', path: ['manageOfficialSettings'], value: values.manageOfficialSettings },
         { op: 'set', path: ['maxConcurrent'], value: values.maxConcurrent },
       ]
@@ -1210,6 +1218,10 @@ window.__ModuleLoader__.load({
       const rootRef = React.useRef(null)
       const writable = form !== undefined && form.state?.status !== 'loading' && form.state?.writable !== false
       const hydrated = React.useRef(form?.state?.status !== 'loading')
+      // The schema-resolved section lists every field the running Host knows, defaults included.
+      const overviewSupported = Object.prototype.hasOwnProperty.call(value, 'showAgentOverview')
+      const latestRevision = React.useRef(form?.state?.revision)
+      latestRevision.current = form?.state?.revision
       const disposed = React.useRef(false)
       React.useEffect(() => {
         disposed.current = false
@@ -1367,8 +1379,15 @@ window.__ModuleLoader__.load({
         setBusy(true)
         stopSync.current()
         try {
-          const applied = await form.mutate(saveOps(values), form.state?.revision)
-          if (applied !== true) throw new Error(t('save.refused'))
+          const revision = form.state?.revision
+          const applied = await form.mutate(saveOps(values, overviewSupported), revision)
+          if (applied !== true) {
+            // A refused write reloads Host state; a moved revision means another editor won.
+            await new Promise(resolve => setTimeout(resolve, 0))
+            const conflict = latestRevision.current !== undefined && latestRevision.current !== revision
+            setStatus({ kind: 'error', text: t(conflict ? 'save.conflict' : 'save.refused') })
+            return
+          }
           setBaseline(draftsOf(values))
           setDraft(editorDraftsOf(values))
           setSubmitted(false)
@@ -1468,6 +1487,13 @@ window.__ModuleLoader__.load({
                 disabled: locked,
                 onClick: () => setDraft(current => ({ ...current, maxConcurrent: limit })),
               }, limit === 0 ? t('concurrency.unlimited') : String(limit)))))),
+          h(SettingRow, { title: t('overview.setting'), hint: t(overviewSupported || form?.state?.status !== 'ready' ? 'overview.settingHint' : 'overview.restartHint') },
+            h(Toggle, {
+              checked: draft.showAgentOverview,
+              disabled: locked || !overviewSupported,
+              label: t('overview.setting'),
+              onChange: next => setDraft(current => ({ ...current, showAgentOverview: next })),
+            })),
           h(SettingRow, { title: t('official.switch'), hint: t('official.hint') },
             h(Toggle, {
               checked: draft.manageOfficialSettings,
@@ -1578,21 +1604,24 @@ window.__ModuleLoader__.load({
     const EMPTY_SESSION = Object.freeze({ subagent: null })
     const MODEL_BADGE_SLOT = 'conversation.session.header.utilities'
     const MODEL_BADGE_CSS = `
-.sah-runtime-model{position:relative;min-width:0;max-width:260px;color:var(--dsw-alias-label-secondary,#b8b8b8);font-size:12px;line-height:1.4;-webkit-app-region:no-drag}
-.sah-runtime-model summary{display:flex;align-items:center;gap:5px;min-height:28px;max-width:min(260px,42vw);padding:4px 7px;list-style:none;border:1px solid var(--dsw-alias-border-l1,#36373b);border-radius:6px;background:transparent;cursor:pointer;user-select:none}
+.sah-runtime-model{position:relative;min-width:0;max-width:260px;color:var(--dsw-alias-label-tertiary,#999);font-size:12px;line-height:16px;-webkit-app-region:no-drag}
+.sah-runtime-model summary{display:inline-flex;box-sizing:border-box;align-items:center;gap:5px;min-height:28px;max-width:min(260px,42vw);padding:3px 7px;list-style:none;border:0;border-radius:6px;background:transparent;color:inherit;cursor:pointer;user-select:none;transition:color .12s ease-out}
+.sah-runtime-model summary:hover,.sah-runtime-model summary:focus-visible,.sah-runtime-model[open] summary{color:var(--dsw-alias-label-primary,#e6e6e6)}
+.sah-runtime-model-icon{display:inline-flex;flex:none}
+@container (width<=480px){.sah-runtime-model-value{display:none}}
 .sah-runtime-model summary::-webkit-details-marker{display:none}
 .sah-runtime-model summary:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#5686fe);outline-offset:2px}
-.sah-runtime-model[open] summary{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))}
-.sah-runtime-model-label,.sah-runtime-model-arrow{flex:none;color:var(--dsw-alias-label-tertiary,#8c8c8c)}
-.sah-runtime-model-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary,#e6e6e6)}
-.sah-runtime-model-panel{position:fixed;top:64px;right:12px;z-index:1000;box-sizing:border-box;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:12px;border:1px solid var(--dsw-alias-border-l1,#36373b);border-radius:10px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-primary,#e6e6e6);box-shadow:0 4px 16px rgba(0,0,0,.16);user-select:text}
+.sah-runtime-model-arrow{flex:none;display:inline-flex;color:var(--dsw-alias-label-caption,#888)}
+.sah-runtime-model-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-runtime-model-panel{position:fixed;top:64px;right:12px;z-index:1000;box-sizing:border-box;width:320px;max-width:calc(100vw - 24px);max-height:calc(100vh - 24px);overflow:auto;padding:12px 14px;border:0;border-radius:12px;background:transparent;isolation:isolate;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#36373b);box-shadow:var(--dsw-elevation-prominent,0 0 0 1px #36373b,0 8px 24px rgba(0,0,0,.24));color:var(--dsw-alias-label-primary,#e6e6e6);font-size:13px;line-height:20px;user-select:text}
+.sah-runtime-model-panel::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:12px;background:var(--dsw-specific-menu,var(--dsw-alias-bg-layer-2,#232529));backdrop-filter:var(--dsw-menu-backdrop-filter,none)}
+.sah-runtime-model-panel strong{font-weight:500}
 .sah-runtime-model-panel p{margin:0 0 8px;overflow-wrap:anywhere}
 .sah-runtime-model-panel dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 12px;margin:0}
 .sah-runtime-model-panel dt{color:var(--dsw-alias-label-secondary,#b8b8b8)}
-.sah-runtime-model-panel dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,monospace}
-.sah-runtime-model-note{margin-top:10px!important;color:var(--dsw-alias-label-secondary,#b8b8b8)}
+.sah-runtime-model-panel dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px}
+.sah-runtime-model-note{margin-top:10px!important;color:var(--dsw-alias-label-tertiary,#999);font-size:12px}
 .sah-runtime-model-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
-@media(hover:hover){.sah-runtime-model summary:hover{background:var(--dsw-alias-interactive-bg-hover,rgba(128,128,128,.12))}}
 @media(forced-colors:active){.sah-runtime-model summary:focus-visible{outline-color:Highlight}}
 `
 
@@ -1702,11 +1731,17 @@ window.__ModuleLoader__.load({
           },
         },
         h('summary', { 'aria-label': fullLabel, 'aria-controls': panelId, title: fullLabel },
-          h('span', { className: 'sah-runtime-model-label' }, t('modelBadge.label')),
+          h('span', { className: 'sah-runtime-model-icon', 'aria-hidden': true },
+            h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+              h('rect', { x: 6, y: 6, width: 12, height: 12, rx: 2.5 }), h('rect', { x: 9.5, y: 9.5, width: 5, height: 5, rx: 1 }),
+              h('path', { d: 'M9.5 2.5v3.5M14.5 2.5v3.5M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5' }))),
+          h('span', { className: 'sah-runtime-model-label sah-runtime-model-sr' }, t('modelBadge.label')),
           h('span', { className: 'sah-runtime-model-value' }, data.kind === 'recorded'
             ? `${data.last.provider} · ${data.last.model.split('/').filter(Boolean).at(-1) ?? data.last.model}`
             : t(data.kind === 'waiting' ? 'modelBadge.waitingShort' : 'modelBadge.unknownShort')),
-          h('span', { className: 'sah-runtime-model-arrow', 'aria-hidden': true }, '▾')),
+          h('span', { className: 'sah-runtime-model-arrow', 'aria-hidden': true },
+            h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+              h('path', { d: 'm7 10 5 5 5-5' })))),
         h('div', { className: 'sah-runtime-model-panel', ref: panelRef, id: panelId, role: 'group', 'aria-label': t('modelBadge.details') },
           h('p', null, h('strong', null, t(data.kind === 'recorded' ? 'modelBadge.recorded' : data.kind === 'waiting' ? 'modelBadge.waiting' : 'modelBadge.unknown'))),
           data.kind === 'recorded' ? rows(data.last) : null,
@@ -1726,10 +1761,372 @@ window.__ModuleLoader__.load({
       }, props => h(ModelBadge, { ...props, t: props.t ?? t }))))
     }
 
+    // ── native child / Team overview ──────────────────────────────────────────
+    const OVERVIEW_SLOT = 'conversation.session.header.actions'
+    Object.assign(en, {
+      'overview.setting': 'Show agent overview',
+      'overview.settingHint': 'Off by default. Adds the Hub overview to the session header after saving; the official Agent Team UI is always available.',
+      'overview.triggerHint': 'Agent overview · {running} running / {total} total',
+      'overview.title': 'Agent overview', 'overview.close': 'Close', 'overview.refresh': 'Refresh',
+      'overview.refreshing': 'Refreshing…', 'overview.search': 'Search name, model or session ID',
+      'overview.all': 'All', 'overview.team': 'Team', 'overview.independent': 'Independent',
+      'overview.running': 'Running', 'overview.inactive': 'Inactive', 'overview.completed': 'Completed',
+      'overview.interrupted': 'Interrupted', 'overview.provisioning': 'Provisioning', 'overview.failed': 'Failed',
+      'overview.unknown': 'Unconfirmed', 'overview.members': 'Members', 'overview.tasks': 'Task board',
+      'overview.diagnostics': 'Diagnostics', 'overview.empty': 'No child agents in this session.',
+      'overview.noMatches': 'No matching members. Clear the filters to see all members.',
+      'overview.loading': 'Loading the child catalog…', 'overview.unavailable': 'The child catalog is unavailable.',
+      'overview.migration': 'Open this conversation in DSH to migrate its history.',
+      'overview.stale': 'Some data could not be refreshed. Displayed records may be outdated.',
+      'overview.open': 'Open conversation', 'overview.noNavigation': 'This child mode cannot be opened here.',
+      'overview.details': 'Evidence and details', 'overview.model': 'Last request', 'overview.next': 'Planned next request',
+      'overview.noRequest': 'No request recorded', 'overview.noModel': 'Request model unconfirmed',
+      'overview.duration': 'Active time', 'overview.tokens': 'Recorded tokens', 'overview.created': 'Created',
+      'overview.kind': 'Type', 'overview.state': 'State', 'overview.sort': 'Sort',
+      'overview.priority': 'Activity first', 'overview.newest': 'Newest first', 'overview.name': 'Name',
+      'overview.timeSort': 'Active time', 'overview.tokenSort': 'Recorded tokens',
+      'overview.inactiveNote': 'Inactive Team members are available for another turn. Only the task board records task completion.',
+      'overview.tokenNote': 'Token totals cover {known} of {total} members; missing records are not zero. No price estimate.',
+      'overview.durationNote': 'Active time sums agent turns, excluding time between turns. Interrupted open turns stop at the last recorded event.',
+      'overview.owner': 'Owner', 'overview.unowned': 'Unassigned', 'overview.dependencies': 'Dependencies',
+      'overview.scopes': 'Write scopes', 'overview.pending': 'Pending', 'overview.in_progress': 'In progress',
+      'overview.ready': 'Ready', 'overview.blocked': 'Blocked', 'overview.noTasks': 'No shared tasks recorded.',
+      'overview.noTeam': 'Team projection unavailable; Team may be disabled.',
+      'overview.healthy': 'No projection errors reported.',
+      'overview.coverage': 'Hub guard rejections reconstructed from committed tool results. This is not a log of every tool failure.',
+      'overview.rejections': 'Dispatch rejections', 'overview.noRejections': 'No Hub guard rejections recorded.',
+      'overview.noHistory': 'Rejection projection unavailable. Inspect tool results in the parent conversation.',
+      'overview.historyCount': 'Showing the latest {shown} of {total} recorded rejections.',
+      'overview.reset': 'Clear filters', 'overview.current': 'Current conversation', 'overview.lead': 'Lead',
+    })
+    Object.assign(zh, {
+      'overview.setting': '显示子智能体总览',
+      'overview.settingHint': '默认关闭。保存后在会话标题栏显示 Hub 总览入口；官方的智能体团队界面始终可用。',
+      'overview.triggerHint': '子智能体总览 · {running} 个运行中 / 共 {total} 个',
+      'overview.title': '子智能体总览', 'overview.close': '关闭', 'overview.refresh': '刷新',
+      'overview.refreshing': '刷新中…', 'overview.search': '搜索名称、模型或会话 ID',
+      'overview.all': '全部', 'overview.team': 'Team 成员', 'overview.independent': '独立子任务',
+      'overview.running': '运行中', 'overview.inactive': '空闲', 'overview.completed': '已完成',
+      'overview.interrupted': '已中断', 'overview.provisioning': '创建中', 'overview.failed': '创建失败',
+      'overview.unknown': '未确认', 'overview.members': '成员', 'overview.tasks': '共享任务板',
+      'overview.diagnostics': '诊断', 'overview.empty': '这个会话还没有子智能体。',
+      'overview.noMatches': '没有匹配的成员。清除筛选可查看全部成员。',
+      'overview.loading': '正在加载子任务目录…', 'overview.unavailable': '暂时无法获取子任务目录。',
+      'overview.migration': '请在 DSH 中打开此会话以迁移历史记录。',
+      'overview.stale': '部分数据刷新失败，当前显示的记录可能不是最新状态。',
+      'overview.open': '打开会话', 'overview.noNavigation': '此类子任务暂不支持从这里打开。',
+      'overview.details': '证据与详情', 'overview.model': '最近一次请求', 'overview.next': '下次请求计划',
+      'overview.noRequest': '尚无请求记录', 'overview.noModel': '请求模型未确认',
+      'overview.duration': '累计执行', 'overview.tokens': '已记录 Token', 'overview.created': '创建时间',
+      'overview.kind': '类型', 'overview.state': '状态', 'overview.sort': '排序',
+      'overview.priority': '活动优先', 'overview.newest': '最新创建', 'overview.name': '名称',
+      'overview.timeSort': '执行耗时', 'overview.tokenSort': 'Token 用量',
+      'overview.inactiveNote': 'Team 成员空闲表示当前没有回合在执行，任务是否完成以共享任务板为准。',
+      'overview.tokenNote': 'Token 汇总覆盖 {known}/{total} 位成员；缺失记录不当作零，不估算费用。',
+      'overview.durationNote': '累计执行时间只计各执行回合，不含回合间空闲；中断回合固定到最后一条事件的时间。',
+      'overview.owner': '负责人', 'overview.unowned': '未分配', 'overview.dependencies': '依赖任务',
+      'overview.scopes': '写入范围', 'overview.pending': '待处理', 'overview.in_progress': '进行中',
+      'overview.ready': '可开始', 'overview.blocked': '依赖阻塞', 'overview.noTasks': '尚无共享任务记录。',
+      'overview.noTeam': 'Team 投影不可用，可能未启用 Team。',
+      'overview.healthy': '未报告投影错误。',
+      'overview.coverage': '从持久化工具结果重建的 Hub 守卫拒绝记录，不包含其他工具错误。',
+      'overview.rejections': '派发拒绝', 'overview.noRejections': '尚无 Hub 守卫拒绝记录。',
+      'overview.noHistory': '拒绝记录投影不可用，可在父会话工具结果中查看。',
+      'overview.historyCount': '显示最近 {shown} 条，共记录 {total} 次拒绝。',
+      'overview.reset': '清除筛选', 'overview.current': '当前会话', 'overview.lead': 'Lead',
+    })
+
+    const OVERVIEW_CSS = `
+.sah-overview-trigger{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px;font-weight:400;min-height:28px;padding:3px 7px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary,#999);cursor:pointer;white-space:nowrap;-webkit-app-region:no-drag}
+.sah-overview-trigger:hover,.sah-overview-trigger:focus-visible,.sah-overview-trigger[aria-expanded=true]{color:var(--dsw-alias-label-primary,#eee)}
+.sah-overview-trigger-icon{display:inline-flex;align-items:center;flex:none}
+.sah-overview-trigger-count{color:var(--dsw-alias-label-caption,#888);font-variant-numeric:tabular-nums;font-size:12px;font-weight:400;line-height:16px}
+@container (width<=480px){.sah-overview-trigger-label{display:none}}
+.sah-overview{box-sizing:border-box;width:min(880px,calc(100vw - 32px));max-height:min(760px,calc(100dvh - 32px));padding:0;border:0;border-radius:12px;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#ffffff1f);box-shadow:var(--dsw-elevation-prominent,0 0 0 .5px #ffffff1f,0 3px 8px #0000000a,0 0 20px #0000000d);background:var(--dsw-specific-menu,#303136f0);-webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:20px;overflow:hidden;-webkit-app-region:no-drag}
+.sah-overview[open]{display:flex;flex-direction:column}
+.sah-overview::backdrop{background:#0000004d}
+.sah-overview *{box-sizing:border-box}.sah-overview h2{font-size:14px;font-weight:500;margin:0}.sah-overview h3{font-size:13px;font-weight:500;margin:0}.sah-overview p{margin:4px 0;overflow-wrap:anywhere}
+.sah-overview-head{flex:none;display:flex;align-items:center;gap:4px;padding:12px 12px 8px 18px}.sah-overview-head h2{margin-inline-end:auto}
+.sah-overview-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px 12px 18px 18px;display:grid;align-content:start;gap:14px}
+.sah-overview button,.sah-overview select,.sah-overview input{font:inherit;font-size:12px;color:inherit;border-radius:6px;min-height:28px}
+.sah-overview button{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 9px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#bbb);cursor:pointer;white-space:nowrap;transition:background-color .12s ease-out,color .12s ease-out,transform .1s ease-out}
+.sah-overview button:not(:disabled):active{transform:scale(.96)}
+.sah-overview button:disabled{opacity:.5;cursor:default}
+.sah-overview select,.sah-overview input{padding:4px 8px;border:0;background:var(--dsw-alias-bg-layer-2,#ffffff0d);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview input::placeholder{color:var(--dsw-alias-label-caption,#888)}
+@media(hover:hover){.sah-overview button:not(:disabled):hover{background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee)}}
+.sah-overview :is(button,input,select,summary):focus-visible,.sah-overview-trigger:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#719cff);outline-offset:2px}
+.sah-overview-stats,.sah-overview-toolbar,.sah-overview-tabs{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sah-overview-stat{flex:1;min-width:100px;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview-stat strong{display:block;margin-top:2px;font-size:18px;line-height:24px;font-weight:500;font-variant-numeric:tabular-nums}
+.sah-overview-muted{color:var(--dsw-alias-label-tertiary,#999)}
+.sah-overview-tabs{gap:2px}.sah-overview-tabs button[aria-pressed=true]{background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee);font-weight:500}
+.sah-overview-toolbar{color:var(--dsw-alias-label-tertiary,#999);font-size:12px}.sah-overview-toolbar label{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.sah-overview-toolbar input{width:100%;min-width:0}.sah-overview-search{flex:1 1 100%}
+.sah-overview-list{display:grid;gap:8px;list-style:none;margin:0;padding:0}
+.sah-overview-card{min-width:0;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f);overflow-wrap:anywhere}
+.sah-overview-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.sah-overview-card-head h3{flex:1;min-width:0}
+.sah-overview-chip{font-size:11px;line-height:16px;padding:1px 7px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
+.sah-overview-chip[data-state=running]{color:var(--dsw-alias-state-business-primary,#9bb8ff);background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#9bb8ff) 14%,transparent)}
+.sah-overview-chip[data-state=failed],.sah-overview-error{color:var(--dsw-alias-state-error-primary,#ffb0a8)}
+.sah-overview-chip[data-state=failed]{background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ffb0a8) 14%,transparent)}
+.sah-overview-meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
+.sah-overview details{margin-block-start:4px}.sah-overview summary{cursor:pointer;min-height:28px;display:flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);border-radius:6px}.sah-overview summary:hover{color:var(--dsw-alias-label-primary,#eee)}
+.sah-overview dl{display:grid;grid-template-columns:minmax(90px,auto) minmax(0,1fr);gap:4px 16px;margin:6px 0;font-size:12px}.sah-overview dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.sah-overview dt{color:var(--dsw-alias-label-tertiary,#999)}
+.sah-overview code{font-size:12px;overflow-wrap:anywhere}
+.sah-overview-notice{padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview-task-description{white-space:pre-wrap}
+@media(prefers-reduced-motion:reduce){.sah-overview button{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
+@media(max-width:520px){.sah-overview{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.sah-overview-head{padding:10px 8px 6px 12px}.sah-overview-body{padding:4px 8px 12px 12px;gap:12px}.sah-overview dl{grid-template-columns:1fr;gap:2px}.sah-overview dd{margin-block-end:6px}.sah-overview-toolbar label{flex:1 1 100%}.sah-overview-toolbar select{flex:1;min-width:0}.sah-overview-card-head button{margin-inline-start:auto}}
+`
+
+    function overviewDuration(timing, running, now) {
+      if (!Number.isFinite(timing?.settledMs) || timing.settledMs < 0) return undefined
+      if (!timing.active) return timing.settledMs
+      const { since, through } = timing.active
+      if (!Number.isFinite(since) || !Number.isFinite(through)) return undefined
+      return timing.settledMs + Math.max(0, (running ? Math.max(now, through) : through) - since)
+    }
+    function overviewTokens(usage) {
+      const buckets = ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
+      if (!usage || buckets.some(key => !Number.isFinite(usage[key]) || usage[key] < 0)) return undefined
+      return buckets.reduce((sum, key) => sum + usage[key], 0)
+    }
+    function overviewTime(ms) {
+      if (!Number.isFinite(ms)) return '—'
+      const seconds = Math.floor(Math.max(0, ms) / 1000)
+      return `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+    }
+    /** Membership is authoritative only in the parent's catalog/roster, never inferred from global sessions. */
+    function overviewData(rootId, state, statuses, now = Date.now()) {
+      const snapshots = state?.projectionsBySession ?? {}
+      const summaries = state?.byId ?? {}
+      const snapshot = snapshots[rootId]
+      const values = { ...summaries[rootId]?.projectionValues, ...snapshot?.values }
+      const catalog = values.subagentCatalog
+      const team = values.agentTeam
+      const members = new Map()
+      for (const entry of catalog ?? []) members.set(entry.id, { ...entry, kind: 'independent', name: entry.label ?? summaries[entry.id]?.displayTitle ?? entry.id })
+      for (const member of team?.members ?? []) {
+        if (member.role === 'lead') continue
+        members.set(member.id, { ...members.get(member.id), ...member, kind: 'team', mode: 'continuable' })
+      }
+      const rows = [...members.values()].map(member => {
+        const child = snapshots[member.id]
+        const projected = { ...summaries[member.id]?.projectionValues, ...child?.values }
+        const running = statuses?.get(member.id)?.running ?? summaries[member.id]?.running
+        const timing = projected.subagentTiming
+        const status = member.phase === 'failed' ? 'failed' : member.phase === 'provisioning' ? 'provisioning'
+          : running === true ? 'running' : running === undefined ? 'unknown'
+          : member.kind === 'team' ? 'inactive'
+          : member.mode === 'one-shot' && timing?.lastTurnCompleted === true ? 'completed'
+          : timing?.lastTurnCompleted === false ? 'interrupted' : 'inactive'
+        return { ...member, status, model: modelBadgeData({ subagent: true }, projected.modelSelection),
+          duration: overviewDuration(timing, running === true, now), tokens: overviewTokens(projected.tokenUsage),
+          readState: child?.state, readError: child?.error?.message,
+          address: ['one-shot', 'continuable'].includes(member.mode) ? { parentSessionId: rootId, childSessionId: member.id, mode: member.mode } : undefined }
+      })
+      const issues = []
+      if (snapshot?.error) issues.push({ id: rootId, message: snapshot.error.message ?? String(snapshot.error) })
+      if (team?.failure) issues.push({ id: rootId, message: team.failure })
+      for (const row of rows) {
+        if (row.error) issues.push({ id: row.id, message: row.error })
+        if (row.readError) issues.push({ id: row.id, message: row.readError })
+      }
+      return { rows, dispatch: values.subagentHubDispatch, tasks: (team?.tasks ?? []).filter(task => task.status !== 'deleted'), issues,
+        teamAvailable: team !== undefined, catalogAvailable: Array.isArray(catalog),
+        readState: snapshot?.state ?? (state?.phase === 'pending' ? 'loading' : 'idle'),
+        running: rows.filter(row => row.status === 'running').length,
+        tokenKnown: rows.filter(row => row.tokens !== undefined).length,
+        tokens: rows.reduce((sum, row) => sum + (row.tokens ?? 0), 0) }
+    }
+    function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}) {
+      const query = search.trim().toLocaleLowerCase()
+      const rank = { running: 0, provisioning: 1, failed: 2, interrupted: 3, unknown: 4, inactive: 5, completed: 6 }
+      return rows.filter(row => (kind === 'all' || row.kind === kind) && (status === 'all' || row.status === status)
+        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, row.error].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
+        .sort((a, b) => {
+          const primary = sort === 'name' ? a.name.localeCompare(b.name)
+            : sort === 'newest' ? (b.createdAt ?? -1) - (a.createdAt ?? -1)
+            : sort === 'timeSort' ? (b.duration ?? -1) - (a.duration ?? -1)
+            : sort === 'tokenSort' ? (b.tokens ?? -1) - (a.tokens ?? -1) : rank[a.status] - rank[b.status]
+          return primary || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
+        })
+    }
+    /** Bound read pressure and let closing the panel stop scheduling further work. */
+    async function refreshOverview(sessions, rootId, ids, cancelled = () => false) {
+      const queue = [...new Set([rootId, ...ids].filter(Boolean))]
+      const failures = []
+      async function worker() {
+        while (queue.length && !cancelled()) {
+          const id = queue.shift()
+          try { await sessions.refreshProjections(id) }
+          catch (error) { failures.push({ id, message: String(error?.message ?? error) }) }
+        }
+      }
+      await Promise.all([worker(), worker(), worker(), worker()])
+      return failures
+    }
+    function OverviewMember({ row, currentId, openChild, t }) {
+      const route = value => `${value.provider} / ${value.model}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
+      return h('li', { className: 'sah-overview-card' },
+        h('div', { className: 'sah-overview-card-head' }, h('h3', null, row.name),
+          h('span', { className: 'sah-overview-chip' }, t(`overview.${row.kind}`)),
+          h('span', { className: 'sah-overview-chip', 'data-state': row.status }, t(`overview.${row.status}`)),
+          h('button', { type: 'button', disabled: !row.address || row.id === currentId,
+            title: !row.address ? t('overview.noNavigation') : undefined,
+            onClick: () => openChild(row.address) }, t(row.id === currentId ? 'overview.current' : 'overview.open'))),
+        h('p', null, row.model.kind === 'recorded' ? `${t('overview.model')}: ${route(row.model.last)}`
+          : t(row.model.kind === 'waiting' ? 'overview.noRequest' : 'overview.noModel')),
+        h('div', { className: 'sah-overview-meta sah-overview-muted' },
+          h('span', null, `${t('overview.duration')}: ${overviewTime(row.duration)}`),
+          h('span', null, `${t('overview.tokens')}: ${row.tokens?.toLocaleString() ?? '—'}`)),
+        row.error || row.readError ? h('p', { className: 'sah-overview-error' }, row.error || row.readError) : null,
+        h('details', null, h('summary', null, t('overview.details')),
+          h('dl', null, h('dt', null, 'Session ID'), h('dd', null, h('code', null, row.id)),
+            h('dt', null, t('overview.kind')), h('dd', null, row.mode),
+            Number.isFinite(row.createdAt) ? h(React.Fragment, null, h('dt', null, t('overview.created')), h('dd', null, new Date(row.createdAt).toLocaleString())) : null,
+            row.model.next ? h(React.Fragment, null, h('dt', null, t('overview.next')), h('dd', null, route(row.model.next))) : null),
+          row.readState === 'migration-required' ? h('p', null, t('overview.migration')) : null))
+    }
+    function OverviewTasks({ tasks, teamAvailable, t }) {
+      if (!teamAvailable) return h('p', { role: 'status' }, t('overview.noTeam'))
+      if (!tasks.length) return h('p', null, t('overview.noTasks'))
+      return h('ul', { className: 'sah-overview-list' }, ...tasks.map(task => h('li', { key: task.id, className: 'sah-overview-card' },
+        h('div', { className: 'sah-overview-card-head' }, h('h3', null, task.subject),
+          h('span', { className: 'sah-overview-chip' }, t(`overview.${task.status}`)),
+          task.status === 'pending' ? h('span', { className: 'sah-overview-chip' }, t(task.ready ? 'overview.ready' : 'overview.blocked')) : null),
+        h('p', { className: 'sah-overview-muted' }, `${task.id} · ${t('overview.owner')}: ${task.ownerName ?? t('overview.unowned')}`),
+        h('details', null, h('summary', null, t('overview.details')),
+          h('p', { className: 'sah-overview-task-description' }, task.description),
+          h('dl', null, h('dt', null, t('overview.dependencies')), h('dd', null, task.blockedBy?.join(', ') || '—'),
+            h('dt', null, t('overview.scopes')), h('dd', null, task.writeScopes?.join('\n') || '—'))),
+        ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
+    }
+    function OverviewContent({ data, currentId, openChild, t, errors = [] }) {
+      const [tab, setTab] = React.useState('members')
+      const [filters, setFilters] = React.useState({ search: '', kind: 'all', status: 'all', sort: 'priority' })
+      const rows = overviewFilter(data.rows, filters)
+      const issues = [...data.issues, ...errors]
+      const select = (key, values) => h('label', null, t(`overview.${key === 'status' ? 'state' : key}`),
+        h('select', { value: filters[key], onChange: event => setFilters(old => ({ ...old, [key]: event.target.value })) },
+          ...values.map(value => h('option', { key: value, value }, t(`overview.${value}`)))))
+      return h('div', { className: 'sah-overview-body' },
+        h('div', { className: 'sah-overview-stats' }, ...[
+          ['members', data.rows.length], ['running', data.running], ['tasks', data.tasks.length],
+          ['tokens', data.tokenKnown ? data.tokens.toLocaleString() : '—'],
+        ].map(([label, count]) => h('div', { key: label, className: 'sah-overview-stat' }, h('span', { className: 'sah-overview-muted' }, t(`overview.${label}`)), h('strong', null, count)))),
+        issues.length ? h('div', { className: 'sah-overview-notice sah-overview-error', role: 'status' }, t('overview.stale')) : null,
+        h('div', { className: 'sah-overview-tabs', role: 'group', 'aria-label': t('overview.title') },
+          ...['members', 'tasks', 'diagnostics'].map(value => h('button', { type: 'button', key: value, 'aria-pressed': tab === value, onClick: () => setTab(value) },
+            t(`overview.${value}`), value === 'diagnostics' && issues.length ? ` (${issues.length})` : ''))),
+        tab === 'members' ? h(React.Fragment, null,
+          h('div', { className: 'sah-overview-toolbar' },
+            h('label', { className: 'sah-overview-search' }, t('overview.search'), h('input', { type: 'search', value: filters.search, onChange: event => setFilters(old => ({ ...old, search: event.target.value })) })),
+            select('kind', ['all', 'team', 'independent']),
+            select('status', ['all', 'running', 'provisioning', 'inactive', 'completed', 'interrupted', 'failed', 'unknown']),
+            select('sort', ['priority', 'newest', 'name', 'timeSort', 'tokenSort']),
+            h('button', { type: 'button', onClick: () => setFilters({ search: '', kind: 'all', status: 'all', sort: 'priority' }) }, t('overview.reset'))),
+          !data.catalogAvailable ? h('p', { role: 'status' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
+          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t })))
+            : data.rows.length || data.catalogAvailable ? h('p', { role: 'status' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null,
+          h('p', { className: 'sah-overview-muted' }, t('overview.inactiveNote')))
+          : tab === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
+            : h('section', null, h('h3', null, t('overview.diagnostics')),
+              issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', null, t('overview.healthy')),
+              h('h3', null, t('overview.rejections')),
+              !data.dispatch ? h('p', null, t('overview.noHistory')) : data.dispatch.records.length
+                ? h(React.Fragment, null,
+                  h('p', null, t('overview.historyCount', { shown: data.dispatch.records.length, total: data.dispatch.total })),
+                  h('ul', { className: 'sah-overview-list' }, ...[...data.dispatch.records].reverse().map(record => h('li', { key: record.seq, className: 'sah-overview-card' },
+                    h('h3', null, record.tool), h('p', { className: 'sah-overview-muted' }, `${new Date(record.time).toLocaleString()} · #${record.seq}`),
+                    h('p', null, record.reason), h('code', null, record.callId)))))
+                : h('p', null, t('overview.noRejections')),
+              h('p', null, t('overview.coverage'))),
+        h('div', { className: 'sah-overview-muted' },
+          h('p', null, t('overview.tokenNote', { known: data.tokenKnown, total: data.rows.length })), h('p', null, t('overview.durationNote'))))
+    }
+    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, t }) {
+      const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
+      const state = useSessions(value => value)
+      const statuses = useSessionStatus(value => value)
+      const [open, setOpen] = React.useState(false)
+      const [now, setNow] = React.useState(Date.now)
+      const [busy, setBusy] = React.useState(false)
+      const [errors, setErrors] = React.useState([])
+      const dialog = React.useRef(null)
+      const trigger = React.useRef(null)
+      const generation = React.useRef(0)
+      const data = overviewData(rootId, state, statuses, now)
+      const titleId = React.useId()
+      const close = () => { dialog.current?.close(); setOpen(false); trigger.current?.focus() }
+      const refresh = React.useCallback(async () => {
+        const run = ++generation.current
+        const cancelled = () => generation.current !== run
+        setBusy(true)
+        setErrors([])
+        // Read the parent first so newly discovered members are included in this refresh.
+        const failures = await refreshOverview(sessions, rootId, [], cancelled)
+        const refreshed = overviewData(rootId, sessions.list.getSnapshot(), new Map())
+        if (!cancelled()) failures.push(...await refreshOverview(sessions, undefined, refreshed.rows.map(row => row.id), cancelled))
+        if (!cancelled()) { setErrors(failures); setBusy(false) }
+      }, [sessions, rootId])
+      React.useEffect(() => {
+        if (!open) return
+        dialog.current?.showModal()
+        setNow(Date.now())
+        dialog.current?.querySelector('[data-overview-close]')?.focus()
+        refresh()
+        return () => { generation.current++; dialog.current?.close() }
+      }, [open, refresh])
+      React.useEffect(() => { setOpen(false); setErrors([]); setBusy(false) }, [sessionId])
+      React.useEffect(() => {
+        if (!open || !data.running) return
+        const timer = setInterval(() => setNow(Date.now()), 1000)
+        return () => clearInterval(timer)
+      }, [open, data.running])
+      const openChild = async address => {
+        try { await openSession(address); close() }
+        catch (error) { setErrors(old => [...old, { id: address.childSessionId, message: String(error?.message ?? error) }]) }
+      }
+      return h(React.Fragment, null, h('style', null, OVERVIEW_CSS),
+        h('button', { type: 'button', ref: trigger, className: 'sah-overview-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': open,
+          'aria-label': t('overview.triggerHint', { running: data.running, total: data.rows.length }),
+          title: t('overview.triggerHint', { running: data.running, total: data.rows.length }), onClick: () => setOpen(true) },
+          h('span', { className: 'sah-overview-trigger-icon', 'aria-hidden': true }, glyph('IconBrowseOutlineRegular',
+            h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
+              h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }),
+              h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 })))),
+          h('span', { className: 'sah-overview-trigger-label' }, t('overview.title')),
+          data.rows.length ? h('span', { className: 'sah-overview-trigger-count', 'aria-hidden': true }, `${data.running}/${data.rows.length}`) : null),
+        h('dialog', { ref: dialog, className: 'sah-overview', 'aria-labelledby': titleId, onCancel: event => { event.preventDefault(); close() }, onClose: () => { if (!dialog.current?.open) setOpen(false) } },
+          h('div', { className: 'sah-overview-head' }, h('h2', { id: titleId }, t('overview.title')),
+            h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh')),
+            h('button', { type: 'button', onClick: close, 'data-overview-close': '', autoFocus: true }, t('overview.close'))),
+          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors }) : null))
+    }
+    function OverviewGate({ overviewForm, ...props }) {
+      const [snapshot, setSnapshot] = React.useState(() => overviewForm?.getSnapshot())
+      React.useEffect(() => {
+        const update = () => setSnapshot(overviewForm?.getSnapshot())
+        const dispose = overviewForm?.subscribe(update)
+        update()
+        return dispose
+      }, [overviewForm])
+      return snapshot?.status === 'ready' && snapshot.value?.showAgentOverview === true
+        ? h(AgentOverview, props) : null
+    }
+    function registerOverview(ctx, t) {
+      ctx.inject(['sessions', 'uiWorkspace'], scope => scope.slots.inject(OVERVIEW_SLOT, () => scope.slots.register({
+        name: OVERVIEW_SLOT, id: 'subagent-hub-overview', order: -15, locale: NS,
+        inject: () => ({ sessions: scope.sessions, openSession: address => scope.uiWorkspace.openSession(address), overviewForm: ctx.configForms.get(ENTRY_ID) }),
+      }, props => h(OverviewGate, { ...props, t: props.t ?? t }))))
+    }
+
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'subagent-hub: dictionaries')
       const t = ctx.locale.bind(NS)
       registerModelBadge(ctx, t)
+      registerOverview(ctx, t)
       // The same form is reachable from the Plugins page row and from a top-level
       // Settings section, which is where people expect plugin configuration.
       ctx.effect(() => ctx.configForms.whileServed([ENTRY_ID], () => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
@@ -1750,6 +2147,9 @@ window.__ModuleLoader__.load({
       inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session', 'remote.agentPresets'],
       apply,
       // Pure helpers, exported for tests only.
+      AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
+      overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
+      overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,
       modelBadgeShares,

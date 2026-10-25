@@ -1,7 +1,8 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.10.3",
+  "version": "0.11.0",
   "description": "Named roles, model route guards, native configuration, and request-model visibility for official DeepSeek Harness subagents.",
+  "icon": "./icon.svg",
   "license": "MIT",
   "type": "module",
   "repository": {
@@ -16,6 +17,7 @@
     "./locale/*.json": "./locale/*.json"
   },
   "files": [
+    "icon.svg",
     "lib",
     "locale/*.json",
     "cordis.patch.yml",
@@ -46,7 +48,8 @@
     "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.3"
   },
   "dependencies": {
-    "js-yaml": "^4.1.0"
+    "js-yaml": "^4.1.0",
+    "zod": "^4.0.0"
   },
   "homepage": "https://github.com/ccsert/dsh-subagent-hub#readme",
   "bugs": {

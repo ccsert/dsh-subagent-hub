@@ -22,6 +22,12 @@
 
 [PNG 原图](assets/model-badge.png)
 
+## 子智能体总览
+
+![总览面板中的成员、运行状态、模型与 Token 证据](assets/overview.webp)
+
+[PNG 原图](assets/overview.png)
+
 ## 320px 窄屏
 
 ![320px 窄屏下展开的完整模型信息](assets/model-badge-narrow.webp)
@@ -30,6 +36,6 @@
 
 ## 复现与素材来源
 
-渲染入口是[配置 fixture](../packages/subagent-hub/test/browser/render-fixture.mjs)与[模型标识 fixture](../packages/subagent-hub/test/browser/render-model-fixture.mjs)。用 Playwright 捕获组件区域，再无损压缩为 WebP；保留 PNG 下载版本。没有重绘或拼造界面控件。
+渲染入口是[配置 fixture](../packages/subagent-hub/test/browser/render-fixture.mjs)、[模型标识 fixture](../packages/subagent-hub/test/browser/render-model-fixture.mjs)与[总览 fixture](../packages/subagent-hub/test/browser/render-overview-fixture.mjs)。用 Playwright 捕获组件区域，再无损压缩为 WebP；保留 PNG 下载版本。没有重绘或拼造界面控件。
 
 Hero 使用 dsh-image-gen 0.9.2 的 Studio，通过已配置的 ChatGPT 订阅通道生成。它是项目插画。提示词、尺寸与生成记录见[素材说明](assets/README.md)。

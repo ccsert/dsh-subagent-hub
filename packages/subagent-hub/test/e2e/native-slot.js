@@ -90,4 +90,24 @@ assert.match(html, /modelBadge.recorded/)
 const dispose = register.call(registry, { name: slot, id: 'unrelated' }, () => null)
 dispose()
 assert.equal(record.entries.length, 1, 'the model badge survives unrelated cleanup')
-console.log(`Native slot regression passed against ${renderer.kind}: valid list registration and rendered MiniMax model.`)
+const overviewSlot = 'conversation.session.header.actions'
+const overviewRecord = { spec: { kind: 'list', scope: 'session' }, entries: [] }
+registry.records.set(overviewSlot, overviewRecord)
+const overviewScope = {
+  sessions: {}, uiWorkspace: { openSession() {} },
+  slots: { inject(name, callback) { assert.equal(name, overviewSlot); return callback() },
+    register: (options, component) => register.call(registry, options, component) },
+}
+client.registerOverview({ configForms: { get: () => face({ status: 'ready', value: { showAgentOverview: true } }) },
+  inject(_names, callback) { return callback(overviewScope) } }, t)
+assert.equal(overviewRecord.entries.length, 1)
+const overviewContribution = overviewRecord.entries[0]
+assert.equal(overviewContribution.options.id, 'subagent-hub-overview')
+const overviewHTML = renderToStaticMarkup(overviewContribution.component({
+  ...overviewContribution.inject('lead'), sessionId: 'lead',
+  useSession: selector => selector({}), useSessions: selector => selector({ byId: {}, projectionsBySession: {} }),
+  useSessionStatus: selector => selector(new Map()),
+}))
+assert.match(overviewHTML, /sah-overview-trigger/)
+assert.match(overviewHTML, /aria-haspopup="dialog"/)
+console.log(`Native slot regression passed against ${renderer.kind}: model badge and agent overview.`)

@@ -27,14 +27,13 @@ const t = (key, params) => params === undefined ? key : `${key}${JSON.stringify(
 
 const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
-/** The keys of one dictionary block of the page, parsed out of the source. */
-const dictionaryKeys = (from, to) => new Set(
-  [...source.slice(source.indexOf(from), source.indexOf(to)).matchAll(/'([^']+)':/g)].map(match => match[1]),
-)
-const zhKeys = dictionaryKeys('const zh = {', 'const en = {')
-const enKeys = dictionaryKeys('const en = {', '// ── pure helpers')
+/** Inspect the actual dictionaries rather than assuming one source block. */
+const dictionaries = loadClient().overviewLocales
+const zhKeys = new Set(Object.keys(dictionaries.zh))
+const enKeys = new Set(Object.keys(dictionaries.en))
 
 const saved = () => ({
+  showAgentOverview: false,
   manageOfficialSettings: true,
   maxConcurrent: 4,
   routes: [
@@ -66,9 +65,37 @@ test('save performs one atomic write of every field', () => {
   assert.deepEqual(plain(saveOps({ manageOfficialSettings: false, maxConcurrent: 4, routes: [], agents: [] })), [
     { op: 'set', path: ['routes'], value: [] },
     { op: 'set', path: ['agents'], value: [] },
+    { op: 'set', path: ['showAgentOverview'], value: false },
     { op: 'set', path: ['manageOfficialSettings'], value: false },
     { op: 'set', path: ['maxConcurrent'], value: 4 },
   ])
+})
+
+test('a Host on the older schema is never sent the unknown overview field', () => {
+  const { saveOps, ConfigPage } = loadClient()
+  const values = { showAgentOverview: false, manageOfficialSettings: false, maxConcurrent: 4, routes: [], agents: [] }
+  const paths = ops => plain(ops).map(op => op.path[0])
+  assert.ok(paths(saveOps(values, true)).includes('showAgentOverview'))
+  assert.ok(!paths(saveOps(values, false)).includes('showAgentOverview'), 'one unknown path refuses the whole atomic write')
+  const { showAgentOverview: _, ...old } = saved()
+  const page = value => renderToStaticMarkup(React.createElement(ConfigPage, {
+    view: 'page', form: { state: { status: 'ready', writable: true, revision: 7, value }, mutate: async () => true }, t, ctx: { remote: undefined },
+  }))
+  assert.match(page(old), /overview\.restartHint/, 'an old Host explains the restart instead of failing the save')
+  assert.doesNotMatch(page(saved()), /overview\.restartHint/)
+})
+
+test('overview is opt-in and a hidden gate never mounts session readers', () => {
+  const { draftsOf, valuesOf, OverviewGate } = loadClient()
+  assert.equal(valuesOf(draftsOf({})).showAgentOverview, false)
+  assert.equal(valuesOf(draftsOf({ showAgentOverview: true })).showAgentOverview, true)
+  const forbidden = () => { throw new Error('disabled overview read sessions') }
+  for (const snapshot of [undefined, { status: 'loading' }, { status: 'unavailable' }, { status: 'ready', value: {} },
+    { status: 'ready', value: { showAgentOverview: false } }]) {
+    assert.equal(renderToStaticMarkup(React.createElement(OverviewGate, {
+      overviewForm: { getSnapshot: () => snapshot }, useSession: forbidden, useSessions: forbidden,
+    })), '')
+  }
 })
 
 test('the concurrency limit must be a non-negative whole number', () => {
@@ -487,8 +514,8 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   apply(ctx)
   assert.deepEqual(plain(calls.locale), ['subagentHub', ['en', 'zh']])
   assert.deepEqual(plain(calls.served), ['subagent-hub'])
-  assert.deepEqual(plain(calls.services), ['sessions'])
-  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['conversation.session.header.utilities', 'plugins.row.config', 'settings.section'])
+  assert.deepEqual(plain(calls.services), ['sessions', 'uiWorkspace'])
+  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['conversation.session.header.actions', 'conversation.session.header.utilities', 'plugins.row.config', 'settings.section'])
   const row = calls.slots.find(slot => slot.options.name === 'plugins.row.config')
   assert.deepEqual(plain(row.options), { name: 'plugins.row.config', key: 'dsh-subagent-hub#subagent-hub', locale: 'subagentHub' })
   const section = calls.slots.find(slot => slot.options.name === 'settings.section')

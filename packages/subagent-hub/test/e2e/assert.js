@@ -14,6 +14,11 @@ const check = (name, fn) => {
 }
 const { checks } = report
 
+check('Hub rejection history replays actual guard results through native projections', () => {
+  assert.equal(report.dispatchHistory.total, 1)
+  assert.equal(report.dispatchHistory.records[0].tool, 'subagent')
+  assert.equal(report.dispatchHistory.records[0].reason, checks.outOfRoute.message)
+})
 check('no fatal error', () => assert.equal(report.fatal, undefined))
 check('named agents registered as stable official presets', () => {
   assert.deepEqual(report.hub.registered, ['hub-agent-reviewer'])

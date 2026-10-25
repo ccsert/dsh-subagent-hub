@@ -31,17 +31,17 @@ npm pack ./packages/subagent-hub --ignore-scripts --pack-destination output/rele
 
 Inspect the resulting file list and checksum before uploading. The archive should contain runtime code, locale files, the bundle patch, package metadata, a package README, and MIT license. It should not contain tests, generated fixture HTML, profile data, documentation screenshots, or node_modules.
 
-For version 0.10.3:
+For version 0.11.0:
 
 ```bash
-tar -tzf output/releases/dsh-subagent-hub-0.10.3.tgz
-shasum -a 256 output/releases/dsh-subagent-hub-0.10.3.tgz
+tar -tzf output/releases/dsh-subagent-hub-0.11.0.tgz
+shasum -a 256 output/releases/dsh-subagent-hub-0.11.0.tgz
 ```
 
 Write a standard checksum file containing the hash and archive basename so downloaders can verify it in the same directory:
 
 ```bash
-shasum -a 256 -c dsh-subagent-hub-0.10.3.tgz.sha256
+shasum -a 256 -c dsh-subagent-hub-0.11.0.tgz.sha256
 ```
 
 ## Publish on GitHub
@@ -51,12 +51,12 @@ Commit the reviewed changes, push the branch, and wait for CI. Tag that exact co
 Example for this release:
 
 ```bash
-gh release create v0.10.3 \
-  output/releases/dsh-subagent-hub-0.10.3.tgz \
-  output/releases/dsh-subagent-hub-0.10.3.tgz.sha256 \
+gh release create v0.11.0 \
+  output/releases/dsh-subagent-hub-0.11.0.tgz \
+  output/releases/dsh-subagent-hub-0.11.0.tgz.sha256 \
   docs/assets/hero.png \
   --verify-tag \
-  --title "Subagent Hub v0.10.3" \
+  --title "Subagent Hub v0.11.0" \
   --notes-file output/releases/release-notes.md
 ```
 
@@ -68,7 +68,7 @@ Before npm publication, verify the owner account, an unused version, authenticat
 
 ```bash
 npm whoami
-npm publish output/releases/dsh-subagent-hub-0.10.3.tgz --access public
+npm publish output/releases/dsh-subagent-hub-0.11.0.tgz --access public
 ```
 
 After a successful registry publication, verify `npm view dsh-subagent-hub version dist.integrity` and update the documented installation channel. Never commit npm tokens or put them in release notes.

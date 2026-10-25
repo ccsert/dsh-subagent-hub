@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto'
 import vm from 'node:vm'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import { runTeamChecks } from './team.js'
 
 export const name = 'hub-e2e-driver'
@@ -189,7 +190,17 @@ export function apply(ctx, config) {
           agent,
           signal: new AbortController().signal,
         })
-        if (result.isError) return { isError: true, message: result.error?.message ?? textOf({ content: result.content }) }
+        if (result.isError) {
+          // Direct tools.execute does not append loop events. Persist the actual result
+          // using the same envelope as the native agent loop, then query the registry.
+          const callId = `history-${randomUUID()}`
+          const callEvent = agent.session.append('tool/call', { turn: 0, step: 0, callId, name: 'subagent', arguments: '{}' })
+          agent.session.append('tool/result', { turn: 0, step: 0,
+            message: createToolResultMessage({ callId, content: result.content, isError: true }),
+            ...(result.error?.info ? { error: result.error.info } : {}),
+          }, { surfaceOp: 'append', sourceEventSeqs: [callEvent.seq] })
+          return { isError: true, message: result.error?.message ?? textOf({ content: result.content }) }
+        }
         const id = result.value.subagentId
         await waitFor(() => children.get(id))
         const request = await waitFor(() => requests.get(id))
@@ -218,6 +229,7 @@ export function apply(ctx, config) {
 
       // Route guard: `pro` is a legal official model but outside reviewer's declared routes.
       report.checks.outOfRoute = await call({ agent_preset: 'hub-agent-reviewer', provider: 'deepseek-official', model: 'deepseek-v4-pro' })
+      report.dispatchHistory = ctx.sessionProjections.snapshot(root.session, ['subagentHubDispatch']).values.subagentHubDispatch
       // Named agent with an explicit allowed route: the preset and its persona must win.
       report.checks.namedAllowed = await call({ agent_preset: 'hub-agent-reviewer', provider: 'deepseek-official', model: 'deepseek-flash' })
       // Named agent that omits the route inherits the parent route (flash), which is allowed.

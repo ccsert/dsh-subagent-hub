@@ -11,6 +11,7 @@
 // `routes`, `agents`, and `manageOfficialSettings` are volatile: the Plugins page form edits them
 // live. After such an edit the service re-registers affected presets and re-syncs the official
 // allowlists (see `loader/volatile-update` below).
+import { dispatchProjection } from './dispatch-history.js'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { Service } from '@deepseek-ai/cordis'
@@ -60,6 +61,8 @@ export default class SubagentHub extends Service {
         + 'Enforced before a delegation starts, so the main agent is told to wait instead of piling up children.'),
     delegationTools: z.array(z.string()).default(['subagent', 'subagent_fork']).volatile()
       .description('Tool names that start a child agent. The official delegation tools are named `subagent` and `subagent_fork`.'),
+    showAgentOverview: z.boolean().default(false).volatile()
+      .description('Show the optional Hub agent overview in the session header. The official Agent Team UI remains available.'),
     manageOfficialSettings: z.boolean().default(false).volatile()
       .description('When true, write `allowedAgentPresets` onto the official delegation tool rows and '
         + 'mirror `routes` into the Host `subagent-model-selection` setting through configEditor. '
@@ -116,6 +119,9 @@ export default class SubagentHub extends Service {
       name: PACKAGE,
       order: this.ctx.systemPrompt.getSectionOrder('TOOL_SUBAGENT') + 10,
       text: context => this.sectionText(context.scope),
+    }))
+    this.disposers.push(this.ctx.inject(['sessionProjections'], scope => {
+      scope.sessionProjections.register(dispatchProjection)
     }))
     this.disposers.push(this.ctx.on('tools/pre-execute', (exec, next) => this.preExecute(exec, next)))
     // The Plugins page form writes volatile fields; the Loader commits them in place and announces

@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.10.3（修正 Desktop 模型标识 list 注册；保留统一创建路由检查），单元测试 102 项 + 真实运行时 e2e 31 项；另有浏览器交互验收。
+> 状态：0.11.0（可选子智能体总览、持久拒绝历史、官方风格标题栏控件与插件图标），单元测试 120 项 + 真实运行时 e2e 32 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -31,7 +31,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
 | D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
 | D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
-| D4 | 界面放哪 | **不建独立界面**。子 agent 目录用官方 `dsh-client-ui-subagent`，模型允许列表用官方设置页；配置只借官方 Plugins 页的 `plugins.row.config` 卡片（0.4.1 加入），不恢复 v1 的独立侧栏；0.4.2 起在官方设置导航增加入口，共用同一表单；0.10.0 在官方子会话标题栏补充只读模型标识 |
+| D4 | 界面放哪 | 沿用官方派发、会话与设置基础设施，不恢复 v1 独立路由侧栏。Plugins 配置卡片和设置入口共用表单；0.10.0 起标题栏补只读模型标识；当前开发版按用户明确授权，在官方标题栏 actions 插槽新增只读子智能体总览，统一成员、任务、运行证据和拒绝诊断，详见 [总览契约](overview-design.md) |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
@@ -165,7 +165,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：102 项单元测试 + 31 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：120 项单元测试 + 32 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.10.3"><img src="https://img.shields.io/badge/version-0.10.3-66c8ab" alt="Version 0.10.3"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.0"><img src="https://img.shields.io/badge/version-0.11.0-66c8ab" alt="Version 0.11.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-102_unit_%2B_31_runtime-66c8ab" alt="102 unit tests and 31 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-120_unit_%2B_32_runtime-66c8ab" alt="120 unit tests and 32 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -29,6 +29,13 @@
 | **会话并发上限** | 限制一个父会话同时运行的子 agent 数量，与官方全局容量同时生效 |
 | **原生配置表单** | 在 **设置 → 子代理中枢** 编辑模型、角色、标签与托管开关 |
 | **请求模型可见** | 子会话标题栏显示最近请求的供应商与模型，展开读取完整 id 与推理强度 |
+| **子智能体总览**（可选） | 标题栏入口汇总独立子任务与 Team 成员、共享任务和派发拒绝诊断，默认关闭 |
+
+## 子智能体总览
+
+0.11.0 起提供可选的 **子智能体总览**，默认关闭。在「设置 → 子代理中枢 → 基础设置」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。总览汇总独立子任务和 Team 成员，支持搜索、筛选、排序、打开原生子会话，以及查看共享任务、依赖和写入范围警告。最近请求模型、累计执行耗时和 Token 均读取原生投影；Team 空闲不表示任务完成，缺失用量不当作零。
+
+诊断页从持久化工具结果重建最近 64 条 Hub 守卫拒绝，显示已记录总数；不包含其他工具错误。面板打开或点击刷新时只读刷新投影，并发最多 4 个，不启动子会话或模型请求。实现与验证范围见[总览契约](docs/overview-design.md)。
 
 ## 看看界面
 
@@ -40,17 +47,21 @@
 
 ![子会话标题栏的供应商、完整模型 id 与推理强度](docs/assets/model-badge.webp)
 
+**子智能体总览**
+
+![总览面板中的成员、运行状态、模型与 Token 证据](docs/assets/overview.webp)
+
 截图使用实际插件组件和演示数据，不包含用户 profile、真实会话或密钥。完整图、移动宽度预览与来源见[截图说明](docs/screenshots.md)。Hero 由 [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen) 生成。
 
 ## 快速开始
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.10.3.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.0.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.10.3.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.0.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -107,7 +118,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **102 项单元测试和 31 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **120 项单元测试和 32 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

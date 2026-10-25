@@ -31,7 +31,8 @@ const route={provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEf
 const sessions={}
 for(const id of ['root','child','empty','unknown']){const projection=store(id==='unknown'?undefined:id==='empty'?{lastUsed:null,next:route}:{lastUsed:route,next:route});const session=store({sessionId:id,subagent:id==='root'?null:{address:{parentSessionId:'root',childSessionId:id,mode:'one-shot'}}});session.projections={faceOf(key){if(key!=='modelSelection')throw new Error('unexpected projection');return projection}};sessions[id]={session,projection}}
 const scopes={sessions:{binding(id){return sessions[id]}},slots:{inject(name,register){if(name!=='conversation.session.header.utilities')throw new Error('unexpected slot');return register()},register(options,body){if(!options.id)throw new Error("list slot requires options.id");slot=options;Contribution=body}}}
-ui.apply({effect(fn){fn()},inject(names,register){register(scopes)},locale,configForms:{whileServed(){}},slots:scopes.slots})
+ui.registerModelBadge({inject(names,register){register(scopes)}},t)
+dictionaries=ui.overviewLocales
 const c=${JSON.stringify(classes)}
 const root=ReactDOM.createRoot(document.getElementById('root'))
 let current='child'

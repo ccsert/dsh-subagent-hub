@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.11.0（可选子智能体总览、持久拒绝历史、官方风格标题栏控件与插件图标），单元测试 120 项 + 真实运行时 e2e 32 项；另有浏览器交互验收。
+> 状态：0.11.0（可选子智能体总览、持久拒绝历史、官方风格标题栏控件与插件图标），单元测试 139 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -67,13 +67,34 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 ### 4.4 路由约束守卫
 
-`tools/pre-execute` 在工具执行前分两层检查：
+`tools/pre-execute` 在工具执行前检查，并明确区分两层白名单：
+
+| 层 | 来源 | 读取时机 |
+|---|---|---|
+| 1/2 | 插件配置 `routes` | 每次调用实时读取，配置改动立即生效 |
+| 2/2 | 官方 `subagent-model-selection` 写入 Session 的快照（投影 `subagentModelSelectionPolicy`） | Session 创建时记录一次，此后不再刷新 |
+
+顺序与含义：
 
 1. 非空全局 `routes` 对 `subagent`、`subagent_fork`、`spawn_teammate` 生效。
-2. 从当前 Session 的实际工具 schema 判断 `provider` / `model` 是否有效；没有这些输入时按父路由继承检查，忽略额外塞入的模型字段。
-3. 显式选择或继承模型不在全局表内、无法确认模型或配置非空但没有有效路由时，返回 `{ kind: 'deny', reason }`，不启动子会话。
-4. 具名 `agent_preset` 的 `agents[].routes` 在全局范围上继续收紧；半指定的受支持参数交给原生工具报告配对错误。
-5. 错误说明只推荐该工具实际支持的输入。Team 当前没有模型和预设选择参数；fresh/fork 都继承 Lead，独立 fork 同样没有模型输入。
+2. Session 快照优先：模型已确定但不在该 Session 记录的列表内时，即使实时配置已允许也拒绝，因为原生层随后同样会拒绝且不给可用列表。
+3. 从当前 Session 的实际工具 schema 判断 `provider` / `model` 是否有效；没有这些输入时按父路由继承检查，忽略额外塞入的模型字段。
+4. 显式选择或继承模型不在全局表内、无法确认模型或配置非空但没有有效路由时，返回 `{ kind: 'deny', reason }`，不启动子会话。
+5. 具名 `agent_preset` 的 `agents[].routes` 在全局范围上继续收紧；半指定的受支持参数交给原生工具报告配对错误。
+6. 每条拒绝都写明是哪一层拒绝的、该层实际允许哪些路由；两层不一致时再说明差异来自“需要新会话”。错误说明只推荐该工具实际支持的输入。
+
+第 2 层无法被插件刷新：原生实现把列表作为一次性事件 `subagent/model-selection-policy` 写入 Session，投影只接受第一个值。原生解析顺序是“自身记录 → 父会话记录 → 实时设置（仅当 `firstLiveSeq === 0`，即全新会话）”，`recordSubagentModelSelection` 在已有记录时直接返回。因此：
+
+- 已打开的会话：沿用创建时记录的列表，改配置不生效。
+- 在旧会话下新开的子会话：先取**父会话的记录**，同样不生效。
+- 只有**新的顶层会话**才会重新读取当前设置并记录。
+- 创建时未启用模型选择的会话没有记录，但它的工具 schema 也不含 `provider`/`model`，配置变更不会补上（见“已有会话保留原工具 schema”）。
+
+插件不尝试改写它，而是：
+
+- 运行时上下文（`systemPrompt.context`）在该 Session 使用了旧快照时，于下一次装配的 prompt 里说明快照内容、当前配置内容与“只有新的顶层会话才可用”。
+- 设置页保存涉及路由或预设的改动后，提示“路由变更从新的顶层会话起生效”。
+- 具名预设声明的路由不在新会话将会采用的白名单内时，在**预设注册期**（`validatePresetRoutes`）写 warn 日志，并在设置页具名 agent 面板列出“哪条路由、白名单里有哪些”。托管开启时白名单由插件自己写入，因此不会不一致；托管关闭时读取用户自己的官方设置，读不到则不判断。
 
 原生新会话中，托管已启用的 `subagent` 暴露模型参数，可选择 MiniMax；当前 `subagent_fork` 与 `spawn_teammate` 不具备该能力。Team-only 会话也收到目录与这项限制。实际请求、零被拒绝成员记录与框架无关 Host 入口回归见 [Team 模型路由](team-model-routing.md)。
 
@@ -145,7 +166,8 @@ packages/subagent-hub
 ├─ lib/definitions.js       具名 agent 定义校验
 ├─ lib/presets.js           从基础预设派生具名 agent 预设（递归去委派行 + persona 追加）
 ├─ lib/router.js            路由索引、标签、allowedModels 映射
-├─ lib/guard.js             路由约束判定（纯函数）
+├─ lib/guard.js             路由约束判定（纯函数），拒绝时标明层与允许列表
+├─ lib/policy.js            两层白名单比较：会话快照、配置、预设越界诊断
 ├─ lib/prompt.js            system prompt 目录段落（纯函数）
 ├─ lib/official-settings.js manageOfficialSettings 的计划与配置改写（纯函数）
 ├─ locale/                  Plugins 卡片标题/说明
@@ -165,7 +187,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：120 项单元测试 + 32 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：139 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

@@ -31,17 +31,17 @@ npm pack ./packages/subagent-hub --ignore-scripts --pack-destination output/rele
 
 Inspect the resulting file list and checksum before uploading. The archive should contain runtime code, locale files, the bundle patch, package metadata, a package README, and MIT license. It should not contain tests, generated fixture HTML, profile data, documentation screenshots, or node_modules.
 
-For version 0.11.0:
+For version 0.11.1:
 
 ```bash
-tar -tzf output/releases/dsh-subagent-hub-0.11.0.tgz
-shasum -a 256 output/releases/dsh-subagent-hub-0.11.0.tgz
+tar -tzf output/releases/dsh-subagent-hub-0.11.1.tgz
+shasum -a 256 output/releases/dsh-subagent-hub-0.11.1.tgz
 ```
 
 Write a standard checksum file containing the hash and archive basename so downloaders can verify it in the same directory:
 
 ```bash
-shasum -a 256 -c dsh-subagent-hub-0.11.0.tgz.sha256
+shasum -a 256 -c dsh-subagent-hub-0.11.1.tgz.sha256
 ```
 
 ## Publish on GitHub
@@ -51,12 +51,12 @@ Commit the reviewed changes, push the branch, and wait for CI. Tag that exact co
 Example for this release:
 
 ```bash
-gh release create v0.11.0 \
-  output/releases/dsh-subagent-hub-0.11.0.tgz \
-  output/releases/dsh-subagent-hub-0.11.0.tgz.sha256 \
+gh release create v0.11.1 \
+  output/releases/dsh-subagent-hub-0.11.1.tgz \
+  output/releases/dsh-subagent-hub-0.11.1.tgz.sha256 \
   docs/assets/hero.png \
   --verify-tag \
-  --title "Subagent Hub v0.11.0" \
+  --title "Subagent Hub v0.11.1" \
   --notes-file output/releases/release-notes.md
 ```
 
@@ -70,7 +70,7 @@ The account uses `auth-and-writes` two-factor authentication, so npm requires **
 
 ```bash
 npm whoami
-npx --yes npm@12.2.1 stage publish output/releases/dsh-subagent-hub-0.11.0.tgz
+npx --yes npm@12.2.1 stage publish output/releases/dsh-subagent-hub-0.11.1.tgz
 npx --yes npm@12.2.1 stage list          # copy the stage id
 npx --yes npm@12.2.1 stage approve <stage-id>
 ```

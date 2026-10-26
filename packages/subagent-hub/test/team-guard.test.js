@@ -5,6 +5,8 @@ import vm from 'node:vm'
 import { buildCatalog } from '../lib/catalog.js'
 import { promptSection } from '../lib/prompt.js'
 import * as guards from '../lib/guard.js'
+import * as policy from '../lib/policy.js'
+import * as official from '../lib/official-settings.js'
 
 // Run the actual Host methods while stubbing only the framework imports. This keeps
 // the regression runnable in CI without an installed DSH; the runtime suite also
@@ -15,7 +17,7 @@ const source = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
   .replace(/^import .*$/gm, '')
   .replace('export default class SubagentHub', 'class SubagentHub')
   .replace(/^export \{.*\}$/gm, '')
-const sandbox = { Service, z: schema, buildCatalog, promptSection, ...guards, setTimeout, clearTimeout }
+const sandbox = { Service, z: schema, buildCatalog, promptSection, ...guards, ...policy, ...official, setTimeout, clearTimeout }
 vm.runInNewContext(source + '\nglobalThis.Host = SubagentHub', sandbox)
 const SubagentHub = sandbox.Host
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { GUARD_PREFIX, concurrencyVerdict, effectiveRoute, guardVerdict } from '../lib/guard.js'
+import { GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, effectiveRoute, guardVerdict } from '../lib/guard.js'
 import { buildCatalog } from '../lib/catalog.js'
 
 const catalog = buildCatalog({
@@ -83,4 +83,59 @@ test('effective route prefers explicit arguments, then the parent request header
   assert.deepEqual(effectiveRoute({}, parent('p', 'pro')), { provider: 'p', model: 'pro', source: 'inherited parent' })
   assert.equal(effectiveRoute({ provider: 'p' }, parent('p', 'pro')), undefined)
   assert.equal(effectiveRoute({}, undefined), undefined)
+})
+
+// ── two layers ───────────────────────────────────────────────────────────────────────────────
+// The live configuration is read on every call, but the official runtime captured an allowlist
+// into each Session at start. A refusal must name the layer that refused and list its routes.
+
+const selecting = { properties: { provider: {}, model: {} } }
+const session = (allowed) => creationRouteVerdict({
+  toolName: 'subagent', arguments: { provider: 'p', model: 'flash' }, parent: parent('p', 'flash'),
+  catalog, parameters: selecting, sessionPolicy: allowed,
+})
+
+test('a Session snapshot that lacks a newly configured route is refused by the session layer', () => {
+  const reason = session([{ provider: 'q', model: 'pro' }])
+  assert.ok(reason.startsWith(GUARD_PREFIX), reason)
+  assert.match(reason, /refused by the Session model allowlist \(layer 2\/2\), captured when this Session started/)
+  assert.match(reason, /q\/pro/, 'the layer lists the routes it actually allows')
+  assert.match(reason, /The call subagent would use p\/flash/)
+  assert.match(reason, /Hub route configuration \(layer 1\/2\) allows this route/)
+  assert.match(reason, /new top-level Session/)
+  assert.doesNotMatch(reason, /outside the configured child routes/)
+})
+
+test('a snapshot missing several configured routes names what only a new Session can use', () => {
+  const reason = session([{ provider: 'q', model: 'pro' }])
+  assert.match(reason, /additionally allows p\/flash, p\/pro, which only a new Session can use/)
+})
+
+test('a route the Session still captures but the configuration dropped is refused by the config layer', () => {
+  const reason = creationRouteVerdict({
+    toolName: 'subagent', arguments: { provider: 'z', model: 'old' }, parent: parent('z', 'old'),
+    catalog, parameters: selecting, sessionPolicy: [{ provider: 'z', model: 'old' }],
+  })
+  assert.match(reason, /refused by the Hub route configuration \(layer 1\/2\), which allows p\/flash, p\/pro/)
+  assert.match(reason, /would use z\/old/)
+  assert.ok(reason.includes('No child was started.'))
+  assert.doesNotMatch(reason, /layer 2\/2/)
+})
+
+test('an agreeing snapshot changes nothing and a missing snapshot is not an empty one', () => {
+  assert.equal(session([{ provider: 'p', model: 'flash' }]), undefined)
+  assert.equal(session([{ provider: 'p', model: 'flash' }, { provider: 'q', model: 'pro' }]), undefined)
+  assert.equal(session(undefined), undefined, 'no captured allowlist means the configuration alone decides')
+  assert.equal(session([]), undefined, 'an unreadable projection must not refuse a valid route')
+})
+
+test('an inherited route captured by the Session still passes without provider/model inputs', () => {
+  const reason = creationRouteVerdict({
+    toolName: 'subagent_fork', arguments: {}, parent: parent('p', 'pro'), catalog,
+    parameters: { properties: { prompt: {} } }, sessionPolicy: [{ provider: 'p', model: 'flash' }],
+  })
+  assert.match(reason, /Session model allowlist \(layer 2\/2\)/)
+  assert.match(reason, /The call subagent_fork would use p\/pro/, 'the inherited route is reported as the call route')
+  assert.match(reason, /allows p\/flash, p\/pro, but this Session keeps the older list/)
+  assert.match(reason, /no provider\/model selector/, 'a model-less tool keeps its own guidance')
 })

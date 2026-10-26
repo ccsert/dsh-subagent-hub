@@ -136,6 +136,10 @@ window.__ModuleLoader__.load({
       'save': '保存',
       'saving': '保存中…',
       'saved': '已保存。',
+      'saved.routes': '已保存。路由变更从新的顶层会话起生效；已打开的会话沿用创建时的模型白名单，在旧会话下新开的子会话也继承它。',
+      'agents.allowlist.title': '以下预设声明的路由不在官方会话白名单里，派发会被拒绝：',
+      'agents.allowlist.item': '{agent} → {routes}（新会话白名单只有 {allowed}）',
+      'agents.allowlist.hint': '启用「托管官方委派配置」，或把该路由加进官方子代理模型白名单；保存后需要新的顶层会话才会采用。',
       'syncing': '已保存，正在核对模型白名单和角色目录…',
       'synced': '已保存；模型白名单已同步，具名角色已注册。',
       'syncRosterReady': '已保存；具名角色目录已更新。',
@@ -268,6 +272,10 @@ window.__ModuleLoader__.load({
       'save': 'Save',
       'saving': 'Saving…',
       'saved': 'Saved.',
+      'saved.routes': 'Saved. Route changes apply to new top-level Sessions; open Sessions keep the allowlist they captured at start, and a new child under them inherits it.',
+      'agents.allowlist.title': 'These presets declare routes outside the official session allowlist, so delegating to them is refused:',
+      'agents.allowlist.item': '{agent} → {routes} (a new Session captures only {allowed})',
+      'agents.allowlist.hint': 'Enable "Manage official delegation settings", or add the route to the official subagent model allowlist; a new top-level Session is required after saving.',
       'syncing': 'Saved; checking the model allowlist and role roster…',
       'synced': 'Saved; the model allowlist is in sync and the named roles are registered.',
       'syncRosterReady': 'Saved; the named role roster is up to date.',
@@ -557,6 +565,46 @@ window.__ModuleLoader__.load({
 
       if (!Number.isInteger(drafts.maxConcurrent) || drafts.maxConcurrent < 0) {
         problems['general:maxConcurrent'] = 'problem.concurrency'
+      }
+      return problems
+    }
+
+    /** The official model-selection value, or undefined while unknown. */
+    function officialModelsOf(ctx) {
+      const snapshot = ctx?.configForms?.get?.('subagent-model-selection-settings')?.getSnapshot?.()
+      return snapshot?.status === 'ready' ? snapshot.value : undefined
+    }
+
+    /**
+     * Named agents whose declared routes are outside the allowlist a new Session would capture.
+     * The Hub can only report this: the official setting belongs to another plugin, and while
+     * `manageOfficialSettings` is on the Hub rewrites it anyway, so the two cannot disagree.
+     * @returns {Array<{ presetId: string, agentId: string, outside: string[], allowed: string[] }>}
+     */
+    function presetAllowlistProblems(drafts, officialModels) {
+      if (drafts.manageOfficialSettings === true) return []
+      if (officialModels?.enabled !== true || !Array.isArray(officialModels.allowedModels)) return []
+      const allowed = officialModels.allowedModels
+        .filter(route => typeof route?.provider === 'string' && route.provider !== ''
+          && typeof route?.model === 'string' && route.model !== '')
+      if (allowed.length === 0) return []
+      const allowedKeys = new Set(allowed.map(route => routeKey(route.provider, route.model)))
+      const byId = new Map(drafts.routes.filter(route => route.id !== '').map(route => [route.id, route]))
+      const problems = []
+      for (const agent of drafts.agents) {
+        if (!hasAgentContent(agent) || agent.id === '' || agent.routes.length === 0) continue
+        const outside = agent.routes
+          .map(id => byId.get(id))
+          .filter(route => route !== undefined && route.provider !== '' && route.model !== '')
+          .filter(route => !allowedKeys.has(routeKey(route.provider, route.model)))
+          .map(route => `${route.provider}/${route.model}`)
+        if (outside.length === 0) continue
+        problems.push({
+          presetId: `hub-agent-${agent.id}`,
+          agentId: agent.id,
+          outside,
+          allowed: allowed.map(route => `${route.provider}/${route.model}`),
+        })
       }
       return problems
     }
@@ -858,6 +906,11 @@ window.__ModuleLoader__.load({
 .sah-empty{display:flex;flex-direction:column;align-items:center;gap:12px;padding:24px 16px;border:1px dashed var(--sah-border);border-radius:10px;color:var(--sah-mute);font-size:12.5px;text-align:center}
 .sah-notice{margin:0;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sah-sub)}
 .sah-notice-error{color:var(--sah-danger)}
+.sah-notice-warn{align-items:flex-start;color:var(--sah-warn);gap:10px}
+.sah-notice-warn strong{display:block;font-weight:600;margin-bottom:4px}
+.sah-notice-list{margin:0;padding-inline-start:18px;display:grid;gap:4px}
+.sah-notice-list code{color:inherit}
+.sah-notice-warn span{color:var(--sah-sub)}
 .sah-linkbtn{border:0;background:transparent;color:var(--sah-accent);font:inherit;font-size:12px;cursor:pointer;padding:0}
 .sah-linkbtn:hover{text-decoration:underline}
 .sah-preview-head{display:flex;align-items:center;gap:8px;padding-right:12px}
@@ -1202,6 +1255,10 @@ window.__ModuleLoader__.load({
       const initial = React.useMemo(() => editorDraftsOf(value), [])
       const [draft, setDraft] = React.useState(initial)
       const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [] })
+      // The official allowlist a new Session would capture. Read-only here: the page only
+      // reports a preset that could never run, it never rewrites another plugin's setting.
+      // Seeded synchronously so the first render (and a static one) already shows the warning.
+      const [officialModels, setOfficialModels] = React.useState(() => officialModelsOf(ctx))
       const [presets, setPresets] = React.useState([{ id: 'standard', name: 'standard' }])
       const [status, setStatus] = React.useState(undefined)
       const [busy, setBusy] = React.useState(false)
@@ -1280,6 +1337,17 @@ window.__ModuleLoader__.load({
         }
       }, [ctx, loadCatalog])
 
+      // Observe the official child-model allowlist a new Session would capture. Absent means
+      // "unknown" (selection off, namespace unserved, or still loading), never "empty".
+      React.useEffect(() => {
+        const form = ctx?.configForms?.get?.('subagent-model-selection-settings')
+        if (form === undefined) return
+        const update = () => setOfficialModels(officialModelsOf(ctx))
+        const dispose = form.subscribe?.(update)
+        update()
+        return dispose
+      }, [ctx])
+
       /** Check the public model settings and preset roster; every check has a hard deadline. */
       const watchOfficialSync = React.useCallback((savedValues) => {
         stopSync.current()
@@ -1311,6 +1379,7 @@ window.__ModuleLoader__.load({
       const maxConcurrent = draft.maxConcurrent
       const values = valuesOf(draft)
       const problem = draftProblem(draft)
+      const allowlistProblems = presetAllowlistProblems(draft, officialModels)
       const problems = fieldProblems(draft)
       const dirty = !sameDraft(draft, baseline)
       const locked = !writable || busy
@@ -1391,7 +1460,12 @@ window.__ModuleLoader__.load({
           setBaseline(draftsOf(values))
           setDraft(editorDraftsOf(values))
           setSubmitted(false)
-          setStatus({ kind: 'ok', text: t('saved') })
+          // Route and preset edits only reach Sessions that start afterwards; say so once here
+          // instead of letting an open Session fail against its captured allowlist.
+          const routingKeys = list => JSON.stringify(list)
+          const routingChanged = routingKeys(values.routes) !== routingKeys(baseline.routes)
+            || routingKeys(values.agents) !== routingKeys(baseline.agents)
+          setStatus({ kind: 'ok', text: t(routingChanged ? 'saved.routes' : 'saved') })
           setCopyError(false)
           setUndo(undefined)
           watchOfficialSync(values)
@@ -1541,6 +1615,16 @@ window.__ModuleLoader__.load({
           title: t('agents.title'),
           hint: t('agents.hint'),
         },
+        allowlistProblems.length === 0 ? null : h('div', { className: 'sah-notice sah-notice-warn', role: 'status' },
+          h('div', null,
+            h('strong', null, t('agents.allowlist.title')),
+            h('ul', { className: 'sah-notice-list' }, allowlistProblems.map(problem => h('li', { key: problem.presetId },
+              t('agents.allowlist.item', {
+                agent: problem.agentId,
+                routes: problem.outside.join(', '),
+                allowed: problem.allowed.join(', '),
+              })))),
+            h('span', null, t('agents.allowlist.hint')))),
         draft.agents.length === 0
           ? h('div', { className: 'sah-empty' },
             h('span', null, t('agents.none')),
@@ -2166,6 +2250,7 @@ window.__ModuleLoader__.load({
       valuesOf,
       saveOps,
       draftProblem,
+      presetAllowlistProblems,
       catalogPreview,
       officialAllowlists,
       officialSyncReady,

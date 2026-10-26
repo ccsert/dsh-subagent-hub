@@ -181,6 +181,14 @@ export function apply(ctx, config) {
       }
       const assembly = await ctx.systemPrompt.assemble({ scope: root })
       report.rootSection = assembly.sections.find(section => section.name === 'dsh-subagent-hub')?.text
+      // Two layers actually readable in the real runtime: the Session's captured allowlist
+      // (native projection) against the live configuration.
+      const layers = ctx.subagentHub.sessionLayers(root.session)
+      report.sessionPolicy = {
+        captured: layers.session,
+        inSync: layers.inSync,
+        notice: ctx.subagentHub.sessionContextText(root),
+      }
 
       const callerFor = agent => async (args) => {
         const result = await ctx.tools.execute({

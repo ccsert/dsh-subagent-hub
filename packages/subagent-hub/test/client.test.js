@@ -524,3 +524,47 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   assert.equal(section.options.label(), 'nav')
   assert.match(renderToStaticMarkup(section.body({ close() {} })), /sah-intro/)
 })
+
+// ── session allowlist diagnostics ────────────────────────────────────────────────────────────
+
+const agentDraft = (draftsOf, overrides = {}) => ({
+  ...draftsOf({ ...saved(), manageOfficialSettings: false }),
+  ...overrides,
+})
+
+test('a preset declaring a route outside the captured allowlist is reported in the page', () => {
+  const { presetAllowlistProblems, draftsOf } = loadClient()
+  const drafts = agentDraft(draftsOf)
+  assert.equal(presetAllowlistProblems(drafts, { enabled: true, allowedModels: [{ provider: 'p', model: 'flash' }] }).length, 1)
+  const [problem] = presetAllowlistProblems(drafts, { enabled: true, allowedModels: [{ provider: 'p', model: 'flash' }] })
+  assert.equal(problem.presetId, 'hub-agent-reviewer')
+  assert.deepEqual(plain(problem.outside), ['p/pro'], 'the declared route that cannot be captured')
+  assert.deepEqual(plain(problem.allowed), ['p/flash'])
+})
+
+test('the page stays quiet when the Hub manages the allowlist or the list is unknown', () => {
+  const { presetAllowlistProblems, draftsOf } = loadClient()
+  const managed = agentDraft(draftsOf, { manageOfficialSettings: true })
+  assert.equal(presetAllowlistProblems(managed, { enabled: true, allowedModels: [] }).length, 0, 'managed mode writes the list itself')
+  const unmanaged = agentDraft(draftsOf)
+  assert.equal(presetAllowlistProblems(unmanaged, undefined).length, 0, 'an unreadable setting is unknown, not empty')
+  assert.equal(presetAllowlistProblems(unmanaged, { enabled: false, allowedModels: [] }).length, 0, 'selection off captures nothing')
+  assert.equal(presetAllowlistProblems(unmanaged, { enabled: true, allowedModels: [] }).length, 0, 'an empty allowlist is not judged here')
+  assert.equal(presetAllowlistProblems(unmanaged, { enabled: true, allowedModels: [{ provider: 'p', model: 'flash' }, { provider: 'p', model: 'pro' }] }).length, 0)
+})
+
+test('the session-allowlist notice renders with both route lists', () => {
+  const { ConfigPage } = loadClient()
+  const form = {
+    state: { status: 'ready', writable: true, revision: 7, value: { ...saved(), manageOfficialSettings: false } },
+    mutate: async () => true,
+    getSnapshot: () => ({ status: 'ready', value: { enabled: true, allowedModels: [{ provider: 'p', model: 'flash' }] } }),
+    subscribe: () => () => {},
+  }
+  const html = renderToStaticMarkup(React.createElement(ConfigPage, {
+    view: 'page', form, t, ctx: { remote: undefined, configForms: { get: () => form } },
+  }))
+  assert.match(html, /agents\.allowlist\.title/)
+  assert.match(html, /agents\.allowlist\.item/)
+  assert.match(html, /hub-agent|reviewer/)
+})

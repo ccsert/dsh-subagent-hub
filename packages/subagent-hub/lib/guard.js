@@ -2,6 +2,7 @@
 // The official tool exposes `agent_preset` from its static `allowedAgentPresets`; this guard
 // closes the remaining gap: a named agent that declares `routes` may not run on another model.
 
+import { LAYERS, compareLayers, describePairs, includesPair, routePairs } from './policy.js'
 import { routeLabel } from './router.js'
 
 export const GUARD_PREFIX = 'subagent-hub:'
@@ -68,11 +69,18 @@ export function modelSelectionAvailable(parameters) {
  * Check the actual route of every supported creation tool against the configured
  * child allowlist. Tool capabilities decide whether model arguments are effective;
  * extra arguments on a model-less fork/Team tool cannot disguise inheritance.
+ *
+ * Two lists are consulted, and a rejection names the one that refused. The Session's captured
+ * allowlist (`sessionPolicy`) is checked first: the official runtime enforces it after this
+ * guard and never refreshes it, so a route outside it cannot start a child even when the live
+ * configuration now allows it.
  */
-export function creationRouteVerdict({ toolName, arguments: args, parent, catalog, parameters, configured = catalog.routes.size > 0 }) {
+export function creationRouteVerdict({ toolName, arguments: args, parent, catalog, parameters,
+  configured = catalog.routes.size > 0, sessionPolicy }) {
   if (!CREATION_TOOLS.includes(toolName) || !configured) return undefined
   const allowed = [...catalog.routes.values()]
-  if (allowed.length === 0) return `${GUARD_PREFIX} ${toolName} cannot verify its child model: the configured child route list has no valid routes. Fix the Hub route configuration before delegating.`
+  const configLabels = describePairs(routePairs(allowed))
+  if (allowed.length === 0) return `${GUARD_PREFIX} ${toolName} cannot verify its child model: the ${LAYERS.config} has no valid routes. Fix the Hub route configuration before delegating.`
   const canSelectModel = modelSelectionAvailable(parameters)
   if (canSelectModel) {
     const provider = typeof args?.provider === 'string' && args.provider !== ''
@@ -80,16 +88,32 @@ export function creationRouteVerdict({ toolName, arguments: args, parent, catalo
     if (provider !== model) return undefined // the native tool reports its pairing error
   }
   const route = effectiveRoute(canSelectModel ? args ?? {} : {}, parent)
-  const labels = allowed.map(routeLabel).join(', ')
-  if (route !== undefined && allowed.some(allowed => allowed.provider === route.provider && allowed.model === route.model)) return undefined
-  const actual = route === undefined ? 'an unconfirmed model' : `${route.provider}/${route.model}`
   const mode = toolName === 'spawn_teammate' ? ` (${args?.context === 'fork' ? 'fork' : 'fresh'})` : ''
+  const call = `${toolName}${mode}`
+  const actual = route === undefined ? 'an unconfirmed model' : `${route.provider}/${route.model}`
   const alternative = canSelectModel
     ? 'Choose provider and model from the allowed routes.'
     : toolName === 'spawn_teammate'
       ? 'This spawn_teammate schema has no provider/model selector. Both fresh and fork inherit the Lead model; changing context does not choose a different model. Use a delegation tool only if its actual schema exposes model selection, or select an allowed Lead model before using Teams.'
       : `This ${toolName} schema has no provider/model selector and inherits the parent model. Use a delegation tool only if its actual schema exposes model selection, or select an allowed parent model first.`
-  return `${GUARD_PREFIX} ${toolName}${mode} would use ${actual}, outside the configured child routes: ${labels}. No child was started. ${alternative}`
+
+  // Layer 2: the allowlist this Session captured when it started.
+  const layers = compareLayers(allowed, sessionPolicy)
+  if (route !== undefined && layers.session.length > 0 && !includesPair(layers.session, route.provider, route.model)) {
+    const fresh = 'only a new top-level Session captures the current list again: a new child started under this Session inherits the list above'
+    const hint = canSelectModel && includesPair(layers.config, route.provider, route.model)
+      ? `The ${LAYERS.config} allows this route, but this Session keeps the older list; ${fresh}.`
+      : canSelectModel
+        ? `The ${LAYERS.config} allows ${configLabels}; choose one of those, or change the configuration, whereupon ${fresh}.`
+        : `${alternative} The ${LAYERS.config} allows ${configLabels}, but this Session keeps the older list; ${fresh}.`
+    const drift = layers.notInSession.length > 0
+      ? ` The live configuration additionally allows ${describePairs(layers.notInSession)}, which only a new Session can use.`
+      : ''
+    return `${GUARD_PREFIX} refused by the ${LAYERS.session}, captured when this Session started: ${describePairs(layers.session)}. The call ${call} would use ${actual}.${drift} No child was started. ${hint}`
+  }
+
+  if (route !== undefined && allowed.some(allowed => allowed.provider === route.provider && allowed.model === route.model)) return undefined
+  return `${GUARD_PREFIX} refused by the ${LAYERS.config}, which allows ${configLabels}. The call ${call} would use ${actual}. No child was started. ${alternative}`
 }
 
 /**
@@ -121,11 +145,12 @@ export function guardVerdict({ arguments: args, parent, catalog, canSelectModel 
 
   const labels = allowed.map(routeLabel).join(', ')
   const explicit = allowed.map(route => route.id).join(', ')
+  const layer = `This is the ${LAYERS.agent}, which can only narrow the ${LAYERS.config}.`
   if (requested.source === 'inherited parent') {
     const guidance = canSelectModel
       ? `Pass \`provider\` and \`model\` together, choosing one of: ${labels} (route ids: ${explicit}).`
       : 'This tool has no provider/model selector. Use a tool whose actual schema supports model selection, or an allowed parent model; do not pass unsupported model arguments.'
-    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${requested.provider}/${requested.model}. ${guidance}`
+    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${requested.provider}/${requested.model}. ${guidance} ${layer}`
   }
-  return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}; requested ${requested.provider}/${requested.model} is not allowed. Choose \`provider\` and \`model\` from: ${labels} (route ids: ${explicit}).`
+  return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}; requested ${requested.provider}/${requested.model} is not allowed. Choose \`provider\` and \`model\` from: ${labels} (route ids: ${explicit}). ${layer}`
 }

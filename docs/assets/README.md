@@ -25,4 +25,16 @@ The Hero is project artwork. It does not depict a working product screen. The se
 
 Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration and Session faces; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
 
+## Market tile icon
+
+[icon.png](icon.png) is 512 × 512 with a transparent background, rasterized from the package's vector [icon.svg](../../packages/subagent-hub/icon.svg) by rendering it at 512 px in headless Chromium and capturing with a transparent background. It is project artwork, not a product screenshot.
+
+The plugin market requires a GitHub-hosted **raster** tile (SVG is refused), so the PNG is the file to submit; the SVG stays the editable source. Regenerate with:
+
+```bash
+cp packages/subagent-hub/icon.svg output/playwright/hub-icon.svg
+# open it at 512 px and screenshot with omitBackground, then:
+cp output/playwright/icon-512.png docs/assets/icon.png
+```
+
 See [the screenshot gallery](../screenshots.md) and [contribution guide](../../CONTRIBUTING.md) for reproduction. Documentation and original project assets are distributed with the project's [MIT License](../../LICENSE).

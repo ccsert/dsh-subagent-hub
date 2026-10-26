@@ -1,6 +1,7 @@
 // Model-facing catalog section: which named agent to use for what, and which model carries
 // which capability tags. v2 only informs the official delegation tool; it never dispatches.
 
+import { sessionPolicyNotice } from './policy.js'
 import { allowedModels, routeLabel, routeSummary } from './router.js'
 
 /**
@@ -14,10 +15,13 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
 /**
  * Compose the section text. Parameters that the official tool does not expose in this
  * composition are described as informational instead of inviting a failing call.
- * @param {{ catalog: PromptCatalog, params: PromptParameters, limit?: number }} input
+ * `layers` carries the comparison between the live configuration and this Session's captured
+ * allowlist, so a route that only a new Session can use is never advertised as available here.
+ * @param {{ catalog: PromptCatalog, params: PromptParameters, limit?: number, limitTools?: string[],
+ *   layers?: import('./policy.js').ReturnType<typeof import('./policy.js').compareLayers> }} input
  * @returns {string} section markdown, or '' when there is nothing to say.
  */
-export function promptSection({ catalog, params, limit = 0, limitTools = ['subagent', 'subagent_fork'] }) {
+export function promptSection({ catalog, params, limit = 0, limitTools = ['subagent', 'subagent_fork'], layers }) {
   const { agents, routes, tags, problems } = catalog
   if (agents.length === 0 && routes.size === 0) return ''
   const lines = ['## Choosing a subagent']
@@ -55,6 +59,9 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
     }
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
     lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.')
+    // The Session's own snapshot outranks the list above; say so before the model retries.
+    const notice = layers === undefined ? '' : sessionPolicyNotice(layers)
+    if (notice !== '') lines.push(notice)
     const restricted = agents.some(agent => (agent.routes?.length ?? 0) > 0)
     if (restricted) lines.push('When a named agent lists routes, the child `provider`/`model` must be one of that agent\'s routes; any other route is rejected before the child starts.')
   }

@@ -25,7 +25,13 @@ const initial={showAgentOverview:false,manageOfficialSettings:true,maxConcurrent
  {id:'flash',provider:'deepseek-official',model:'deepseek-flash',tags:['fast','cheap'],note:'DeepSeek Flash'},
  {id:'minimax',provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEffort:'max',tags:['reasoning','vision','免费'],note:'MiniMax M3.1 Flash'}
 ],agents:[{id:'reviewer',description:'审查代码改动，只报告问题，不修改文件',instructions:'逐个阅读改动，报告问题位置、原因和建议。',routes:['minimax']}]}
-window.qa={saves:[],failSave:false,throwSave:false,initial,clipboard:'',syncMode:'ready',syncReads:0}
+// Deterministic states for screenshots: ?managed=0 unmanages the official settings, and
+// ?allow=provider/model,... pins the allowlist a new Session would capture.
+const fixtureParams=new URLSearchParams(location.search)
+const pinnedAllowlist=(fixtureParams.get('allow')??'').split(',').filter(Boolean).map(pair=>{const [provider,...rest]=pair.split('/');return {provider,model:rest.join('/')}})
+if(fixtureParams.get('managed')==='0')initial.manageOfficialSettings=false
+window.qa={saves:[],failSave:false,throwSave:false,initial,clipboard:'',syncMode:'ready',syncReads:0,
+ officialAllowlist:pinnedAllowlist.length===0?undefined:{enabled:true,allowedModels:pinnedAllowlist}}
 let snapshot={status:'ready',writable:true,revision:1,value:initial}
 const listeners=new Set()
 const scope={getSnapshot(){return snapshot},subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn)},async mutate(ops,revision){
@@ -44,7 +50,7 @@ const ctx = {
     get(ns) {
       if (ns === 'subagent-hub') return scope
       if (ns === 'subagent-model-selection-settings') {
-        return { getSnapshot() { return { status: 'ready', value: { enabled: true, allowedModels: snapshot.value.routes.map(({ provider, model }) => ({ provider, model })) } } } }
+        return { getSnapshot() { return { status: 'ready', value: qa.officialAllowlist ?? { enabled: true, allowedModels: snapshot.value.routes.map(({ provider, model }) => ({ provider, model })) } } } }
       }
       return { getSnapshot() { return { status: 'unavailable', writable: false } } }
     }

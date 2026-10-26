@@ -72,6 +72,17 @@ check('the prompt section lists named agents, capability tags, routes, and model
     'must be one of that agent\'s routes',
   ]) assert.ok(text.includes(needle), `missing ${needle}`)
 })
+check('the Session captured allowlist is readable in the real runtime and matches the configuration', () => {
+  const policy = report.sessionPolicy
+  assert.ok(policy !== undefined, 'the driver must expose the session layers')
+  assert.ok(Array.isArray(policy.captured) && policy.captured.length > 0,
+    'the native subagent tool records the allowlist into the Session; the Hub reads that projection')
+  assert.equal(policy.inSync, true, 'a fresh Session captures exactly the configured routes')
+  assert.equal(policy.notice, '', 'an in-sync Session adds no prompt text')
+  const configured = report.modelSelection?.allowedModels ?? []
+  assert.deepEqual(policy.captured.map(route => `${route.provider}/${route.model}`),
+    configured.map(route => `${route.provider}/${route.model}`))
+})
 check('an out-of-route provider/model is rejected by the guard with a reason', () => {
   assert.equal(checks.outOfRoute.isError, true)
   assert.match(checks.outOfRoute.message, /^subagent-hub:/)

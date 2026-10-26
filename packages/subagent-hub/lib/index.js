@@ -21,6 +21,7 @@ import { deriveAgentPreset } from './presets.js'
 import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable } from './guard.js'
 import { promptSection } from './prompt.js'
 import { MODEL_SETTINGS_ID, PRESET_PLUGIN, modelSettingsFor, officialSettingsPlan, patchPresetRows, sameAllowedModels } from './official-settings.js'
+import { SESSION_POLICY_KEY, compareLayers, presetRouteProblems, routePairs, sessionPolicyNotice } from './policy.js'
 
 const PACKAGE = 'dsh-subagent-hub'
 const PRESET_WAIT_MS = 30_000
@@ -84,6 +85,8 @@ export default class SubagentHub extends Service {
     this.parentOf = new Map()
     this.cache = { routesRaw: undefined, agentsRaw: undefined, catalog: undefined }
     this.presetSignature = undefined
+    /** @type {Array<{ presetId: string, text: string }>} named agents outside the session allowlist */
+    this.policyProblems = []
     this.disposed = false
     this.reconcileChain = Promise.resolve({ registered: [], skipped: [] })
     // A worker started outside any HMR transaction drains live-edit reconciliations. Scheduling
@@ -122,6 +125,14 @@ export default class SubagentHub extends Service {
     }))
     this.disposers.push(this.ctx.inject(['sessionProjections'], scope => {
       scope.sessionProjections.register(dispatchProjection)
+    }))
+    // The official runtime captures a Session's model allowlist at start and never refreshes it,
+    // so a live configuration edit cannot reach an open Session. Say that in the runtime context
+    // instead of letting the model discover it through an opaque native rejection.
+    this.disposers.push(this.ctx.systemPrompt.context({
+      name: `${PACKAGE}:session-allowlist`,
+      order: this.ctx.systemPrompt.getContextOrder('SUBAGENT_DELEGATION'),
+      text: context => this.sessionContextText(context.agent),
     }))
     this.disposers.push(this.ctx.on('tools/pre-execute', (exec, next) => this.preExecute(exec, next)))
     // The Plugins page form writes volatile fields; the Loader commits them in place and announces
@@ -278,7 +289,46 @@ export default class SubagentHub extends Service {
     this.officialSettingsReady = sync
     const outcome = await sync
     this.resolveOfficial(outcome)
+    this.validatePresetRoutes()
     return report
+  }
+
+  /**
+   * The allowlist a Session started now would capture. While `manageOfficialSettings` is on this
+   * plugin writes it, so the live routes are authoritative; otherwise the value belongs to the
+   * user and is read back. `undefined` when it cannot be known, which is not the same as empty.
+   * @returns {{ source: 'managed' | 'official', models: Array<{ provider: string, model: string }> } | undefined}
+   */
+  officialAllowlist() {
+    if (read(this.config.manageOfficialSettings) === true) {
+      return { source: 'managed', models: modelSettingsFor(this.catalog.routes).allowedModels }
+    }
+    const editor = this.ctx.get('configEditor')
+    if (editor === undefined) return undefined
+    try {
+      const entry = editor.entries().find(candidate => candidate.options.id === MODEL_SETTINGS_ID)
+      if (entry === undefined) return undefined
+      const inherited = new Map(editor.configuration().map(row => [row.entry, row])).get(entry)?.inherited ?? {}
+      const value = { ...inherited, ...(entry.options.config ?? {}) }
+      // Selection is off, so no Session captures an allowlist and nothing can fall outside it.
+      if (value.enabled !== true) return undefined
+      return { source: 'official', models: routePairs(value.allowedModels) }
+    } catch {
+      return undefined
+    }
+  }
+
+  /**
+   * Report named agents whose declared routes are outside the allowlist new Sessions capture.
+   * Runs when the presets are registered, so a misconfigured pair is visible before anyone
+   * delegates to it, instead of surfacing as a refusal at call time.
+   */
+  validatePresetRoutes() {
+    const allowlist = this.officialAllowlist()
+    const problems = allowlist === undefined ? [] : presetRouteProblems(this.catalog, allowlist.models)
+    this.policyProblems = problems
+    for (const problem of problems) this.ctx.logger?.warn?.(`${PACKAGE}: ${problem.text}`)
+    return { allowlist, problems }
   }
 
   /** Await every live-configuration edit announced so far (used by tests and tooling). */
@@ -321,6 +371,39 @@ export default class SubagentHub extends Service {
     const params = this.exposedParameters(scope)
     if (params === undefined) return ''
     return promptSection({ catalog: this.catalog, params, limit: read(this.config.maxConcurrent) ?? 0, limitTools: read(this.config.delegationTools) ?? [] })
+  }
+
+  /**
+   * Runtime-context sentence for one Session: the allowlist it captured when it started versus
+   * the live configuration. Empty when they agree or the Session has no captured allowlist,
+   * so the prompt only grows when a stale snapshot would actually refuse a call.
+   */
+  sessionContextText(agent) {
+    const layers = this.sessionLayers(agent?.session)
+    if (layers.session.length === 0 || layers.inSync) return ''
+    return sessionPolicyNotice(layers)
+  }
+
+  /**
+   * The allowlist one Session captured when it started, as recorded by the official subagent
+   * tool. `undefined` means "not model-selectable here" or "not readable yet", never "empty".
+   * @param {any} session
+   * @returns {Array<{ provider: string, model: string }> | undefined}
+   */
+  sessionPolicy(session) {
+    const target = session ?? undefined
+    if (target === undefined) return undefined
+    try {
+      const state = this.ctx.get('sessionProjections')?.stateOf?.(target, SESSION_POLICY_KEY)
+      return Array.isArray(state) ? routePairs(state) : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  /** Live configuration against one Session's captured allowlist. */
+  sessionLayers(session) {
+    return compareLayers([...this.catalog.routes.values()], this.sessionPolicy(session))
   }
 
   /** Child agents of one Session that are still running, from the start/end ledger. */
@@ -377,6 +460,7 @@ export default class SubagentHub extends Service {
           catalog: this.catalog,
           parameters: tool?.parameters,
           configured: (read(this.config.routes) ?? []).length > 0,
+          sessionPolicy: this.sessionPolicy(exec.agent?.session),
         })
         if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
         canSelectModel = modelSelectionAvailable(tool?.parameters)

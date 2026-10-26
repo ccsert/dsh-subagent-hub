@@ -4,7 +4,7 @@
 
 已验证：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
 
-CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.0`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.1`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
@@ -18,10 +18,10 @@ export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/pr
 
 ## 2. 安装插件包
 
-推荐从 [v0.11.0 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.0) 的 Assets 下载 `dsh-subagent-hub-0.11.0.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.11.1 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.1) 的 Assets 下载 `dsh-subagent-hub-0.11.1.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.0.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.1.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：

@@ -159,6 +159,17 @@ test('names resolve per provider and model pair, never from a blank or malformed
   assert.equal(modelIdTail(''), '')
 })
 
+test('a catalog face without a loader is tolerated instead of breaking the badge', () => {
+  const { loadModelNames } = client()
+  // The badge shares whatever face it is given; only createModelNames() has a loader.
+  const plain = { getSnapshot: () => ({ status: 'ready', groups }), subscribe: () => () => {} }
+  assert.doesNotThrow(() => loadModelNames(plain, undefined))
+  assert.doesNotThrow(() => loadModelNames(undefined, undefined))
+  let asked
+  loadModelNames({ load: remote => { asked = remote } }, 'remote-face')
+  assert.equal(asked, 'remote-face')
+})
+
 test('the catalog is read once per runtime and a failed read keeps the raw ids', async () => {
   const { createModelNames } = client()
   let calls = 0

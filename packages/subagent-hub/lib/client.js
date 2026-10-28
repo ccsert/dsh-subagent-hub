@@ -442,6 +442,11 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** Read the catalog only when the caller actually provides a loader. */
+    function loadModelNames(names, remote) {
+      if (typeof names?.load === 'function') names.load(remote)
+    }
+
     /** Suggested route id for a catalog model: a short, readable slug. */
     function slugForModel(model) {
       const tail = String(model ?? '').split('/').filter(Boolean).pop() ?? ''
@@ -1831,7 +1836,8 @@ window.__ModuleLoader__.load({
         : t(data.kind === 'waiting' ? 'modelBadge.waiting' : 'modelBadge.unknown')
       // The name only decorates a recorded route, so the catalog is read once one exists.
       React.useEffect(() => {
-        if (data.kind === 'recorded') names?.load(remote)
+        // A caller may share a plain face without a loader; names then stay advisory.
+        if (data.kind === 'recorded') loadModelNames(names, remote)
       }, [names, remote, data.kind])
       React.useEffect(() => {
         setAnnouncement(data.kind === 'hidden' ? '' : fullLabel)
@@ -2251,7 +2257,7 @@ window.__ModuleLoader__.load({
       }, [open, data.running])
       // Names come from the same Host catalog the configuration page reads, once per runtime.
       React.useEffect(() => {
-        if (open) names?.load(remote)
+        if (open) loadModelNames(names, remote)
       }, [open, names, remote])
       const openChild = async address => {
         try { await openSession(address); close() }
@@ -2367,6 +2373,7 @@ window.__ModuleLoader__.load({
       routeModelName,
       routeLabel,
       createModelNames,
+      loadModelNames,
       NO_CATALOG,
       NS,
       ROW_CONFIG_KEY,

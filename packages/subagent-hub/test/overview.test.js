@@ -131,3 +131,17 @@ test('renders escaped names, meaningful labels, model plans and evidence details
   assert.doesNotMatch(html, /overview\./)
   assert.match(html, /下次请求计划/)
 })
+test('the last request is named by the catalog while the planned route keeps its wire ids', () => {
+  const data = ui.overviewData('root', fixture(), new Map())
+  const groups = [{ id: 'minimax', name: 'MiniMax', models: [{ id: 'MiniMax-M3.1-Flash', name: 'M3.1-Flash · MiniMax Code' }] }]
+  const t = (key, args = {}) => (ui.overviewLocales.en[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, groups }))
+  assert.match(html, /Last request: M3\.1-Flash · MiniMax Code/)
+  assert.doesNotMatch(html, /Last request: minimax \/ MiniMax-M3\.1-Flash/)
+  // The planned route is evidence, not a request: it keeps the exact pair.
+  assert.match(html, /next \/ planned/)
+  // Search still matches the bare wire id, and now also the displayed name.
+  assert.equal(ui.overviewFilter(data.rows, { search: 'MINIMAX' })[0].id, 'a')
+  assert.equal(ui.overviewFilter(data.rows, { search: 'MiniMax Code' }).length, 0)
+  assert.equal(ui.overviewFilter(data.rows, { search: 'MiniMax Code' }, groups)[0].id, 'a')
+})

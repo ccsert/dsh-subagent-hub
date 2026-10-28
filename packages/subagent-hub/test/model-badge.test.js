@@ -18,9 +18,15 @@ const child = { subagent: { address: { parentSessionId: 'root', childSessionId: 
 const route = { provider: 'magpie', model: 'minimax-cn/MiniMax-M3.1-Flash', reasoningEffort: 'max' }
 const face = value => ({ getSnapshot: () => value, subscribe: () => () => {} })
 const t = (key, args = {}) => key + Object.entries(args).map(([name, value]) => ` ${name}=${value}`).join('')
-function render(session, projection) {
-  return renderToStaticMarkup(React.createElement(client().ModelBadge, { session: face(session), projection: face(projection), t }))
+function render(session, projection, names) {
+  return renderToStaticMarkup(React.createElement(client().ModelBadge, { session: face(session), projection: face(projection), names, t }))
 }
+const groups = [{ id: 'magpie-anthropic', name: 'Magpie · Anthropic', models: [
+  { id: 'qoder-cn/qfmodel', name: 'Qwen3.8-Flash · Qoder CN' },
+  { id: 'qoder-cn/dfmodel', name: 'DeepSeek-Flash · Qoder CN' },
+] }]
+const catalog = face({ status: 'ready', groups })
+const qwen = { provider: 'magpie-anthropic', model: 'qoder-cn/qfmodel' }
 
 test('main sessions do not render a model badge, even if they have request records', () => {
   assert.deepEqual(plain(client().modelBadgeData({ subagent: null }, { lastUsed: route, next: route })), { kind: 'hidden' })
@@ -111,4 +117,75 @@ test('the optional session contribution uses the official utilities list slot', 
   assert.equal(definition.key, undefined)
   assert.equal(typeof definition.inject, 'function')
   assert.equal(renderToStaticMarkup(component(definition.inject('missing'))), '')
+})
+
+test('a catalog name labels the summary while the panel keeps the wire ids', () => {
+  const html = render(child, { lastUsed: qwen, next: null }, catalog)
+  const summary = html.match(/<summary[\s\S]*?<\/summary>/)[0]
+  // The recorded route reads like the configuration page, not like its wire id.
+  assert.match(summary, /Qwen3\.8-Flash · Qoder CN/)
+  assert.doesNotMatch(summary, /qfmodel/)
+  assert.match(html, /aria-label="modelBadge\.summaryModel model=Qwen3\.8-Flash · Qoder CN"/)
+  // Evidence stays checkable: the exact provider and model id remain in the details.
+  assert.match(html, /qoder-cn\/qfmodel/)
+  assert.match(html, /magpie-anthropic/)
+})
+
+test('a route the catalog does not advertise keeps the provider and the id tail', () => {
+  const unlisted = { provider: 'deepseek-official', model: 'deepseek-flash' }
+  const html = render(child, { lastUsed: unlisted, next: null }, catalog)
+  const summary = html.match(/<summary[\s\S]*?<\/summary>/)[0]
+  assert.match(summary, /deepseek-official · deepseek-flash/)
+  assert.match(html, /aria-label="modelBadge\.summary provider=deepseek-official model=deepseek-flash"/)
+  // Without a catalog the chip is exactly the pre-existing fallback.
+  const bare = render(child, { lastUsed: qwen, next: null })
+  assert.match(bare.match(/<summary[\s\S]*?<\/summary>/)[0], /magpie-anthropic · qfmodel/)
+})
+
+test('names resolve per provider and model pair, never from a blank or malformed entry', () => {
+  const { routeLabel, routeModelName, modelIdTail } = client()
+  assert.equal(routeModelName(groups, qwen), 'Qwen3.8-Flash · Qoder CN')
+  assert.equal(routeModelName(groups, { provider: 'magpie-anthropic', model: 'qoder-cn/dfmodel' }), 'DeepSeek-Flash · Qoder CN')
+  // The same model id under another provider is a different route.
+  assert.equal(routeModelName(groups, { provider: 'other', model: 'qoder-cn/qfmodel' }), undefined)
+  assert.equal(routeModelName(groups, { provider: 'magpie-anthropic', model: 'unlisted' }), undefined)
+  assert.equal(routeModelName(groups, null), undefined)
+  assert.equal(routeModelName(undefined, qwen), undefined)
+  assert.equal(routeModelName([{ id: 'p', models: [{ id: 'm', name: '   ' }] }], { provider: 'p', model: 'm' }), undefined)
+  assert.deepEqual(plain(routeLabel(groups, qwen)), { value: 'Qwen3.8-Flash · Qoder CN', named: true })
+  assert.deepEqual(plain(routeLabel(groups, { provider: 'p', model: 'ns/m' })), { value: 'p · m', named: false })
+  assert.equal(modelIdTail('ns/deep/model'), 'model')
+  assert.equal(modelIdTail('deepseek-flash'), 'deepseek-flash')
+  assert.equal(modelIdTail(''), '')
+})
+
+test('the catalog is read once per runtime and a failed read keeps the raw ids', async () => {
+  const { createModelNames } = client()
+  let calls = 0
+  const remote = { session: { modelCatalog: async () => { calls += 1; return { ok: true, value: { groups } } } } }
+  const names = createModelNames()
+  const seen = []
+  names.subscribe(() => seen.push(names.getSnapshot().status))
+  assert.equal(names.getSnapshot().status, 'idle')
+  await Promise.all([names.load(remote), names.load(remote)])
+  assert.equal(calls, 1)
+  assert.equal(names.getSnapshot().status, 'ready')
+  assert.equal(names.getSnapshot().groups.length, 1)
+  assert.deepEqual(seen, ['loading', 'ready'])
+  await names.load(remote)
+  assert.equal(calls, 1)
+
+  // A refused, throwing, empty, or absent catalog never invents a name.
+  const refused = createModelNames()
+  await refused.load({ session: { modelCatalog: async () => ({ ok: false }) } })
+  assert.deepEqual(plain(refused.getSnapshot()), { status: 'unavailable', groups: [] })
+  const throwing = createModelNames()
+  await throwing.load({ session: { modelCatalog: async () => { throw new Error('offline') } } })
+  assert.equal(throwing.getSnapshot().status, 'unavailable')
+  const empty = createModelNames()
+  await empty.load({ session: { modelCatalog: async () => ({ ok: true, value: { groups: [] } }) } })
+  assert.deepEqual(plain(empty.getSnapshot()), { status: 'unavailable', groups: [] })
+  const absent = createModelNames()
+  absent.load(undefined)
+  assert.deepEqual(plain(absent.getSnapshot()), { status: 'unavailable', groups: [] })
 })

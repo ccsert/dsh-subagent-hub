@@ -90,6 +90,23 @@ assert.match(html, /modelBadge.recorded/)
 const dispose = register.call(registry, { name: slot, id: 'unrelated' }, () => null)
 dispose()
 assert.equal(record.entries.length, 1, 'the model badge survives unrelated cleanup')
+// The same real consumer with a Host catalog: the summary is named, the panel keeps the ids.
+const namedRecord = { spec: { kind: 'list', scope: 'session' }, entries: [] }
+const namedRegistry = { records: new Map([[slot, namedRecord]]), markDirty() {}, releaseEntry() {} }
+const namedScope = {
+  sessions: scope.sessions,
+  slots: { inject(name, callback) { assert.equal(name, slot); return callback() },
+    register: (options, component) => register.call(namedRegistry, options, component) },
+}
+const catalogGroups = [{ id: 'minimax', name: 'MiniMax', models: [{ id: 'MiniMax-M3.1-Flash', name: 'M3.1-Flash · MiniMax Code' }] }]
+const names = { getSnapshot: () => ({ status: 'ready', groups: catalogGroups }), subscribe: () => () => {}, load: () => {} }
+client.registerModelBadge({ inject(_names, callback) { return callback(namedScope) }, remote: {} }, t, names)
+const namedContribution = namedRecord.entries[0]
+const namedHTML = renderToStaticMarkup(namedContribution.component(namedContribution.inject('member')))
+assert.match(namedHTML.match(/<summary[\s\S]*?<\/summary>/)[0], /M3\.1-Flash · MiniMax Code/)
+assert.doesNotMatch(namedHTML.match(/<summary[\s\S]*?<\/summary>/)[0], /MiniMax-M3\.1-Flash/)
+assert.match(namedHTML, /<dd>minimax<\/dd>/, 'the panel keeps the exact provider')
+assert.match(namedHTML, /<dd>MiniMax-M3\.1-Flash<\/dd>/, 'the panel keeps the exact model id')
 const overviewSlot = 'conversation.session.header.actions'
 const overviewRecord = { spec: { kind: 'list', scope: 'session' }, entries: [] }
 registry.records.set(overviewSlot, overviewRecord)

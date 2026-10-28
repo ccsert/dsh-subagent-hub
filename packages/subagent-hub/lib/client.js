@@ -32,6 +32,7 @@ window.__ModuleLoader__.load({
     const zh = {
       'modelBadge.label': '模型',
       'modelBadge.summary': '模型：{provider} · {model}',
+      'modelBadge.summaryModel': '模型：{model}',
       'modelBadge.waiting': '模型：尚未请求',
       'modelBadge.waitingShort': '尚未请求',
       'modelBadge.unknown': '模型：未确认',
@@ -168,6 +169,7 @@ window.__ModuleLoader__.load({
     const en = {
       'modelBadge.label': 'Model',
       'modelBadge.summary': 'Model: {provider} · {model}',
+      'modelBadge.summaryModel': 'Model: {model}',
       'modelBadge.waiting': 'Model: no request yet',
       'modelBadge.waitingShort': 'No request yet',
       'modelBadge.unknown': 'Model: unconfirmed',
@@ -370,6 +372,74 @@ window.__ModuleLoader__.load({
       const group = groups.find(item => item.id === provider)
       const found = group?.models.find(item => item.id === model)
       return found?.reasoning?.efforts ?? []
+    }
+
+    /** The tail of a wire model id: its last non-empty path segment. */
+    function modelIdTail(model) {
+      const text = String(model ?? '')
+      return text.split('/').filter(Boolean).at(-1) ?? text
+    }
+
+    /**
+     * The catalog display name of one recorded route. The wire projection carries only a
+     * provider and a model id, so the name is advisory: an unadvertised route stays nameless.
+     */
+    function routeModelName(groups, route) {
+      if (!Array.isArray(groups) || route === null || typeof route !== 'object') return undefined
+      const group = groups.find(item => item?.id === route.provider)
+      const model = group?.models?.find(item => item?.id === route.model)
+      const name = typeof model?.name === 'string' ? model.name.trim() : ''
+      return name === '' ? undefined : name
+    }
+
+    /**
+     * Human label of one recorded route: the catalog name when the catalog advertises the
+     * route, else the raw provider beside the model id tail. `named` keeps the two apart, so
+     * accessible text can still name the provider whenever only the evidence is available.
+     */
+    function routeLabel(groups, route) {
+      const name = routeModelName(groups, route)
+      if (name !== undefined) return { value: name, named: true }
+      return { value: `${route.provider} · ${modelIdTail(route.model)}`, named: false }
+    }
+
+    /** No catalog read yet; the raw ids stay readable in the meantime. */
+    const NO_CATALOG = { status: 'idle', groups: [] }
+
+    /**
+     * One Host-wide model catalog, read at most once per client runtime. A display name only
+     * decorates a recorded route, so a failed read degrades to raw ids: it never blocks, and
+     * it never hides the evidence the badge exists to show.
+     */
+    function createModelNames() {
+      let snapshot = NO_CATALOG
+      const listeners = new Set()
+      let pending
+      const publish = next => {
+        snapshot = next
+        for (const listener of [...listeners]) listener()
+      }
+      const load = remote => {
+        if (pending !== undefined || snapshot.status === 'ready') return pending
+        if (typeof remote?.session?.modelCatalog !== 'function') {
+          if (snapshot.status !== 'unavailable') publish({ status: 'unavailable', groups: [] })
+          return undefined
+        }
+        publish({ status: 'loading', groups: [] })
+        pending = Promise.resolve().then(() => remote.session.modelCatalog()).then(response => {
+          const groups = response?.ok === false ? undefined : response?.value?.groups
+          publish(Array.isArray(groups) && groups.length > 0 ? { status: 'ready', groups } : { status: 'unavailable', groups: [] })
+        }).catch(() => publish({ status: 'unavailable', groups: [] }))
+        return pending
+      }
+      return {
+        load,
+        getSnapshot: () => snapshot,
+        subscribe: listener => {
+          listeners.add(listener)
+          return () => listeners.delete(listener)
+        },
+      }
     }
 
     /** Suggested route id for a catalog model: a short, readable slug. */
@@ -1740,9 +1810,10 @@ window.__ModuleLoader__.load({
       return React.useSyncExternalStore(subscribe, read, read)
     }
 
-    function ModelBadge({ session, projection, t }) {
+    function ModelBadge({ session, projection, names, remote, t }) {
       const sessionState = useSnapshot(session, EMPTY_SESSION)
       const modelState = useSnapshot(projection, undefined)
+      const catalog = useSnapshot(names, NO_CATALOG)
       const data = modelBadgeData(sessionState, modelState)
       const detailsRef = React.useRef(null)
       const panelRef = React.useRef(null)
@@ -1753,9 +1824,15 @@ window.__ModuleLoader__.load({
         if (detailsRef.current) detailsRef.current.open = false
         setOpen(false)
       }, [session])
+      const label = data.kind === 'recorded' ? routeLabel(catalog.groups, data.last) : undefined
       const fullLabel = data.kind === 'recorded'
-        ? t('modelBadge.summary', data.last)
+        ? t(label.named ? 'modelBadge.summaryModel' : 'modelBadge.summary',
+          label.named ? { model: label.value } : { provider: data.last.provider, model: modelIdTail(data.last.model) })
         : t(data.kind === 'waiting' ? 'modelBadge.waiting' : 'modelBadge.unknown')
+      // The name only decorates a recorded route, so the catalog is read once one exists.
+      React.useEffect(() => {
+        if (data.kind === 'recorded') names?.load(remote)
+      }, [names, remote, data.kind])
       React.useEffect(() => {
         setAnnouncement(data.kind === 'hidden' ? '' : fullLabel)
       }, [data.kind, fullLabel])
@@ -1821,7 +1898,7 @@ window.__ModuleLoader__.load({
               h('path', { d: 'M9.5 2.5v3.5M14.5 2.5v3.5M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5' }))),
           h('span', { className: 'sah-runtime-model-label sah-runtime-model-sr' }, t('modelBadge.label')),
           h('span', { className: 'sah-runtime-model-value' }, data.kind === 'recorded'
-            ? `${data.last.provider} · ${data.last.model.split('/').filter(Boolean).at(-1) ?? data.last.model}`
+            ? label.value
             : t(data.kind === 'waiting' ? 'modelBadge.waitingShort' : 'modelBadge.unknownShort')),
           h('span', { className: 'sah-runtime-model-arrow', 'aria-hidden': true },
             h('svg', { width: 12, height: 12, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
@@ -1835,14 +1912,14 @@ window.__ModuleLoader__.load({
         h('span', { role: 'status', className: 'sah-runtime-model-sr' }, announcement))
     }
 
-    function registerModelBadge(ctx, t) {
+    function registerModelBadge(ctx, t, names = createModelNames()) {
       ctx.inject(['sessions'], scope => scope.slots.inject(MODEL_BADGE_SLOT, () => scope.slots.register({
         name: MODEL_BADGE_SLOT,
         id: 'subagent-hub-model',
         order: -10,
         locale: NS,
         inject: sessionId => modelBadgeShares(scope.sessions, sessionId),
-      }, props => h(ModelBadge, { ...props, t: props.t ?? t }))))
+      }, props => h(ModelBadge, { ...props, t: props.t ?? t, names, remote: ctx.remote }))))
     }
 
     // ── native child / Team overview ──────────────────────────────────────────
@@ -2023,11 +2100,11 @@ window.__ModuleLoader__.load({
         tokenKnown: rows.filter(row => row.tokens !== undefined).length,
         tokens: rows.reduce((sum, row) => sum + (row.tokens ?? 0), 0) }
     }
-    function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}) {
+    function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}, groups = []) {
       const query = search.trim().toLocaleLowerCase()
       const rank = { running: 0, provisioning: 1, failed: 2, interrupted: 3, unknown: 4, inactive: 5, completed: 6 }
       return rows.filter(row => (kind === 'all' || row.kind === kind) && (status === 'all' || row.status === status)
-        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, row.error].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
+        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, routeModelName(groups, row.model.last), row.error].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
         .sort((a, b) => {
           const primary = sort === 'name' ? a.name.localeCompare(b.name)
             : sort === 'newest' ? (b.createdAt ?? -1) - (a.createdAt ?? -1)
@@ -2050,8 +2127,11 @@ window.__ModuleLoader__.load({
       await Promise.all([worker(), worker(), worker(), worker()])
       return failures
     }
-    function OverviewMember({ row, currentId, openChild, t }) {
-      const route = value => `${value.provider} / ${value.model}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
+    function OverviewMember({ row, currentId, openChild, t, groups = [] }) {
+      // The card names a route the way the configuration page does; the details keep the exact
+      // wire ids so the record itself stays checkable.
+      const label = value => `${routeLabel(groups, value).value}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
+      const raw = value => `${value.provider} / ${value.model}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
       return h('li', { className: 'sah-overview-card' },
         h('div', { className: 'sah-overview-card-head' }, h('h3', null, row.name),
           h('span', { className: 'sah-overview-chip' }, t(`overview.${row.kind}`)),
@@ -2059,7 +2139,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', disabled: !row.address || row.id === currentId,
             title: !row.address ? t('overview.noNavigation') : undefined,
             onClick: () => openChild(row.address) }, t(row.id === currentId ? 'overview.current' : 'overview.open'))),
-        h('p', null, row.model.kind === 'recorded' ? `${t('overview.model')}: ${route(row.model.last)}`
+        h('p', null, row.model.kind === 'recorded' ? `${t('overview.model')}: ${label(row.model.last)}`
           : t(row.model.kind === 'waiting' ? 'overview.noRequest' : 'overview.noModel')),
         h('div', { className: 'sah-overview-meta sah-overview-muted' },
           h('span', null, `${t('overview.duration')}: ${overviewTime(row.duration)}`),
@@ -2069,7 +2149,7 @@ window.__ModuleLoader__.load({
           h('dl', null, h('dt', null, 'Session ID'), h('dd', null, h('code', null, row.id)),
             h('dt', null, t('overview.kind')), h('dd', null, row.mode),
             Number.isFinite(row.createdAt) ? h(React.Fragment, null, h('dt', null, t('overview.created')), h('dd', null, new Date(row.createdAt).toLocaleString())) : null,
-            row.model.next ? h(React.Fragment, null, h('dt', null, t('overview.next')), h('dd', null, route(row.model.next))) : null),
+            row.model.next ? h(React.Fragment, null, h('dt', null, t('overview.next')), h('dd', null, raw(row.model.next))) : null),
           row.readState === 'migration-required' ? h('p', null, t('overview.migration')) : null))
     }
     function OverviewTasks({ tasks, teamAvailable, t }) {
@@ -2086,10 +2166,10 @@ window.__ModuleLoader__.load({
             h('dt', null, t('overview.scopes')), h('dd', null, task.writeScopes?.join('\n') || '—'))),
         ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
     }
-    function OverviewContent({ data, currentId, openChild, t, errors = [] }) {
+    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [] }) {
       const [tab, setTab] = React.useState('members')
       const [filters, setFilters] = React.useState({ search: '', kind: 'all', status: 'all', sort: 'priority' })
-      const rows = overviewFilter(data.rows, filters)
+      const rows = overviewFilter(data.rows, filters, groups)
       const issues = [...data.issues, ...errors]
       const select = (key, values) => h('label', null, t(`overview.${key === 'status' ? 'state' : key}`),
         h('select', { value: filters[key], onChange: event => setFilters(old => ({ ...old, [key]: event.target.value })) },
@@ -2111,7 +2191,7 @@ window.__ModuleLoader__.load({
             select('sort', ['priority', 'newest', 'name', 'timeSort', 'tokenSort']),
             h('button', { type: 'button', onClick: () => setFilters({ search: '', kind: 'all', status: 'all', sort: 'priority' }) }, t('overview.reset'))),
           !data.catalogAvailable ? h('p', { role: 'status' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
-          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t })))
+          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups })))
             : data.rows.length || data.catalogAvailable ? h('p', { role: 'status' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null,
           h('p', { className: 'sah-overview-muted' }, t('overview.inactiveNote')))
           : tab === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
@@ -2129,10 +2209,11 @@ window.__ModuleLoader__.load({
         h('div', { className: 'sah-overview-muted' },
           h('p', null, t('overview.tokenNote', { known: data.tokenKnown, total: data.rows.length })), h('p', null, t('overview.durationNote'))))
     }
-    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, t }) {
+    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t }) {
       const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
       const state = useSessions(value => value)
       const statuses = useSessionStatus(value => value)
+      const catalog = useSnapshot(names, NO_CATALOG)
       const [open, setOpen] = React.useState(false)
       const [now, setNow] = React.useState(Date.now)
       const [busy, setBusy] = React.useState(false)
@@ -2168,6 +2249,10 @@ window.__ModuleLoader__.load({
         const timer = setInterval(() => setNow(Date.now()), 1000)
         return () => clearInterval(timer)
       }, [open, data.running])
+      // Names come from the same Host catalog the configuration page reads, once per runtime.
+      React.useEffect(() => {
+        if (open) names?.load(remote)
+      }, [open, names, remote])
       const openChild = async address => {
         try { await openSession(address); close() }
         catch (error) { setErrors(old => [...old, { id: address.childSessionId, message: String(error?.message ?? error) }]) }
@@ -2186,7 +2271,7 @@ window.__ModuleLoader__.load({
           h('div', { className: 'sah-overview-head' }, h('h2', { id: titleId }, t('overview.title')),
             h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh')),
             h('button', { type: 'button', onClick: close, 'data-overview-close': '', autoFocus: true }, t('overview.close'))),
-          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors }) : null))
+          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups }) : null))
     }
     function OverviewGate({ overviewForm, ...props }) {
       const [snapshot, setSnapshot] = React.useState(() => overviewForm?.getSnapshot())
@@ -2199,18 +2284,20 @@ window.__ModuleLoader__.load({
       return snapshot?.status === 'ready' && snapshot.value?.showAgentOverview === true
         ? h(AgentOverview, props) : null
     }
-    function registerOverview(ctx, t) {
+    function registerOverview(ctx, t, names = createModelNames()) {
       ctx.inject(['sessions', 'uiWorkspace'], scope => scope.slots.inject(OVERVIEW_SLOT, () => scope.slots.register({
         name: OVERVIEW_SLOT, id: 'subagent-hub-overview', order: -15, locale: NS,
-        inject: () => ({ sessions: scope.sessions, openSession: address => scope.uiWorkspace.openSession(address), overviewForm: ctx.configForms.get(ENTRY_ID) }),
+        inject: () => ({ sessions: scope.sessions, openSession: address => scope.uiWorkspace.openSession(address), overviewForm: ctx.configForms.get(ENTRY_ID), names, remote: ctx.remote }),
       }, props => h(OverviewGate, { ...props, t: props.t ?? t }))))
     }
 
     function apply(ctx) {
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'subagent-hub: dictionaries')
       const t = ctx.locale.bind(NS)
-      registerModelBadge(ctx, t)
-      registerOverview(ctx, t)
+      // One catalog read serves the badge and the overview: both label the same recorded routes.
+      const names = createModelNames()
+      registerModelBadge(ctx, t, names)
+      registerOverview(ctx, t, names)
       // The same form is reachable from the Plugins page row and from a top-level
       // Settings section, which is where people expect plugin configuration.
       ctx.effect(() => ctx.configForms.whileServed([ENTRY_ID], () => ctx.slots.inject('plugins.row.config', () => ctx.slots.register({
@@ -2276,6 +2363,11 @@ window.__ModuleLoader__.load({
       parseModelValue,
       modelGroups,
       effortsOf,
+      modelIdTail,
+      routeModelName,
+      routeLabel,
+      createModelNames,
+      NO_CATALOG,
       NS,
       ROW_CONFIG_KEY,
       ENTRY_ID,

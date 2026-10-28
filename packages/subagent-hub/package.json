@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.11.1",
+  "version": "0.11.2",
   "description": "Named roles, model route guards, native configuration, and request-model visibility for official DeepSeek Harness subagents.",
   "icon": "./icon.svg",
   "license": "MIT",

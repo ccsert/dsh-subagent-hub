@@ -13,6 +13,17 @@ bash test.sh
 
 本次 102 项单测、31 项运行时断言及 Desktop 原生注册回归通过。原有演示只验证组件和数据，没有覆盖真实注册器，是此次漏测原因。当前用户窗口的可视验证仍需客户端加载修复后的模块；不声称已远程重载 Desktop。
 
+## 0.11.2：摘要显示模型名称
+
+标题栏摘要原先直接拼 `provider · model id 尾段`，与配置页模型选择器显示的 `models[].name` 不一致：同一条路由在配置里是 `Qwen3.8-Flash · Qoder CN`，在子会话标题栏却是 `magpie-anthropic · qfmodel`。
+
+- 摘要、可访问名称与状态播报改用模型目录的显示名（`session.modelCatalog()` 返回的 `models[].name`）；目录没有列出该路由时回退到 `provider · id 尾段`，不臆造名称。
+- 命名按 `provider` + `model` 精确配对：同一个 model id 挂在别的 provider 下不算命中。
+- 目录每个客户端运行时只读一次，且只在确有请求记录或总览打开时读取；被拒、抛错、为空或没有 Remote 时一律降级为裸 id，不阻塞也不隐藏标识。
+- 展开详情、以及总览里的“下次请求计划”仍显示精确的 provider 与 model id，证据不被显示名替换。
+
+验证见[模型标识单测](../packages/subagent-hub/test/model-badge.test.js)（名称解析与配对、只读一次、四种降级路径）与[总览单测](../packages/subagent-hub/test/overview.test.js)（命名与名称搜索）。
+
 ## 0.10.0 组件与数据验证（历史范围）
 
 ## 范围与来源

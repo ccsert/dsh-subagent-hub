@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.1"><img src="https://img.shields.io/badge/version-0.11.1-66c8ab" alt="Version 0.11.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.2"><img src="https://img.shields.io/badge/version-0.11.2-66c8ab" alt="Version 0.11.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-139_unit_%2B_33_runtime-66c8ab" alt="139 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-144_unit_%2B_33_runtime-66c8ab" alt="144 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
@@ -51,11 +51,11 @@ These are the actual plugin components rendered with demo data. They contain no 
 
 Tested with **DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.11.1.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.11.2.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.1.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.2.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
@@ -88,6 +88,63 @@ Try: **“Use reviewer to review the current changes. Report concrete findings w
 
 The main agent selects a role based on the task and catalog. When the official tool exposes the parameter, `agent_preset: hub-agent-reviewer` selects this role. The route guard checks the delegation before dispatch.
 
+## Design intent: an expensive orchestrator, cheap workers
+
+The point of this plugin is not to run more agents. It is to **spend the expensive model only where it cannot be replaced**. Most of the cost usually comes from the main agent reading files one by one and retrying; hand that work to cheap or free routes and keep the expensive model for understanding the request, splitting the work, reviewing the output, and integrating it.
+
+```
+Main agent (expensive, e.g. Claude Opus 5.5)
+understand → split → delegate → review → integrate → deliver
+                        │
+        ┌───────────────┴───────────────┐
+        ↓                               ↓
+Worker A (free route)             Worker B (free route)
+reads code / small edits          runs tests / gathers evidence
+```
+
+Three settings make this work:
+
+1. **Tag the cheap routes.** Mark free or low-cost models `tags: [free, fast]` and state their purpose in `note`. This catalog is injected into the main agent's system prompt, which is how it picks a model.
+2. **Confine roles to cheap routes.** List only cheap routes in a named agent's `routes`. An out-of-range model is refused before dispatch, which saves money and stops a child from quietly using the expensive model.
+3. **Enable managed official settings, and configure at least one route.** With `manageOfficialSettings: true` plus a non-empty `routes` list, the plugin writes `modelSelectionSettings` onto the official `subagent` tool. Without it, that tool may not expose `provider`/`model`, the main agent can only inherit the parent model, and it cannot choose a cheap route at all.
+
+```yaml
+- id: subagent-hub
+  config:
+    maxConcurrent: 4
+    manageOfficialSettings: true
+    routes:
+      - id: cheap            # what children use
+        provider: your-gateway
+        model: free-model
+        tags: [free, fast]
+        note: Routine implementation, tests and evidence gathering
+      - id: strong           # kept for the main session
+        provider: your-gateway
+        model: expensive-model
+        tags: [reasoning]
+    agents:
+      - id: worker
+        description: Implements a scoped change, runs the related tests, and reports the result
+        instructions: Change only the files in scope, run the relevant tests, and report the changes, commands and evidence.
+        routes: [cheap]
+```
+
+Then simply tell the main agent:
+
+> Handle the plan and the final review yourself; give the implementation and tests to hub-agent-worker.
+
+`maxConcurrent` caps how many children run at once, which is the concurrency gate on what this pattern can spend; the official global parallel capacity still applies.
+
+**The one requirement: use `subagent`, not `spawn_teammate`.** Team members in this runtime have no `provider`, `model`, or `agent_preset` input; fresh and fork both inherit the Lead model, so delegating through Team keeps the expensive model working. Only a `subagent` tool that exposes `provider`/`model` can move work onto a cheap route, and `agent_preset` with a named role is the same path. See [Team model routing](docs/team-model-routing.md).
+
+What this saves is **expensive-model tokens**, not total cost, and it does not fit every task:
+
+- Tags are your own vocabulary. The plugin verifies no price, estimates no cost, and implements no automatic fallback.
+- Children still spend their own tokens and tool calls, and dispatch itself costs something; small tasks are not worth splitting.
+- A child has its own context, so the task description must carry enough information; extra clarification rounds cost more than they save.
+- Keep deep reasoning, architecture decisions, and the final review with the expensive model. Delegating them to a weaker model usually trades the saving back as rework.
+
 ## Behavior to keep in mind
 
 - **Team context selects history.** In the supported runtime, fresh and fork both inherit the Lead model and have no model-selection input. For a specific child model, use a `subagent` tool whose actual schema exposes model selection. See [Team model routing](docs/team-model-routing.md).
@@ -99,6 +156,7 @@ The main agent selects a role based on the task and catalog. When the official t
 - **Existing conversations keep their tool schema.** Saved configuration is live; use a new conversation for newly added roles or tool parameters. Plugin code upgrades require a DSH restart.
 - **Desktop model badges need 0.10.3 or newer.** This fixes the required native list-slot registration field. A component demo is distinct from a reload of the current Desktop window; see the [mounting fix record](docs/model-badge-acceptance.md).
 - **The model badge shows request history.** `lastUsed` identifies the latest request; a different `next` selection is shown separately. A ready empty history says “No request yet”; unavailable data says “Unconfirmed.” A request record does not establish success or billing, and forked history may include inherited requests.
+- **The summary names the model; the details keep the ids.** The header summary shows the catalog display name the configuration page uses (for example `Qwen3.8-Flash · Qoder CN`), and falls back to `provider · id tail` when the catalog does not list the route. The expanded details, and a planned route in the agent overview, always keep the exact provider and model id as evidence.
 
 ## Development
 
@@ -110,7 +168,7 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-This release is verified by **87 unit tests and 23 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
+This release is verified by **144 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
 
 Issues and PRs are welcome. Read [CONTRIBUTING](CONTRIBUTING.md), the [design notes](docs/design.md), and the [release guide](docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 

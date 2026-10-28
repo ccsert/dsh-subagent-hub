@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.1"><img src="https://img.shields.io/badge/version-0.11.1-66c8ab" alt="Version 0.11.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.2"><img src="https://img.shields.io/badge/version-0.11.2-66c8ab" alt="Version 0.11.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-139_unit_%2B_33_runtime-66c8ab" alt="139 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-144_unit_%2B_33_runtime-66c8ab" alt="144 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -57,11 +57,11 @@
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.1.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.2.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.1.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.2.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -96,6 +96,63 @@
 
 主 agent 根据任务与目录选择角色。工具参数可用时，可通过 `agent_preset: hub-agent-reviewer` 派发；路由限制会在派发前检查。
 
+## 设计目的：贵模型统筹，便宜模型执行
+
+这个插件不是为了「多开几个子 agent」，而是**让昂贵模型只做它无可替代的部分**。成本大头通常来自主 agent 逐条读文件、反复试错；把这些交给便宜甚至免费的路由，贵模型只负责理解需求、拆解、审查产出和最终整合。
+
+```
+主 agent（贵，例如 Claude Opus 5.5）
+理解需求 → 拆解 → 派发 → 审查产出 → 整合 → 交付
+             │
+    ┌────────┴─────────┐
+    ↓                  ↓
+子 agent A（免费路由）  子 agent B（免费路由）
+读代码 / 小步改动       跑测试 / 收集证据
+```
+
+配置上要做对三件事：
+
+1. **给便宜路由打标签。** `routes` 把免费或低价模型标成 `tags: [free, fast]`，`note` 写清用途。这段目录会进入主 agent 的 system prompt，主 agent 据此选模型。
+2. **把角色限定在便宜路由上。** 具名 agent 的 `routes` 只列便宜路由。越界的模型在派发前就被拒绝，既省钱，也避免子 agent 顺手用掉贵模型。
+3. **开启托管官方委派配置，并至少配一条路由。** `manageOfficialSettings: true` 加上非空 `routes`，插件才会把 `modelSelectionSettings` 写进官方 `subagent` 工具；否则该工具有时不暴露 `provider`/`model`，主 agent 只能继承主会话模型，指定不了便宜路由。
+
+```yaml
+- id: subagent-hub
+  config:
+    maxConcurrent: 4
+    manageOfficialSettings: true
+    routes:
+      - id: cheap            # 子 agent 用这条
+        provider: your-gateway
+        model: free-model
+        tags: [free, fast]
+        note: 日常实现、跑测试、收集证据
+      - id: strong           # 留给主会话自己用
+        provider: your-gateway
+        model: expensive-model
+        tags: [reasoning]
+    agents:
+      - id: worker
+        description: 按给定范围实现改动并运行相关测试，报告结果
+        instructions: 只改任务范围内的文件，运行相关测试，报告改动、命令与证据。
+        routes: [cheap]
+```
+
+然后可以直接对主 agent 说：
+
+> 你自己负责方案和最终审查，把实现和测试交给 hub-agent-worker。
+
+`maxConcurrent` 限制同时运行的子 agent 数量，也就是这条用法自带的并发花费闸门；它和官方全局并行容量同时生效。
+
+**关键前提：要用 `subagent`，别指望 `spawn_teammate`。** 当前运行时的 Team 成员没有 `provider`/`model`/`agent_preset` 输入，fresh 和 fork 都继承 Lead 模型——用 Team 派活等于让贵模型继续干活。能把子任务送到便宜路由的，是暴露 `provider`/`model` 的 `subagent`；用 `agent_preset` 指定具名角色走的也是这条路径。详见 [Team 模型路由](docs/team-model-routing.md)。
+
+省下的是**贵模型的 token**，不是全部成本，也有不适用的时候：
+
+- 标签是你维护的语义，插件不校验价格、不估算费用，也不做自动回退。
+- 子 agent 仍会消耗自己的 token 和工具调用；派发本身有开销，小事不值得拆。
+- 子 agent 的上下文是独立的，任务说明要自带足够信息，否则来回澄清更贵。
+- 深度推理、架构决策和最终审查留在贵模型上才划算；把它们派给弱模型，往往以返工换回省下的钱。
+
 ## 几个需要知道的边界
 
 - **Team 的 context 选择历史。** 当前 `spawn_teammate` 的 fresh/fork 都继承 Lead 模型，没有模型选择输入。需要 MiniMax 等指定模型时，使用实际暴露模型参数的 `subagent`；详见 [Team 模型路由](docs/team-model-routing.md)。
@@ -108,6 +165,7 @@
 - **两层白名单可能不同步。** 插件每次调用读当前配置，官方运行层用的是 **会话开始时记录** 的子模型白名单，且不会被插件刷新。改了路由后，已打开的会话仍按旧白名单判断：守卫会拒绝并说明“需要新的顶层会话”，提示里给出两层各自允许的路由。**注意**：在该旧会话下新开的子会话会继承父会话的旧白名单，所以换路由后请开一个新的顶层会话，而不是在旧会话里再派一个子任务。具名角色声明的路由若不在新会话将采用的白名单里，保存后会在设置页与日志里直接列出，不必等到派发失败。
 - **Desktop 模型标识需 0.10.3 或更新。** 此版本修正原生 list 插槽的注册字段；组件示意图不等于已在当前 Desktop 窗口完成重载。详见[挂载修复记录](docs/model-badge-acceptance.md)。
 - **模型标识来自请求记录。** `lastUsed` 显示最近请求；不同的 `next` 单独标为下一次选择。尚无请求显示“尚未请求”，记录不可用显示“未确认”。记录不代表调用成功或收费情况，fork 的继承历史也可能包含最近请求。
+- **摘要用模型名称，详情留原始 id。** 标题栏摘要按配置页的方式显示模型目录里的显示名（例如 `Qwen3.8-Flash · Qoder CN`）；目录没有列出该路由时回退为 `provider · id 尾段`。展开详情与总览里的计划路由始终保留精确的 provider 与 model id 作为证据。
 
 ## 开发与验证
 
@@ -119,7 +177,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **139 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **144 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

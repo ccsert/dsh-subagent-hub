@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.11.0（可选子智能体总览、持久拒绝历史、官方风格标题栏控件与插件图标），单元测试 139 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
+> 状态：0.11.2（记录请求的模型标识显示模型名称；补充贵模型统筹用法文档），单元测试 144 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -156,6 +156,21 @@ Client 通过可选的 `sessions` 注入，注册官方 session 范围的 `conve
 | `basePresets` | 只用于派生 `+hub` |
 | workspace / external / session 定义层、`define_subagent` 晋升 | 无法进入静态 `allowedAgentPresets`（见 D1） |
 
+### 4.8 典型用法：贵模型统筹，便宜模型执行（未发布）
+
+插件的价值不在“更多子 agent”，而在**把贵模型的用量压到不可替代的判断上**。主 agent 用最强（通常也最贵）的模型，负责理解需求、拆解、审查产出与最终整合；阅读、试写、跑测试这类高 token 低判断的工作交给标注为免费/低价的路由。
+
+这条用法依赖前面四节各出一部分，缺一不可：
+
+- **选择信息**：4.3 的 system prompt 段落给出 `Models:` 列表、能力标签和 `note`，主 agent 据此决定哪条路由适合哪类子任务。
+- **硬约束**：具名 agent 的 `routes` 把角色钉在便宜路由上，4.4 的守卫在派发前拒绝越界组合；这是“子 agent 不会顺手用掉贵模型”的保证，而非提示词约定。
+- **参数可用**：`manageOfficialSettings: true` 且 `routes` 非空（4.5）。此时插件才把 `modelSelectionSettings` 写进官方 `subagent` 工具行（`exposeModels` 取 `allowedModels` 是否非空）；否则主 agent 只能继承自身模型，整套分工无从落地。
+- **并行与预算**：4.5a 的每会话并发上限限制同时运行的子 agent 数量，是这条用法的成本闸门；官方全局并行容量同时生效。
+
+适用边界：Team（`spawn_teammate`）在当前运行时继承 Lead 模型，没有模型选择输入，**用 Team 派活省不了贵模型的用量**；只有暴露 `provider`/`model` 的 `subagent` 能把子任务送到便宜路由。另见 [Team 模型路由](team-model-routing.md)。
+
+不承诺：插件不校验价格、不估算费用、不做自动回退。标签是用户维护的语义；子 agent 仍有自身 token 与工具开销，任务拆分本身要划算；深度推理、架构决策与最终审查留在贵模型上才可能净省，否则通常以返工换回省下的量。
+
 ## 5. 包结构
 
 ```
@@ -187,7 +202,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：139 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：144 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

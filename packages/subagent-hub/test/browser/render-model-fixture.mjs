@@ -28,10 +28,13 @@ function t(key,params={}){return (dictionaries[lang][key]??key).replace(/\\{(\\w
 const locale={register(ns,value){dictionaries=value},bind(){return t}}
 function store(initial){let value=initial;const listeners=new Set();return{getSnapshot(){return value},subscribe(fn){listeners.add(fn);return()=>listeners.delete(fn)},set(next){value=next;for(const fn of listeners)fn()},count(){return listeners.size}}}
 const route={provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEffort:'max'}
+// Demo catalog: the chip names the route the way the configuration page does, while the
+// expanded panel keeps the provider, model id and effort recorded by the request.
+const catalog=store({status:'ready',groups:[{id:'magpie',name:'Magpie',models:[{id:'minimax-cn/MiniMax-M3.1-Flash',name:'M3.1-Flash · MiniMax Code'}]}]})
 const sessions={}
 for(const id of ['root','child','empty','unknown']){const projection=store(id==='unknown'?undefined:id==='empty'?{lastUsed:null,next:route}:{lastUsed:route,next:route});const session=store({sessionId:id,subagent:id==='root'?null:{address:{parentSessionId:'root',childSessionId:id,mode:'one-shot'}}});session.projections={faceOf(key){if(key!=='modelSelection')throw new Error('unexpected projection');return projection}};sessions[id]={session,projection}}
 const scopes={sessions:{binding(id){return sessions[id]}},slots:{inject(name,register){if(name!=='conversation.session.header.utilities')throw new Error('unexpected slot');return register()},register(options,body){if(!options.id)throw new Error("list slot requires options.id");slot=options;Contribution=body}}}
-ui.registerModelBadge({inject(names,register){register(scopes)}},t)
+ui.registerModelBadge({inject(names,register){register(scopes)}},t,catalog)
 dictionaries=ui.overviewLocales
 const c=${JSON.stringify(classes)}
 const root=ReactDOM.createRoot(document.getElementById('root'))

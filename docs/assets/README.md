@@ -19,11 +19,11 @@ The Hero is project artwork. It does not depict a working product screen. The se
 | [Models and roles](settings.webp) | 960 × 680 | Actual configuration component, demo data; cropped to its model and role sections |
 | [Full settings](settings-full.webp) | 960 × 1783 | Same actual component with an expanded role |
 | [Role editor](role-editor.webp) | 960 × 634 | Expanded role section |
-| [Model badge](model-badge.webp) | 978 × 222 | Actual header contribution and the installed official conversation header CSS |
-| [Narrow model badge](model-badge-narrow.webp) | 306 × 242 | The same component in a 320px viewport |
+| [Model badge](model-badge.webp) | 976 × 222 | Actual header contribution and the installed official conversation header CSS; the chip shows a demo catalog name, the panel the recorded ids |
+| [Narrow model badge](model-badge-narrow.webp) | 304 × 242 | The same component in a 320px viewport, where the chip label collapses and the panel carries the evidence |
 | [Agent overview](overview.webp) | 928 × 792 | Actual overview dialog with synthetic native session stores and the installed dark-theme token values |
 
-Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration and Session faces; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
+Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
 
 ## Market tile icon
 

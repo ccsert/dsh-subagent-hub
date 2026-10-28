@@ -23,7 +23,7 @@ bash test.sh
 
 The full suite requires a compatible installed DSH runtime. See [the e2e runner](packages/subagent-hub/test/e2e/run.sh) for discovery and override variables. It creates an isolated temporary `DSH_HOME`, registers the real bundle, exercises official subagent dispatch, and intercepts the model stream. No production profile or model account is used.
 
-Unit tests are suitable for CI without a DSH install. This release has 144 unit tests and 33 runtime assertions; the CI workflow runs units, documentation, and package checks. Runtime assertions are a separate local gate, not a claim that CI contacted real model providers.
+Unit tests are suitable for CI without a DSH install. This release has 145 unit tests and 33 runtime assertions; the CI workflow runs units, documentation, and package checks. Runtime assertions are a separate local gate, not a claim that CI contacted real model providers.
 
 The full runtime gate includes independent delegation, the opt-in native Team bundle, and a native slot-consumer regression. The latter reads the installed Desktop renderer (or SDK fallback) and checks the real list registration contract without controlling the user window. See [Team routing](docs/team-model-routing.md) for schema, inheritance, and rejected-member checks.
 

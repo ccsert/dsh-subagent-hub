@@ -6,7 +6,7 @@
   <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.2"><img src="https://img.shields.io/badge/version-0.11.2-66c8ab" alt="Version 0.11.2"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-144_unit_%2B_33_runtime-66c8ab" alt="144 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-145_unit_%2B_33_runtime-66c8ab" alt="145 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -45,7 +45,7 @@
 
 **子会话的最近请求模型**
 
-![子会话标题栏的供应商、完整模型 id 与推理强度](docs/assets/model-badge.webp)
+![子会话标题栏显示模型名称，展开后是供应商、完整模型 id 与推理强度](docs/assets/model-badge.webp)
 
 **子智能体总览**
 
@@ -177,7 +177,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **144 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **145 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

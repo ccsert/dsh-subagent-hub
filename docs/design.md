@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.11.2（记录请求的模型标识显示模型名称；补充贵模型统筹用法文档），单元测试 144 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
+> 状态：0.11.2（记录请求的模型标识显示模型名称；补充贵模型统筹用法文档），单元测试 145 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -202,7 +202,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：144 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：145 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

@@ -20,7 +20,8 @@ import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
 import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable } from './guard.js'
 import { promptSection } from './prompt.js'
-import { MODEL_SETTINGS_ID, MODEL_SETTINGS_NAME, PRESET_PLUGIN, modelSettingsFor, officialSettingsPlan, patchPresetRows, sameAllowedModels } from './official-settings.js'
+import { MODEL_SETTINGS_ID, officialSettingsPlan } from './official-settings.js'
+import { syncOfficialMirror } from './mirror.js'
 import { SESSION_POLICY_KEY, compareLayers, presetRouteProblems, routePairs, sessionPolicyNotice } from './policy.js'
 
 const PACKAGE = 'dsh-subagent-hub'
@@ -484,9 +485,8 @@ export default class SubagentHub extends Service {
    * `manageOfficialSettings` is true. Idempotent: unchanged entries are not rewritten, so a
    * normal restart does not reload the presets.
    *
-   * Each step stands alone. A refused write is retried once, then recorded in `failures` and the
-   * remaining steps still run: one dead entry must not leave the whole mirror missing while the
-   * page can only say "unconfirmed", and the warning must name the step that failed.
+   * The writes live in `mirror.js`: each step stands alone, so one dead row cannot leave the
+   * mirror half written while the page can only say "unconfirmed".
    * @returns {Promise<{ enabled: boolean, presets?: string[], modelSettings?: string, presetIds?: string[],
    *   models?: any[], skipped?: string, durationMs?: number, failures?: Array<{ step: string, message: string }> }>}
    */
@@ -499,76 +499,21 @@ export default class SubagentHub extends Service {
       this.ctx.logger?.warn?.(`${PACKAGE}: manageOfficialSettings is on but the configEditor service is unavailable`)
       return { enabled: true, skipped: 'configEditor unavailable' }
     }
-    const presetIds = plan.presetIds
-    const models = plan.models
-    const report = { enabled: true, presets: [], modelSettings: 'unchanged', presetIds, models, durationMs: 0, failures: [] }
-    const startedAt = Date.now()
-    const fail = (step, error) => {
-      const message = String(error?.message ?? error)
-      report.failures.push({ step, message })
+    const mirror = await syncOfficialMirror({
+      editor,
+      routes: this.catalog.routes,
+      presetIds: plan.presetIds,
+      warn: message => this.ctx.logger?.warn?.(`${PACKAGE}: ${message}`),
+    })
+    const report = {
+      enabled: true,
+      presets: mirror.presets,
+      modelSettings: mirror.modelSettings,
+      presetIds: plan.presetIds,
+      models: mirror.models,
+      durationMs: mirror.durationMs,
+      failures: mirror.failures,
     }
-    /**
-     * Persist one row. A reload that races the edit refuses the write and restores the file, so
-     * one clean retry separates a transient transaction clash from a permanent refusal.
-     * @returns whether the row was accepted.
-     */
-    const write = async (step, entry, change) => {
-      try {
-        await editor.edit(entry, change)
-        return true
-      } catch (first) {
-        try {
-          await sleep(250)
-          await editor.edit(entry, change)
-          return true
-        } catch (second) {
-          fail(step, second ?? first)
-          return false
-        }
-      }
-    }
-
-    // The model allowlist lands first: it is the setting that makes `provider`/`model` show up,
-    // and it costs one profile reload on its own.
-    if (models.length > 0) {
-      const entry = this.modelSettingsEntry(editor)
-      if (entry === undefined) {
-        report.modelSettings = 'missing-entry'
-        fail('model-settings', new Error(`no "${MODEL_SETTINGS_ID}" row and no "${MODEL_SETTINGS_NAME}" plugin in this profile`))
-      } else {
-        const desired = modelSettingsFor(this.catalog.routes)
-        const snapshot = new Map(editor.configuration().map(row => [row.entry, row]))
-        const base = { ...(snapshot.get(entry)?.inherited ?? {}), ...(entry.options.config ?? {}) }
-        if (base.enabled !== desired.enabled || !sameAllowedModels(base.allowedModels, desired.allowedModels)) {
-          const accepted = await write('model-settings', entry, (current, inherited) => ({ ...inherited, ...current, ...desired }))
-          report.modelSettings = accepted ? 'written' : 'failed'
-        }
-      }
-    }
-
-    // Then each official preset that carries a spawn delegation row. Every write is one profile
-    // reload, so only the rows that actually differ are touched.
-    const presetEntryIds = editor.entries()
-      .filter(entry => entry.options.name === PRESET_PLUGIN)
-      .map(entry => entry.options.id)
-    for (const id of presetEntryIds) {
-      const entry = editor.entries().find(candidate => candidate.options.id === id)
-      if (entry === undefined) continue
-      const snapshot = new Map(editor.configuration().map(row => [row.entry, row]))
-      const base = { ...(snapshot.get(entry)?.inherited ?? {}), ...(entry.options.config ?? {}) }
-      if (!Array.isArray(base.plugins)) continue
-      const { changed } = patchPresetRows(base.plugins, { presetIds, exposeModels: models.length > 0 })
-      if (!changed) continue
-      const accepted = await write(`preset ${id}`, entry, (current, inherited) => {
-        const merged = { ...inherited, ...current }
-        if (!Array.isArray(merged.plugins)) return merged
-        const patched = patchPresetRows(merged.plugins, { presetIds, exposeModels: models.length > 0 })
-        return patched.changed ? { ...merged, plugins: patched.plugins } : merged
-      })
-      if (accepted) report.presets.push(id)
-    }
-
-    report.durationMs = Date.now() - startedAt
     if (report.presets.length > 0 || report.modelSettings !== 'unchanged' || report.failures.length > 0) {
       const detail = report.failures.length === 0
         ? ''
@@ -578,18 +523,6 @@ export default class SubagentHub extends Service {
       else this.ctx.logger?.warn?.(line)
     }
     return report
-  }
-
-  /**
-   * Resolve the row that owns the official child-model allowlist: the addressable profile row
-   * id, else the declared plugin name when a deployment renames the id.
-   * @param editor the profile config editor.
-   * @returns the Loader entry, or undefined when this profile serves neither.
-   */
-  modelSettingsEntry(editor) {
-    const entries = editor.entries()
-    return entries.find(entry => entry.options.id === MODEL_SETTINGS_ID)
-      ?? entries.find(entry => entry.options.name === MODEL_SETTINGS_NAME)
   }
 }
 

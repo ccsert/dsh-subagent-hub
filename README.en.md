@@ -6,7 +6,7 @@
   <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.3"><img src="https://img.shields.io/badge/version-0.11.3-66c8ab" alt="Version 0.11.3"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-154_unit_%2B_33_runtime-66c8ab" alt="154 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-155_unit_%2B_33_runtime-66c8ab" alt="155 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
@@ -168,7 +168,7 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-This release is verified by **154 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
+This release is verified by **155 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
 
 Issues and PRs are welcome. Read [CONTRIBUTING](CONTRIBUTING.md), the [design notes](docs/design.md), and the [release guide](docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 

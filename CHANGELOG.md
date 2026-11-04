@@ -3,10 +3,10 @@
 ## 0.11.3 — 同步失败可见，镜像写入不再被一步拖垮
 
 - 「已保存，但暂未确认生效」不再兜住所有原因：核对截止时区分**角色目录没出现**（`syncRosterMissing`）与**官方模型白名单没出现**（`syncAllowlistMissing`），后者直接说明宿主没有接受这次镜像写入、原因在宿主日志的 `dsh-subagent-hub:` 警告里；两者都能只读重新核对，不重复保存。读取本身报错、不返回时保持原来的笼统文案，不臆断是哪一半。
-- 宿主侧镜像写入逐步独立：模型白名单写失败不再连带跳过后面的官方预设行（`allowedAgentPresets`），每步失败记入 `failures` 并输出 warn，日志现在能读到 `official settings mirror … failures=[model-settings: …]`，而不是只剩一句“没生效”。
+- 镜像写入拆成无运行时依赖的 `lib/mirror.js`（深模块，可直接单测）：模型白名单写失败不再连带跳过后面的官方预设行（`allowedAgentPresets`），每步失败记入 `failures` 并输出 warn，日志现在能读到 `official settings mirror … failures=[model-settings: …]`，而不是只剩一句“没生效”。
 - 每次写入带一次干净的 250ms 重试：区分「重载事务撞车造成的瞬时拒绝」与「永久拒绝」，重试成功不计为失败。
 - `subagent-model-selection-settings` 按行 id 找不到时，用声明的包名 `@deepseek-ai/dsh-tool-subagent/model-selection-settings` 兜底；两种都缺才判定 `missing-entry` 并上报，不再静默跳过。
-- 验证：154 项单测（新增 11 项，覆盖各步独立、瞬时拒绝重试、按包名兜底、缺行上报、关闭托管不写、两种 gap 区分、不可读保持笼统），并在隔离 home 中用已安装的 DSH 0.2.1-rc.5 运行时跑通两条真实路径——启动期 reconcile 与页面保存（`SettingsForms.write` → volatile → reconcile）之后，`subagent-model-selection-settings` 与三条 `allowedAgentPresets` 都写进了 profile patch。
+- 验证：155 项单测（新增 10 项：6 项镜像模块——各步独立、瞬时拒绝重试、按行 id 与包名解析、缺行上报、幂等不重写；4 项核对 gap——角色目录/模型白名单/不可读/空路由）。新增用例不再 import 宿主入口，因此在 CI 只有根依赖时也能跑，并在隔离 home 中用已安装的 DSH 0.2.1-rc.5 运行时跑通两条真实路径——启动期 reconcile 与页面保存（`SettingsForms.write` → volatile → reconcile）之后，`subagent-model-selection-settings` 与三条 `allowedAgentPresets` 都写进了 profile patch。
 
 ## 0.11.2 — 模型标识显示模型名称，补充贵模型统筹用法
 

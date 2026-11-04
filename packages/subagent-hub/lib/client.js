@@ -146,6 +146,8 @@ window.__ModuleLoader__.load({
       'syncRosterReady': '已保存；具名角色目录已更新。',
       'syncRetry': '重新核对',
       'syncPending': '已保存，但暂未确认生效。可重新核对，无需重复保存。',
+      'syncRosterMissing': '已保存；但具名角色还没出现在宿主里。宿主可能仍在重载，稍后再点「重新核对」；若一直如此，请重启 Harness。',
+      'syncAllowlistMissing': '已保存；但官方的子代理模型白名单没有出现在宿主中，说明宿主没有接受这次的镜像写入。原因在宿主日志的 “dsh-subagent-hub:” 警告里；修好后点「重新核对」即可，不用再保存一次。',
       'invalid': '无法保存：{error}',
       'unavailable': '这个 profile 没有提供配置表单，请直接编辑 cordis.patch.yml。',
       'discard': '放弃修改',
@@ -283,6 +285,8 @@ window.__ModuleLoader__.load({
       'syncRosterReady': 'Saved; the named role roster is up to date.',
       'syncRetry': 'Check again',
       'syncPending': 'Saved, but the update is not confirmed yet. Check again without saving twice.',
+      'syncRosterMissing': 'Saved; the named roles have not appeared in the Host yet. It may still be reloading — check again shortly, and restart Harness if it never resolves.',
+      'syncAllowlistMissing': 'Saved; the official subagent model allowlist did not appear in the Host, so the Host did not accept the mirrored write. The reason is in the Host log under "dsh-subagent-hub:"; check again after fixing it, there is no need to save twice.',
       'invalid': 'Cannot save: {error}',
       'unavailable': 'This profile exposes no configuration form; edit cordis.patch.yml directly.',
       'discard': 'Discard',
@@ -780,17 +784,26 @@ window.__ModuleLoader__.load({
       return expected.every(id => seen.has(id))
     }
 
-    /** Check only public, observable state: the preset roster and model settings. */
-    function officialSyncReady(values, presetState, modelState) {
-      if (presetState?.status !== 'ready' || !Array.isArray(presetState.value?.presets)) return false
+    /**
+     * Which observable half of the saved configuration the Host has not published yet. Public
+     * contracts only: the preset roster and the model-selection settings form.
+     * @returns {undefined | 'roster' | 'allowlist'} undefined means every observable part matches.
+     */
+    function officialSyncGap(values, presetState, modelState) {
+      if (presetState?.status !== 'ready' || !Array.isArray(presetState.value?.presets)) return 'roster'
       const expected = values.agents.map(agent => `hub-agent-${agent.id}`).sort()
       const presets = presetState.value.presets.filter(preset => preset.id.startsWith('hub-agent-'))
-      if (presets.some(preset => preset.broken !== undefined)) return false
-      if (JSON.stringify(presets.map(preset => preset.id).sort()) !== JSON.stringify(expected)) return false
-      if (values.routes.length === 0) return true
-      if (modelState?.status !== 'ready' || modelState.value?.enabled !== true) return false
+      if (presets.some(preset => preset.broken !== undefined)) return 'roster'
+      if (JSON.stringify(presets.map(preset => preset.id).sort()) !== JSON.stringify(expected)) return 'roster'
+      if (values.routes.length === 0) return undefined
+      if (modelState?.status !== 'ready' || modelState.value?.enabled !== true) return 'allowlist'
       const pairs = routes => [...new Set(routes.map(route => routeKey(route.provider, route.model)))].sort()
-      return JSON.stringify(pairs(values.routes)) === JSON.stringify(pairs(modelState.value.allowedModels ?? []))
+      return JSON.stringify(pairs(values.routes)) === JSON.stringify(pairs(modelState.value.allowedModels ?? [])) ? undefined : 'allowlist'
+    }
+
+    /** Whether every observable part of the save is published. */
+    function officialSyncReady(values, presetState, modelState) {
+      return officialSyncGap(values, presetState, modelState) === undefined
     }
 
     /** Read public Remote/Settings contracts; preset entry ids are not form namespaces. */
@@ -814,12 +827,15 @@ window.__ModuleLoader__.load({
       let finished = false
       let pollTimer
       let deadlineTimer
-      const finish = state => {
+      // The last thing actually observed, so the deadline can say which half is missing instead
+      // of only "unconfirmed". A read that never settles leaves this unreadable.
+      let gap = 'unreadable'
+      const finish = (state, detail) => {
         if (finished) return
         finished = true
         clearTimer(pollTimer)
         clearTimer(deadlineTimer)
-        onState(state)
+        onState(state, detail)
       }
       const schedule = () => {
         if (!finished) pollTimer = setTimer(poll, intervalMs)
@@ -828,11 +844,16 @@ window.__ModuleLoader__.load({
         if (finished) return
         Promise.resolve().then(readState).then(state => {
           if (finished) return
-          if (officialSyncReady(values, state.presets, state.models)) finish('complete')
-          else schedule()
+          const next = officialSyncGap(values, state.presets, state.models)
+          if (next === undefined) {
+            finish('complete')
+            return
+          }
+          gap = next
+          schedule()
         }, schedule).catch(schedule)
       }
-      deadlineTimer = setTimer(() => finish('pending'), timeoutMs)
+      deadlineTimer = setTimer(() => finish('pending', gap), timeoutMs)
       onState('checking')
       poll()
       return () => {
@@ -1431,10 +1452,12 @@ window.__ModuleLoader__.load({
         stopSync.current = observeOfficialSync({
           values: savedValues,
           readState: () => readOfficialSyncState(ctx),
-          onState: state => {
+          onState: (state, detail) => {
             if (disposed.current) return
             if (state === 'checking') setStatus({ kind: 'busy', text: t('syncing') })
             else if (state === 'complete') setStatus({ kind: 'ok', text: t(savedValues.routes.length > 0 ? 'synced' : 'syncRosterReady') })
+            else if (detail === 'roster') setStatus({ kind: 'warn', text: t('syncRosterMissing'), retry: true })
+            else if (detail === 'allowlist') setStatus({ kind: 'warn', text: t('syncAllowlistMissing'), retry: true })
             else setStatus({ kind: 'warn', text: t('syncPending'), retry: true })
           },
         })
@@ -2347,6 +2370,7 @@ window.__ModuleLoader__.load({
       catalogPreview,
       officialAllowlists,
       officialSyncReady,
+      officialSyncGap,
       readOfficialSyncState,
       observeOfficialSync,
       allowlistSynced,

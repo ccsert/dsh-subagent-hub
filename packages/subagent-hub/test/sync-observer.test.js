@@ -128,3 +128,57 @@ test('a late successful read cannot overwrite a timeout, and a new check can suc
   await flush()
   assert.deepEqual(retry.states, ['checking', 'complete'])
 })
+
+test('the gap separates the roster from the model allowlist', () => {
+  const { officialSyncGap } = client()
+  const empty = { routes: [], agents: [] }
+  assert.equal(officialSyncGap(values, ready().presets, ready().models), undefined)
+  assert.equal(officialSyncGap(values, { status: 'unavailable' }, ready().models), 'roster')
+  assert.equal(officialSyncGap(values, { status: 'ready', value: { presets: [{ id: 'standard' }] } }, ready().models), 'roster')
+  assert.equal(officialSyncGap(values, ready().presets, { status: 'ready', value: { enabled: false, allowedModels: [] } }), 'allowlist')
+  assert.equal(officialSyncGap(values, ready().presets, { status: 'ready', value: { enabled: true, allowedModels: [{ provider: 'x', model: 'y' }] } }), 'allowlist')
+  assert.equal(officialSyncGap(empty, { status: 'ready', value: { presets: [] } }, undefined), undefined,
+    'with no routes the model form is not part of the check')
+})
+
+/** Observe with the detail argument surfaced, so the copy can name the failing half. */
+function observeWithDetail(api, readState, timeoutMs = 100) {
+  const timers = clock()
+  const seen = []
+  const stop = api.observeOfficialSync({
+    values,
+    readState,
+    onState: (state, detail) => seen.push([state, detail]),
+    timeoutMs,
+    intervalMs: 10,
+    ...timers,
+  })
+  return { seen, stop, timers }
+}
+
+test('a model form that never enables is reported as the allowlist gap, not "unconfirmed"', async () => {
+  const api = client()
+  const run = observeWithDetail(api, async () => ({
+    presets: ready().presets,
+    models: { status: 'ready', value: { enabled: false, allowedModels: [] } },
+  }))
+  await run.timers.advance(100)
+  assert.deepEqual(run.seen, [['checking', undefined], ['pending', 'allowlist']])
+})
+
+test('a roster that never matches is reported as the roster gap', async () => {
+  const api = client()
+  const run = observeWithDetail(api, async () => ({
+    presets: { status: 'ready', value: { presets: [{ id: 'standard' }] } },
+    models: ready().models,
+  }))
+  await run.timers.advance(100)
+  assert.deepEqual(run.seen.at(-1), ['pending', 'roster'])
+})
+
+test('an unreadable state stays generic instead of blaming one half', async () => {
+  const api = client()
+  const run = observeWithDetail(api, async () => { throw new Error('temporarily unavailable') })
+  await run.timers.advance(100)
+  assert.deepEqual(run.seen.at(-1), ['pending', 'unreadable'])
+})

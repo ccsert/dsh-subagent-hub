@@ -4,7 +4,7 @@
 
 已验证：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
 
-CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.2`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.3`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
@@ -18,10 +18,10 @@ export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/pr
 
 ## 2. 安装插件包
 
-推荐从 [v0.11.2 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.2) 的 Assets 下载 `dsh-subagent-hub-0.11.2.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.11.3 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.3) 的 Assets 下载 `dsh-subagent-hub-0.11.3.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.2.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.3.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：
@@ -110,7 +110,7 @@ pnpm --dir "${DSH_PROFILE_DIR:?}" remove dsh-subagent-hub
 
 - **看不到设置入口**：核对依赖与 bundle 都位于正在运行的 profile，并已重启加载代码。
 - **旧会话看不到新参数**：新建会话；已有 schema 不会在对话中途重建。
-- **保存后仍在核对**：15 秒内未确认会结束等待，可点击只读的“重新核对”；它不会重复保存。
+- **保存后仍在核对**：核对有独立的 15 秒截止；超时不再只报一句“未确认”，而是说明缺的是**角色目录**还是**官方模型白名单**。前者多为宿主仍在重载，稍后点只读的“重新核对”；后者说明宿主没有接受镜像写入，去看宿主日志里的 `dsh-subagent-hub:` 警告（会写明是哪一步、失败原因），修好后点“重新核对”即可，不用再保存一次。
 - **子会话显示“未确认”**：当前尚未获得可读取的模型请求投影；不会用主模型或角色配置填充。
 - **派发被路由守卫拒绝**：核对角色允许的路由及父模型继承情况。需要硬限制时，保持角色的 `routes` 为明确的非空列表。
 

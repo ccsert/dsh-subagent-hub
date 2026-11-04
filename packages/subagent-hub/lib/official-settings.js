@@ -7,6 +7,8 @@ export const OWN_PRESET_PREFIX = 'hub-agent-'
 export const PRESET_PLUGIN = '@deepseek-ai/dsh-agent-preset'
 export const SUBAGENT_TOOL_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
 export const MODEL_SETTINGS_ID = 'subagent-model-selection-settings'
+/** Declared package of that row; a deployment may rename the id, the name stays put. */
+export const MODEL_SETTINGS_NAME = '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
 
 /** Host setting values that mirror the plugin route table into official child model selection. */
 export function modelSettingsFor(routes) {

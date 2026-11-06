@@ -48,7 +48,7 @@ const plugins = () => [
     name: 'cordis:group',
     group: true,
     config: [
-      { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', toolName: 'subagent' } },
+      { id: 'tool-subagent', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'spawn', toolName: 'subagent', modelSelectionSettings: false } },
       { id: 'tool-subagent-fork', name: '@deepseek-ai/dsh-tool-subagent', config: { provider: 'fork', toolName: 'subagent_fork' } },
     ],
   },
@@ -64,6 +64,25 @@ test('spawn rows get the allowlist and model selection; fork rows are untouched'
   assert.deepEqual(delegation.config[1].config, { provider: 'fork', toolName: 'subagent_fork' })
 })
 
+test('a newer shipped base that never declared modelSelectionSettings does not gain the key', () => {
+  const current = [{
+    id: 'tool-subagent',
+    name: '@deepseek-ai/dsh-tool-subagent',
+    config: { provider: 'spawn', toolName: 'subagent', modelSelection: true, modelDiscovery: true },
+  }]
+  const { plugins: next, changed } = patchPresetRows(current, { presetIds: ['hub-agent-reviewer'], exposeModels: true })
+
+  assert.equal(changed, true)
+  assert.deepEqual(next[0].config, {
+    provider: 'spawn',
+    toolName: 'subagent',
+    modelSelection: true,
+    modelDiscovery: true,
+    allowedAgentPresets: ['hub-agent-reviewer'],
+  })
+  assert.equal(Object.hasOwn(next[0].config, 'modelSelectionSettings'), false)
+})
+
 test('a second pass is a no-op and keeps the same array reference', () => {
   const first = patchPresetRows(plugins(), { presetIds: ['hub-agent-reviewer'], exposeModels: true }).plugins
   const second = patchPresetRows(first, { presetIds: ['hub-agent-reviewer'], exposeModels: true })
@@ -77,7 +96,7 @@ test('removing every named agent clears only our own allowlist entries', () => {
   const { plugins: next, changed } = patchPresetRows(withForeign, { presetIds: [], exposeModels: false })
   assert.equal(changed, true)
   assert.deepEqual(next[1].config[0].config.allowedAgentPresets, ['other'])
-  assert.equal(next[1].config[0].config.modelSelectionSettings, undefined)
+  assert.equal(next[1].config[0].config.modelSelectionSettings, false, 'a declared false value is preserved when models are not exposed')
 })
 
 test('no named agents and no prior allowlist means no edit', () => {
@@ -89,7 +108,7 @@ test('untouched inputs are not mutated', () => {
   const base = plugins()
   patchPresetRows(base, { presetIds: ['hub-agent-reviewer'], exposeModels: true })
   assert.equal(base[1].config[0].config.allowedAgentPresets, undefined)
-  assert.equal(base[1].config[0].config.modelSelectionSettings, undefined)
+  assert.equal(base[1].config[0].config.modelSelectionSettings, false)
 })
 
 test('sameAllowedModels compares the exact provider/model sequence', () => {

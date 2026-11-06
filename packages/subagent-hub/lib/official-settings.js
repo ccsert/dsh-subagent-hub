@@ -46,10 +46,11 @@ export function mergePresetAllowlist(existing, ids) {
 }
 
 /**
- * Rewrite `allowedAgentPresets` (and optionally `modelSelectionSettings`) on every official
- * subagent tool row in one preset plugin list.
- * The row's config is preserved. Only in-process spawn rows can select an independent preset;
- * fork rows are left untouched because the runtime rejects preset selection for them.
+ * Rewrite `allowedAgentPresets` on every official spawn tool row in one preset plugin list.
+ * `modelSelectionSettings` (the older 0.2.1 official key) is switched on only when that row
+ * already declares it; the field is never invented on a base that does not ship it.
+ * The row's other config is preserved. Only in-process spawn rows can select an independent
+ * preset; fork rows are left untouched because the runtime rejects preset selection for them.
  * @param {readonly any[]} plugins
  * @param {{ presetIds: string[], exposeModels: boolean }} options
  * @returns {{ plugins: any[], changed: boolean }}
@@ -66,7 +67,10 @@ export function patchPresetRows(plugins, { presetIds, exposeModels = false }) {
       const config = row.config
       if (config === null || typeof config !== 'object' || Array.isArray(config)) continue
       if (config.provider !== 'spawn') continue
-      if (exposeModels && config.modelSelectionSettings !== true) {
+      // `modelSelectionSettings` is the older (0.2.1-rc.2) official key. It is only switched on
+      // when the row already declares it; on newer bases the key no longer exists and must not
+      // be invented (the current keys are `modelSelection`/`modelDiscovery`, shipped verbatim).
+      if (exposeModels && Object.hasOwn(config, 'modelSelectionSettings') && config.modelSelectionSettings !== true) {
         config.modelSelectionSettings = true
         changed = true
       }

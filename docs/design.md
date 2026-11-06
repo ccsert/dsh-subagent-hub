@@ -1,6 +1,6 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.11.3（镜像写入逐步独立并上报失败步骤；核对区分角色目录与官方模型白名单），单元测试 155 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
+> 状态：0.11.4（官方预设镜像改为升级安全：基线重接、用户编辑优先、旧快照自愈、权威诊断修复、写前备份），单元测试 204 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
 > 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
@@ -106,14 +106,27 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 
 ### 4.5 `manageOfficialSettings`（默认关闭）
 
-为 `true` 时，等具名预设注册完成后，用 `configEditor` 做幂等同步（已一致就不重写，避免每次启动触发预设重载）：
+为 `true` 时，等具名预设注册完成后用 `configEditor` 做幂等同步（已一致就不写，避免每次启动触发预设重载）。
 
-| 目标 | 写入 |
+**托管范围**：官方预设里 `name === '@deepseek-ai/dsh-tool-subagent'` 且 `config.provider === 'spawn'` 的委派行；Hub 只拥有该行的 `config.allowedAgentPresets`（保留其它插件写入的 id，替换本插件 `hub-agent-*` 前缀的旧值）。`modelSelectionSettings` 只在官方预设行本来声明它时保持或置为 `true`；0.2.2 起的 `modelSelection`/`modelDiscovery` 完全来自官方预设，插件不注入。模型行 `subagent-model-selection-settings` 仍写 `{ enabled: true, allowedModels }`。
+
+**基线**：每次成功写入都把 `{ baseHash, writtenHash, foreign }` 记到 profile patch 旁的 `<patch>.subagent-hub-baseline.json`（由 `lib/sidecar.js` 提供，可注入假 store）。`baseHash` 是官方预设去掉 Hub 字段后的指纹，`writtenHash` 是 Hub 实际写入的完整 config 指纹，`foreign` 表示这份 override 属于用户、不再自动重接。写决策是 `lib/preset-migration.js` 的纯函数，`lib/mirror.js` 只按步执行写入。
+
+| 情况 | 决策 |
 |---|---|
-| 每个声明了 spawn `@deepseek-ai/dsh-tool-subagent` 行的 Agent Preset（当前发行版是 `preset-standard` / `preset-ptc` / `preset-cordis`） | 该行的 `config.allowedAgentPresets`（保留其它插件写入的 id，替换本插件 `hub-agent-*` 前缀的旧值）与 `config.modelSelectionSettings: true` |
-| `subagent-model-selection-settings` 行 | `{ enabled: true, allowedModels }` |
+| 无基线、没有用户 override | 从官方预设 + 托管字段派生并写入，记录 owned 基线 |
+| 基线 owned、当前配置仍等于上次写入、官方基线未变 | 不写（幂等，重启也不写） |
+| 基线 owned、当前仍等于上次写入、官方基线变了 | 整份重接到新官方预设 + 托管字段（DSH 升级自愈） |
+| 基线 owned 但当前不等于上次写入（用户改过） | 只增量修补托管行与可证明失效的行，标记 foreign，不再自动重接 |
+| 无基线、带 `hub-agent-*` 指纹的旧 Hub 快照 | adopt：删除可证明无法加载的行，spawn 行按当前官方行重建 + 托管字段，标记 foreign |
+| 无基线、无指纹的用户 override | 只增量写 `allowedAgentPresets`，标记 foreign |
+| foreign | 只增量修补；可证明失效的行仍可删除，但绝不整份重接 |
 
-已知副作用（有意接受）：这份写入是 profile patch 里对预设行的**完整 config override**，该预设的 plugin 列表从此固定在 profile 层，官方后续升级不会自动合并。这正是“替用户管官方配置”的代价，所以默认关闭。关闭开关不会回滚已经写入的内容，只是不再维护。
+**修复信号（按优先级）**：① 官方预设的激活诊断——`agentPresets.list()` 的 `broken` 字段。只有以 `: never started` 结尾的行表示模块导入失败，属确定可删；`waiting for <services>` 表示已挂载但等待服务，绝不删除；诊断行若对应的行仍被官方预设声明（id+name），也不删除，只报告。② 包解析启发式——只有运行中安装自己的解析基准（`profileContext.installAnchor`）能给出结论：包根可解析、完整子路径不可解析才可删；开发符号链接、profile 本地依赖、`import.meta.resolve` 等回退基准一律返回 `unknown`，绝不把死行认证为可加载。两者都不能决定时只写 `unverified` 报告与日志，不删除用户行。
+
+**写前备份**：每轮最多一次，在第一次可能改变文件的写入前把 profile patch 复制为 `<patch>.backup-<ISO>-subagent-hub`；备份失败则本轮不写。每个 `editor.edit` 都是一次 profile 重载，因此只有内容真的不同才写；每步独立，失败重试一次并记入 `failures`。
+
+旧版本曾把整份官方预设写进 profile patch，冻结升级默认值并留下后来被删除的行；本版本用基线与托管范围修复，旧快照在第一次同步时自愈。关闭开关不会回滚已经写入的内容，只是不再维护。
 
 ### 4.6 配置卡片与 live 重配置（0.4.1）
 
@@ -164,7 +177,7 @@ Client 通过可选的 `sessions` 注入，注册官方 session 范围的 `conve
 
 - **选择信息**：4.3 的 system prompt 段落给出 `Models:` 列表、能力标签和 `note`，主 agent 据此决定哪条路由适合哪类子任务。
 - **硬约束**：具名 agent 的 `routes` 把角色钉在便宜路由上，4.4 的守卫在派发前拒绝越界组合；这是“子 agent 不会顺手用掉贵模型”的保证，而非提示词约定。
-- **参数可用**：`manageOfficialSettings: true` 且 `routes` 非空（4.5）。此时插件才把 `modelSelectionSettings` 写进官方 `subagent` 工具行（`exposeModels` 取 `allowedModels` 是否非空）；否则主 agent 只能继承自身模型，整套分工无从落地。
+- **参数可用**：`manageOfficialSettings: true` 且 `routes` 非空（4.5）。此时插件把 `allowedAgentPresets` 与模型允许列表同步到官方配置；官方 `subagent` 工具是否暴露 `provider`/`model` 取决于当前 DSH 自带预设里的 `modelSelection`/`modelDiscovery`（旧版为 `modelSelectionSettings`），插件不臆造。否则主 agent 只能继承自身模型，整套分工无从落地。
 - **并行与预算**：4.5a 的每会话并发上限限制同时运行的子 agent 数量，是这条用法的成本闸门；官方全局并行容量同时生效。
 
 适用边界：Team（`spawn_teammate`）在当前运行时继承 Lead 模型，没有模型选择输入，**用 Team 派活省不了贵模型的用量**；只有暴露 `provider`/`model` 的 `subagent` 能把子任务送到便宜路由。另见 [Team 模型路由](team-model-routing.md)。
@@ -185,6 +198,9 @@ packages/subagent-hub
 ├─ lib/policy.js            两层白名单比较：会话快照、配置、预设越界诊断
 ├─ lib/prompt.js            system prompt 目录段落（纯函数）
 ├─ lib/official-settings.js manageOfficialSettings 的计划与配置改写（纯函数）
+├─ lib/preset-migration.js  预设写决策（纯函数）：基线指纹、重接/采纳/foreign、`broken` 诊断解析与可证明失效行修剪
+├─ lib/sidecar.js          Host 侧副作用：基线 sidecar、写前备份、插件 specifier 解析
+├─ lib/mirror.js           官方设置镜像：按步写入、失败隔离、报告
 ├─ locale/                  Plugins 卡片标题/说明
 └─ test/                    单元测试 + e2e（临时 DSH_HOME + 真实 dsh 0.2.1-rc.2）
 ```
@@ -202,7 +218,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：155 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+`bash test.sh`：204 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

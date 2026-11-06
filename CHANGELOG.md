@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.11.4 — 官方预设镜像升级安全：不再冻结整份预设，旧快照自愈
+
+- 修复：`manageOfficialSettings` 曾把整份官方预设（含写入当时的所有插件行）写进 profile patch，DSH 升级后冻结旧默认值；旧版 DSH 的 `tool-subagent-list-agents` 行（`@deepseek-ai/dsh-tool-subagent-control/list-agents`）在新包已无导出，导致 `agent-preset/invalid: … never started` 与会话不可用。现在托管范围收缩为 spawn 委派行的 `allowedAgentPresets`，写策略由新的 `lib/preset-migration.js` 纯函数决定，`lib/mirror.js` 只按步执行：
+  - 新增 Hub 基线 sidecar `cordis.patch.yml.subagent-hub-baseline.json`（每个预设 `{baseHash, writtenHash, foreign}`）。只有 Hub 自己写过、且用户没改过的预设会在 DSH 升级后整份重接到新官方预设（新默认值生效、旧行消失）。
+  - 用户改过的预设只增量修补、标记 foreign，此后不再自动重接；无基线、带 `hub-agent-*` 指纹的旧 Hub 快照走 adopt 修复；无指纹的用户 override 只补 `allowedAgentPresets`。
+  - 自愈修复改用权威信号：`agentPresets.list()` 的 `broken` 激活诊断中，只有以 `: never started` 结尾的行（模块导入失败）会被删除；`waiting for <services>` 挂起行、仍被官方预设声明的行只报告不删除。`lib/preset-migration.js` 新增纯函数 `parseBrokenPresetRows()`。
+  - 默认 `resolveSpec` 收紧为保守辅助信号：只有运行中安装自己的解析基准（`profileContext.installAnchor`）能判定「可加载 / 子路径不存在」；开发符号链接、profile 本地依赖、`import.meta.resolve` 等回退基准一律返回 `unknown`，不再把旧 CLI 的死行认证为可用。
+  - 仍保留包解析启发式（包根可解析、子路径不可解析）作为第二信号；两个信号都不能决定时只在同步报告 `unverified` 与日志里点名，不删行。第二轮为空操作。
+  - 每轮第一次写入前把 profile patch 复制为 `cordis.patch.yml.backup-<ISO>-subagent-hub`；写入仍走 config-editor 原子路径，每步独立、失败重试一次并记入 `failures`；`change` 内会按当前 `(current, inherited)` 重算，竞态重载不会用陈旧快照覆盖。
+  - `modelSelectionSettings` 只在官方预设行本来就声明它时置为 `true`（旧版 DSH）；0.2.2 起的 `modelSelection`/`modelDiscovery` 完全来自官方预设，插件不再臆造。
+- 报告与日志新增 `presets` / `rebased` / `pruned` / `foreign` / `unverified` / `presetActions`，保留原有 `modelSettings` / `failures` / `durationMs` / `models`。
+- 文档：README（中/英）、`docs/design.md` 4.5/4.8、`docs/install.md` 说明托管范围、基线与备份文件、旧快照自愈与 foreign 语义。
+- 验证：204 项单元测试（新增 49 项：35 项升级回归——真实事故行、二次幂等、重启、升级重接、用户编辑保护、备份一次、拒绝重试与报告、旧/新 `modelSelectionSettings` 兼容、纯函数策略矩阵；13 项 `broken` 权威诊断修复——解析容错、权威删除、基线保护、`waiting for` 不删、解析器不再认证死行、三态歧义只报告；1 项 official-settings 夹具扩展）。
+
 ## 0.11.3 — 同步失败可见，镜像写入不再被一步拖垮
 
 - 「已保存，但暂未确认生效」不再兜住所有原因：核对截止时区分**角色目录没出现**（`syncRosterMissing`）与**官方模型白名单没出现**（`syncAllowlistMissing`），后者直接说明宿主没有接受这次镜像写入、原因在宿主日志的 `dsh-subagent-hub:` 警告里；两者都能只读重新核对，不重复保存。读取本身报错、不返回时保持原来的笼统文案，不臆断是哪一半。

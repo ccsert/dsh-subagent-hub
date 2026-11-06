@@ -4,7 +4,7 @@
 
 已验证：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
 
-CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.3`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.11.4`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
@@ -18,10 +18,10 @@ export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/pr
 
 ## 2. 安装插件包
 
-推荐从 [v0.11.3 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.3) 的 Assets 下载 `dsh-subagent-hub-0.11.3.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.11.4 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.4) 的 Assets 下载 `dsh-subagent-hub-0.11.4.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.3.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.11.4.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：
@@ -82,7 +82,7 @@ JS
 
 列表顺序保留在目录中；标签帮助主 agent 做选择。硬性路由限制来自角色的 `routes`，不实现自动模型回退。
 
-托管会在 profile patch 中固定受管理预设的完整 config；升级 DSH 后应检查官方预设默认值的变化。
+托管写入是升级安全的：Hub 只维护 spawn 委派行的 `allowedAgentPresets`，每次成功写入把 `{ baseHash, writtenHash, foreign }` 记到 profile patch 旁的 `cordis.patch.yml.subagent-hub-baseline.json`，并在每轮第一次写入前把 profile patch 备份为 `cordis.patch.yml.backup-<时间戳>-subagent-hub`。DSH 升级后，Hub 自己写过且未被用户修改的预设会自动重接到新官方预设；用户改过的预设只做增量修补、标记 foreign 后不再自动重接。旧版本冻结的坏快照会在下一次同步时自愈：可证明无法加载的子路径行被删除，spawn 行恢复为当前官方默认 config + `allowedAgentPresets`。修复优先使用官方预设的激活诊断（`agentPresets.list()` 的 `broken`：只有 `: never started` 行会被删除，`waiting for` 挂起行只报告不删除）；包解析只作保守的辅助信号，只有运行中安装自己的解析基准能判定，无法确定的行只在日志里报 `unverified`，不删除。
 
 关闭托管会停止后续同步，**不会撤销之前写入的官方设置**。如果保持托管关闭，请自行维护官方工具的 `allowedAgentPresets` 和模型选择 allowlist；主 agent 只会被引导使用当前工具实际暴露的参数。
 

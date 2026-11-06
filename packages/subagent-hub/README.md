@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.3/docs/assets/hero.webp" alt="Subagent Hub — Named roles. Clear routes. Visible models." width="100%">
+  <img src="https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.4/docs/assets/hero.webp" alt="Subagent Hub — Named roles. Clear routes. Visible models." width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.3"><img src="https://img.shields.io/badge/version-0.11.3-66c8ab" alt="Version 0.11.3"></a>
-  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
-  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-155_unit_%2B_33_runtime-66c8ab" alt="155 unit tests and 33 runtime assertions verified"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.4"><img src="https://img.shields.io/badge/version-0.11.4-66c8ab" alt="Version 0.11.4"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-204_unit_%2B_33_runtime-66c8ab" alt="204 unit tests and 33 runtime assertions verified"></a>
 </p>
 
-<p align="center"><a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/README.md">简体中文</a> · <b>English</b></p>
+<p align="center"><a href="https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/README.md">简体中文</a> · <b>English</b></p>
 
 # Subagent Hub
 
@@ -17,7 +17,7 @@
 
 Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversation UI. Keep your existing main-agent preset.
 
-[Install](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/install.md) · [Download a release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) · [Configuration example](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/examples/subagent-hub.yml) · [Changelog](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/CHANGELOG.md) · [Contribute](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/CONTRIBUTING.md)
+[Install](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/install.md) · [Download a release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) · [Configuration example](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/examples/subagent-hub.yml) · [Changelog](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/CHANGELOG.md) · [Contribute](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/CONTRIBUTING.md)
 
 ## Features
 
@@ -40,33 +40,33 @@ Diagnostics replays committed tool results to show the latest 64 Hub guard rejec
 
 **Models and named agents**
 
-![Actual configuration component with demo models and named agents](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.3/docs/assets/settings.webp)
+![Actual configuration component with demo models and named agents](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.4/docs/assets/settings.webp)
 
 **The latest child request**
 
-![Child header naming the model, with the full provider, model ID and reasoning effort in the details](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.3/docs/assets/model-badge.webp)
+![Child header naming the model, with the full provider, model ID and reasoning effort in the details](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.4/docs/assets/model-badge.webp)
 
 **Agent overview**
 
-![Overview panel with members, run state, model and token evidence](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.3/docs/assets/overview.webp)
+![Overview panel with members, run state, model and token evidence](https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v0.11.4/docs/assets/overview.webp)
 
-These are the actual plugin components rendered with demo data. They contain no user profile, private conversation, or credentials. See [screenshot provenance](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/screenshots.md) for full-size and narrow views. The Hero was generated with [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen).
+These are the actual plugin components rendered with demo data. They contain no user profile, private conversation, or credentials. See [screenshot provenance](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/screenshots.md) for full-size and narrow views. The Hero was generated with [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen).
 
 ## Quick start
 
 Tested with **DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.11.3.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.11.4.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.3.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.4.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
 4. Open **Settings → Subagent Hub**, select models already available in your DSH, and add a role. Enable **Manage the official delegation settings** if you want Hub to synchronize the official allowlists. Save, then start a new conversation.
 
-Git checkout installation, profile locations, upgrades, and removal are covered in the [installation guide](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/install.md). The package is published as [dsh-subagent-hub](https://www.npmjs.com/package/dsh-subagent-hub); fixed GitHub release archives are also available. The Team/inheritance guard requires 0.10.2 or newer.
+Git checkout installation, profile locations, upgrades, and removal are covered in the [installation guide](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/install.md). The package is published as [dsh-subagent-hub](https://www.npmjs.com/package/dsh-subagent-hub); fixed GitHub release archives are also available. The Team/inheritance guard requires 0.10.2 or newer.
 
 ## Minimal configuration
 
@@ -111,7 +111,7 @@ Three settings make this work:
 
 1. **Tag the cheap routes.** Mark free or low-cost models `tags: [free, fast]` and state their purpose in `note`. This catalog is injected into the main agent's system prompt, which is how it picks a model.
 2. **Confine roles to cheap routes.** List only cheap routes in a named agent's `routes`. An out-of-range model is refused before dispatch, which saves money and stops a child from quietly using the expensive model.
-3. **Enable managed official settings, and configure at least one route.** With `manageOfficialSettings: true` plus a non-empty `routes` list, the plugin writes `modelSelectionSettings` onto the official `subagent` tool. Without it, that tool may not expose `provider`/`model`, the main agent can only inherit the parent model, and it cannot choose a cheap route at all.
+3. **Enable managed official settings, and configure at least one route.** With `manageOfficialSettings: true` plus a non-empty `routes` list, the plugin synchronizes `allowedAgentPresets` and the model allowlist into the official configuration. Whether the official `subagent` tool exposes `provider`/`model` depends on the preset fields the installed DSH ships (`modelSelection`/`modelDiscovery`; `modelSelectionSettings` on older versions); the plugin never invents them. Without managed settings, or when the tool still exposes no model parameters, the main agent can only inherit the parent model and cannot choose a cheap route at all.
 
 ```yaml
 - id: subagent-hub
@@ -152,14 +152,15 @@ What this saves is **expensive-model tokens**, not total cost, and it does not f
 
 ## Behavior to keep in mind
 
-- **Team context selects history.** In the supported runtime, fresh and fork both inherit the Lead model and have no model-selection input. For a specific child model, use a `subagent` tool whose actual schema exposes model selection. See [Team model routing](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/team-model-routing.md).
+- **Team context selects history.** In the supported runtime, fresh and fork both inherit the Lead model and have no model-selection input. For a specific child model, use a `subagent` tool whose actual schema exposes model selection. See [Team model routing](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/team-model-routing.md).
 - **Global routes also guard inheritance.** A nonempty `routes` list bounds all three creation tools; out-of-list or unconfirmed models are refused. An empty list retains native inheritance. Existing members and later request rewrites are outside this creation check.
 - **Tags guide decisions.** Tags such as `fast`, `reasoning`, or `free` are maintained by you. Use a role's `routes` for a hard route boundary. Tags do not verify pricing or implement automatic fallback.
 - **The guard runs before dispatch.** Model rewrites performed by other plugins during a later child request are outside this guard. Check those plugins when combining route policies.
 - **Fork follows official capabilities.** The target fork provider does not support an independent `agent_preset`; named roles use `subagent`.
 - **Managed settings are opt-in.** `manageOfficialSettings` defaults to `false`. Enabling it synchronizes official allowlists. Disabling it stops syncing and retains settings already written.
+- **Managed writes are upgrade-safe.** The Hub owns only `allowedAgentPresets` on the spawn delegation row (`@deepseek-ai/dsh-tool-subagent` with `provider: spawn`) inside an official preset. Each successful write records a Hub-owned baseline in `cordis.patch.yml.subagent-hub-baseline.json`, and the first write of a run copies the profile patch to `cordis.patch.yml.backup-<timestamp>-subagent-hub` first. After a DSH upgrade, only a preset the Hub wrote and the user has not edited is re-derived wholesale from the new shipped preset; a user-edited preset gets additive repairs only and is marked foreign, so it is never rebased again. A frozen snapshot written by an older version self-heals on the next sync. The primary repair signal is the authoritative preset activation diagnostic (`agentPresets.list()` `broken`): only rows in a line ending exactly `: never started` are removed, and only when the current shipped preset does not declare them; `waiting for` pending rows and base-declared rows are never deleted. Package resolution is a conservative secondary signal: only the running installation's own resolution anchor may decide, a development symlink or profile-local copy can only make the answer ambiguous, and a row neither signal can judge is reported in the log, never deleted. The spawn row is then restored to the current shipped config plus `allowedAgentPresets`, and every other row is left untouched.
 - **Existing conversations keep their tool schema.** Saved configuration is live; use a new conversation for newly added roles or tool parameters. Plugin code upgrades require a DSH restart.
-- **Desktop model badges need 0.10.3 or newer.** This fixes the required native list-slot registration field. A component demo is distinct from a reload of the current Desktop window; see the [mounting fix record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/model-badge-acceptance.md).
+- **Desktop model badges need 0.10.3 or newer.** This fixes the required native list-slot registration field. A component demo is distinct from a reload of the current Desktop window; see the [mounting fix record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/model-badge-acceptance.md).
 - **The model badge shows request history.** `lastUsed` identifies the latest request; a different `next` selection is shown separately. A ready empty history says “No request yet”; unavailable data says “Unconfirmed.” A request record does not establish success or billing, and forked history may include inherited requests.
 - **The summary names the model; the details keep the ids.** The header summary shows the catalog display name the configuration page uses (for example `Qwen3.8-Flash · Qoder CN`), and falls back to `provider · id tail` when the catalog does not list the route. The expanded details, and a planned route in the agent overview, always keep the exact provider and model id as evidence.
 
@@ -173,8 +174,8 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-This release is verified by **155 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/ui-acceptance.md) and [model badge acceptance record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/team-model-routing.md) covers the new creation checks.
+This release is verified by **204 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/ui-acceptance.md) and [model badge acceptance record](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/team-model-routing.md) covers the new creation checks.
 
-Issues and PRs are welcome. Read [CONTRIBUTING](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/CONTRIBUTING.md), the [design notes](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/design.md), and the [release guide](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
+Issues and PRs are welcome. Read [CONTRIBUTING](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/CONTRIBUTING.md), the [design notes](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/design.md), and the [release guide](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 
-[MIT License](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.3/LICENSE) · Maintained by [ccsert](https://github.com/ccsert)
+[MIT License](https://github.com/ccsert/dsh-subagent-hub/blob/v0.11.4/LICENSE) · Maintained by [ccsert](https://github.com/ccsert)

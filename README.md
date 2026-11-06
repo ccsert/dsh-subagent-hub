@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.3"><img src="https://img.shields.io/badge/version-0.11.3-66c8ab" alt="Version 0.11.3"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.4"><img src="https://img.shields.io/badge/version-0.11.4-66c8ab" alt="Version 0.11.4"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-155_unit_%2B_33_runtime-66c8ab" alt="155 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-204_unit_%2B_33_runtime-66c8ab" alt="204 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -57,11 +57,11 @@
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.3.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.4.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.3.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.4.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -114,7 +114,7 @@
 
 1. **给便宜路由打标签。** `routes` 把免费或低价模型标成 `tags: [free, fast]`，`note` 写清用途。这段目录会进入主 agent 的 system prompt，主 agent 据此选模型。
 2. **把角色限定在便宜路由上。** 具名 agent 的 `routes` 只列便宜路由。越界的模型在派发前就被拒绝，既省钱，也避免子 agent 顺手用掉贵模型。
-3. **开启托管官方委派配置，并至少配一条路由。** `manageOfficialSettings: true` 加上非空 `routes`，插件才会把 `modelSelectionSettings` 写进官方 `subagent` 工具；否则该工具有时不暴露 `provider`/`model`，主 agent 只能继承主会话模型，指定不了便宜路由。
+3. **开启托管官方委派配置，并至少配一条路由。** `manageOfficialSettings: true` 加上非空 `routes`，插件才会把 `allowedAgentPresets` 与模型允许列表同步到官方配置。官方 `subagent` 工具是否暴露 `provider`/`model` 取决于当前 DSH 自带预设里的字段（`modelSelection`/`modelDiscovery`；旧版为 `modelSelectionSettings`），插件不会替你臆造这些字段。未开启或官方工具仍不暴露时，主 agent 只能继承主会话模型，指定不了便宜路由。
 
 ```yaml
 - id: subagent-hub
@@ -161,6 +161,7 @@
 - **守卫在派发前检查路由。** 其他插件在后续请求阶段改写模型时，不在此守卫覆盖范围中；同时使用时请核对它们的路由行为。
 - **fork 遵循官方能力。** 目标运行时的 fork provider 不支持独立 `agent_preset`；具名角色通过 `subagent` 使用。
 - **官方配置托管默认关闭。** `manageOfficialSettings` 默认为 `false`。开启后同步官方 allowlist；关闭后停止同步，已写入的配置会保留。
+- **托管写入是升级安全的。** Hub 只维护官方预设里 spawn 委派行（`@deepseek-ai/dsh-tool-subagent` + `provider: spawn`）的 `allowedAgentPresets`。每次成功写入会记录一份 Hub 自己的基线 `cordis.patch.yml.subagent-hub-baseline.json`，首次写入前把 profile patch 备份为 `cordis.patch.yml.backup-<时间戳>-subagent-hub`。DSH 升级后，只有 **Hub 自己写过、且用户没改过** 的预设会整份重接到新版本的官方预设上；用户改过的预设只做增量修补并标记为 foreign，之后不再自动重接。旧版本冻结的坏快照会在下一次同步时自愈：官方预设的激活诊断（`agentPresets.list()` 的 `broken`，只有以 `: never started` 结尾的行）是首选修复信号——被点名的行若不在当前官方预设中就会被删除；`waiting for` 挂起行、仍被官方预设声明的行不会被删除。包解析只作保守辅助：只有运行中安装自己的解析基准能判定，开发符号链接等回退基准一律按不确定处理；无法判定的行只报警、不删除。spawn 行随后恢复为当前官方默认 config + `allowedAgentPresets`，其余行不动。
 - **已有会话保留原工具 schema。** 配置保存即时生效；新增角色或工具参数请在新会话中使用。替换插件代码则需要重启 DSH。
 - **两层白名单可能不同步。** 插件每次调用读当前配置，官方运行层用的是 **会话开始时记录** 的子模型白名单，且不会被插件刷新。改了路由后，已打开的会话仍按旧白名单判断：守卫会拒绝并说明“需要新的顶层会话”，提示里给出两层各自允许的路由。**注意**：在该旧会话下新开的子会话会继承父会话的旧白名单，所以换路由后请开一个新的顶层会话，而不是在旧会话里再派一个子任务。具名角色声明的路由若不在新会话将采用的白名单里，保存后会在设置页与日志里直接列出，不必等到派发失败。
 - **Desktop 模型标识需 0.10.3 或更新。** 此版本修正原生 list 插槽的注册字段；组件示意图不等于已在当前 Desktop 窗口完成重载。详见[挂载修复记录](docs/model-badge-acceptance.md)。
@@ -177,7 +178,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **155 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **204 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

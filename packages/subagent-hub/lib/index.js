@@ -22,16 +22,28 @@ import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict,
 import { promptSection } from './prompt.js'
 import { MODEL_SETTINGS_ID, officialSettingsPlan } from './official-settings.js'
 import { syncOfficialMirror } from './mirror.js'
+import { parseBrokenPresetRows } from './preset-migration.js'
+import { backupProfilePatch, createBaselineStore, createResolveSpec } from './sidecar.js'
 import { SESSION_POLICY_KEY, compareLayers, presetRouteProblems, routePairs, sessionPolicyNotice } from './policy.js'
 
 const PACKAGE = 'dsh-subagent-hub'
 const PRESET_WAIT_MS = 30_000
 const PRESET_ORDER = 10_000
+/** A roster read must never hold the mirror hostage: the broken-preset signal is a bonus. */
+const ROSTER_READ_MS = 2_000
 const LIVE_FIELDS = new Set(['routes', 'agents', 'manageOfficialSettings'])
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 /** A volatile field arrives as a cell with `get()`; tolerate a plain value too. */
 const read = field => (field !== null && typeof field === 'object' && typeof field.get === 'function' ? field.get() : field)
+/** Reject rather than await a promise that does not settle in time. */
+const withTimeout = (promise, ms, label) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error(`${label} did not settle within ${ms}ms`)), ms)
+  promise.then(
+    value => { clearTimeout(timer); resolve(value) },
+    error => { clearTimeout(timer); reject(error) },
+  )
+})
 
 /** Everything that shapes a named agent's preset; presets are only re-registered when this moves. */
 const agentSignature = agents => JSON.stringify(agents.map(agent => [agent.id, agent.description, agent.basePreset, agent.instructions]))
@@ -68,8 +80,9 @@ export default class SubagentHub extends Service {
     manageOfficialSettings: z.boolean().default(false).volatile()
       .description('When true, write `allowedAgentPresets` onto the official delegation tool rows and '
         + 'mirror `routes` into the Host `subagent-model-selection` setting through configEditor. '
-        + 'This owns those official configuration fields for every preset that contains a spawn '
-        + 'delegation row. Off by default so installing this plugin changes nobody else\'s settings.'),
+        + 'Only the Hub-managed fields of each official preset are owned: a baseline sidecar records '
+        + 'them so a DSH upgrade rebases what the Hub wrote, user edits win, and the profile patch is '
+        + 'backed up before the first write. Off by default so installing this plugin changes nobody else\'s settings.'),
   })
 
   constructor(ctx, config) {
@@ -102,6 +115,12 @@ export default class SubagentHub extends Service {
     this.ready = new Promise((resolve) => { this.resolveReady = resolve })
     /** Settles once the official settings write (or its deliberate skip) is complete. */
     this.officialSettingsReady = new Promise((resolve) => { this.resolveOfficial = resolve })
+    /** @type {string | undefined} profile patch the Hub-owned baseline sidecar belongs to */
+    this.baselineDocumentPath = undefined
+    /** @type {ReturnType<typeof createBaselineStore> | undefined} */
+    this.baselineStore = undefined
+    /** Set after the first roster-read warning, so a broken diagnostic is not logged every sync. */
+    this.brokenRosterWarned = false
   }
 
   /**
@@ -485,10 +504,16 @@ export default class SubagentHub extends Service {
    * `manageOfficialSettings` is true. Idempotent: unchanged entries are not rewritten, so a
    * normal restart does not reload the presets.
    *
+   * Writes stay upgrade-safe: a preset override is only replaced wholesale when a recorded
+   * baseline proves the Hub wrote it (see `preset-migration.js`); otherwise only the managed
+   * delegation spawn row and provably unloadable rows are touched. The profile patch is backed up
+   * once per run before the first write, and the baseline lives in a sidecar next to it.
    * The writes live in `mirror.js`: each step stands alone, so one dead row cannot leave the
    * mirror half written while the page can only say "unconfirmed".
-   * @returns {Promise<{ enabled: boolean, presets?: string[], modelSettings?: string, presetIds?: string[],
-   *   models?: any[], skipped?: string, durationMs?: number, failures?: Array<{ step: string, message: string }> }>}
+   * @returns {Promise<{ enabled: boolean, presets?: string[], rebased?: string[], pruned?: string[],
+   *   foreign?: string[], unverified?: Array<{ presetId: string, rowId?: string, name: string }>,
+   *   presetActions?: Array<object>, modelSettings?: string, presetIds?: string[], models?: any[],
+   *   skipped?: string, durationMs?: number, failures?: Array<{ step: string, message: string }> }>}
    */
   async syncOfficialSettings() {
     const plan = officialSettingsPlan({ manageOfficialSettings: read(this.config.manageOfficialSettings) === true },
@@ -499,30 +524,80 @@ export default class SubagentHub extends Service {
       this.ctx.logger?.warn?.(`${PACKAGE}: manageOfficialSettings is on but the configEditor service is unavailable`)
       return { enabled: true, skipped: 'configEditor unavailable' }
     }
+    const documentPath = editor.documentPath
+    const hasDocument = typeof documentPath === 'string' && documentPath !== ''
+    if (hasDocument && this.baselineDocumentPath !== documentPath) {
+      this.baselineDocumentPath = documentPath
+      this.baselineStore = createBaselineStore(documentPath)
+    }
+    const brokenPresets = await this.readBrokenPresets()
+    const brokenCount = brokenPresets === undefined
+      ? 0
+      : [...brokenPresets.values()].reduce((count, rows) => count + rows.length, 0)
     const mirror = await syncOfficialMirror({
       editor,
       routes: this.catalog.routes,
       presetIds: plan.presetIds,
+      baselineStore: hasDocument ? this.baselineStore : undefined,
+      brokenPresets,
+      resolveSpec: createResolveSpec(this.ctx.get('profileContext'), documentPath),
+      backup: hasDocument ? () => backupProfilePatch(documentPath) : undefined,
       warn: message => this.ctx.logger?.warn?.(`${PACKAGE}: ${message}`),
     })
     const report = {
       enabled: true,
       presets: mirror.presets,
+      rebased: mirror.rebased,
+      pruned: mirror.pruned,
+      foreign: mirror.foreign,
+      unverified: mirror.unverified,
+      broken: mirror.broken,
+      presetActions: mirror.presetActions,
       modelSettings: mirror.modelSettings,
       presetIds: plan.presetIds,
       models: mirror.models,
       durationMs: mirror.durationMs,
       failures: mirror.failures,
     }
-    if (report.presets.length > 0 || report.modelSettings !== 'unchanged' || report.failures.length > 0) {
+    const acted = report.presetActions.some(action => action.action !== 'none')
+    if (report.presets.length > 0 || report.modelSettings !== 'unchanged' || report.failures.length > 0 || acted) {
       const detail = report.failures.length === 0
         ? ''
         : ` failures=[${report.failures.map(item => `${item.step}: ${item.message}`).join('; ')}]`
-      const line = `${PACKAGE}: official settings mirror in ${report.durationMs}ms: presets=[${report.presets.join(', ')}] modelSettings=${report.modelSettings}${detail}`
+      const parts = [
+        `presets=[${report.presets.join(', ')}]`,
+        `modelSettings=${report.modelSettings}`,
+        `broken=${brokenCount}`,
+      ]
+      if (report.rebased.length > 0) parts.push(`rebased=[${report.rebased.join(', ')}]`)
+      if (report.pruned.length > 0) parts.push(`pruned=[${report.pruned.join(', ')}]`)
+      if (report.foreign.length > 0) parts.push(`foreign=[${report.foreign.join(', ')}]`)
+      if (report.unverified.length > 0) parts.push(`unverified=${report.unverified.length}`)
+      const line = `${PACKAGE}: official settings mirror in ${report.durationMs}ms: ${parts.join(' ')}${detail}`
       if (report.failures.length === 0) this.ctx.logger?.info?.(line)
       else this.ctx.logger?.warn?.(line)
     }
     return report
+  }
+
+  /**
+   * Read the authoritative activation diagnostics for the repair. The roster is a bonus signal:
+   * a slow or failed read must never block or fail the mirror, so it is bounded and swallowed.
+   * @returns {Promise<Map<string, Array<{ id?: string, name: string }>> | undefined>}
+   */
+  async readBrokenPresets() {
+    const presets = this.ctx.get('agentPresets')
+    if (presets === undefined) return undefined
+    try {
+      const roster = await withTimeout(presets.list(), ROSTER_READ_MS, 'agent preset roster')
+      return parseBrokenPresetRows(roster)
+    } catch (error) {
+      if (!this.brokenRosterWarned) {
+        this.brokenRosterWarned = true
+        this.ctx.logger?.warn?.(`${PACKAGE}: could not read the agent-preset activation diagnostics for the official settings repair: ${String(error?.message ?? error)}; falling back to the conservative package resolver`)
+      }
+      return undefined
+    }
   }
 }
 

@@ -84,7 +84,7 @@ test('a delegation the configuration allows is still refused when the Session sn
   assert.equal(result.kind, 'deny')
   assert.equal(proceeded, false, 'the native layer would have refused this later, without listing routes')
   assert.match(result.reason, /layer 2\/2/)
-  assert.match(result.reason, /deepseek-official\/deepseek-v4-pro/, 'the refusing layer lists its own routes')
+  assert.match(result.reason, /provider="deepseek-official" model="deepseek-v4-pro"/, 'the refusing layer lists its own routes')
   assert.match(result.reason, /new top-level Session/)
   assert.match(result.reason, /subagent-hub:/)
 })
@@ -94,7 +94,7 @@ test('the runtime context only grows when the Session snapshot diverges', () => 
   assert.equal(inSync.hub.sessionContextText(parent), '')
   const diverged = service({ captured: routesOf([flash]) })
   const text = diverged.hub.sessionContextText(parent)
-  assert.match(text, /captured its child model allowlist when it started: deepseek-official\/deepseek-flash/)
+  assert.match(text, /captured its child model allowlist when it started: provider="deepseek-official" model="deepseek-flash"/)
   assert.match(text, /only from a new top-level Session/)
   const unknown = service({})
   assert.equal(unknown.hub.sessionContextText(parent), '', 'no captured allowlist means nothing to warn about')
@@ -107,7 +107,7 @@ test('named agents outside the allowlist new Sessions capture are reported when 
   assert.equal(report.problems.length, 1)
   assert.equal(hub.policyProblems.length, 1)
   assert.match(report.problems[0].text, /hub-agent-reviewer/)
-  assert.match(report.problems[0].text, /deepseek-official\/deepseek-v4-pro/)
+  assert.match(report.problems[0].text, /provider="deepseek-official" model="deepseek-v4-pro"/)
   assert.equal(warnings.length, 1, 'the problem is logged at load time, before any delegation')
   assert.match(warnings[0], /^dsh-subagent-hub: named agent "reviewer"/)
 })
@@ -125,6 +125,43 @@ test('an allowlist that matches, is unknown, or is managed by the Hub reports no
   // Managed mode writes the live routes itself, so a declared route is always inside it.
   const managed = service({ agents, manageOfficialSettings: true, official: { enabled: true, allowedModels: [] } })
   assert.equal(managed.hub.validatePresetRoutes().problems.length, 0)
+})
+
+test('preExecute corrects effort after route checks without mutating frozen arguments', async () => {
+  const routes = [{ ...flash, reasoningEffort: 'high' }, pro]
+  const previous = toolset.subagent.parameters
+  toolset.subagent.parameters = { properties: { ...previous.properties, reasoning_effort: {} } }
+  try {
+    const { hub } = service({ routes })
+    const args = Object.freeze({ provider: flash.provider, model: flash.model, prompt: 'unchanged' })
+    const exec = Object.freeze({ name: 'subagent', arguments: args, agent: parent })
+    let starts = 0
+    const next = async (...values) => { assert.equal(values.length, 0); starts++; return { kind: 'allow' } }
+    assert.equal((await hub.preExecute(exec, next)).kind, 'deny')
+    assert.equal(starts, 0)
+    assert.equal(exec.arguments, args)
+    assert.equal(args.reasoning_effort, undefined)
+    assert.equal((await hub.preExecute({ ...exec, arguments: Object.freeze({ ...args, reasoning_effort: 'low' }) }, next)).kind, 'allow')
+    assert.equal(starts, 1)
+    const { hub: stale } = service({ routes, captured: [pro] })
+    const rejected = await stale.preExecute(exec, next)
+    assert.match(rejected.reason, /Session model allowlist/)
+    assert.doesNotMatch(rejected.reason, /adding only/)
+  } finally {
+    toolset.subagent.parameters = previous
+  }
+})
+
+test('preExecute allows when the effort verdict itself throws', async () => {
+  const original = sandbox.routeEffortVerdict
+  sandbox.routeEffortVerdict = () => { throw new Error('effort failure') }
+  try {
+    const { hub } = service()
+    const result = await hub.preExecute({ name: 'subagent', arguments: {}, agent: parent }, async () => ({ kind: 'allow' }))
+    assert.equal(result.kind, 'allow')
+  } finally {
+    sandbox.routeEffortVerdict = original
+  }
 })
 
 function routesOf(list) {

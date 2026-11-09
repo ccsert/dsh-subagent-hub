@@ -81,6 +81,7 @@ window.__ModuleLoader__.load({
       'route.model': '模型',
       'route.effort': '推理强度',
       'route.effortDefault': '模型默认',
+      'route.effortHint': '漏传时 Hub 会要求主智能体补上；显式值优先。',
       'route.pickModel': '选择模型',
       'route.missing': '不在当前目录',
       'route.id': '路由名',
@@ -220,6 +221,7 @@ window.__ModuleLoader__.load({
       'route.model': 'Model',
       'route.effort': 'Reasoning effort',
       'route.effortDefault': 'Model default',
+      'route.effortHint': 'If omitted, the Hub asks the main agent to add it; explicit values win.',
       'route.pickModel': 'Choose a model',
       'route.missing': 'not in the catalog',
       'route.id': 'Route name',
@@ -1235,7 +1237,7 @@ window.__ModuleLoader__.load({
               onChange: pickModel,
             })),
           efforts.length > 0
-            ? h(Field, { label: t('route.effort') },
+            ? h(Field, { label: t('route.effort'), hint: route.reasoningEffort ? t('route.effortHint') : undefined },
               h(Select, {
                 value: route.reasoningEffort,
                 disabled,
@@ -1952,31 +1954,40 @@ window.__ModuleLoader__.load({
     }
 
     // ── native child / Team overview ──────────────────────────────────────────
+    // A non-modal side monitor: each card answers "what was it asked, what is it doing now,
+    // what did it last say". The Hub's own `subagentHubActivity` projection supplies the
+    // activity digest; native projections supply identity, model, timing and usage.
     const OVERVIEW_SLOT = 'conversation.session.header.actions'
+    const ACTIVITY_PROJECTION = 'subagentHubActivity'
+    const LIVE_REFRESH_MS = 3000
+    /** A failure or interruption older than this is history, not something to act on. */
+    const ATTENTION_WINDOW_MS = 60 * 60 * 1000
     Object.assign(en, {
       'overview.setting': 'Show agent overview',
-      'overview.settingHint': 'Off by default. Adds the Hub overview to the session header after saving; the official Agent Team UI is always available.',
+      'overview.settingHint': 'Off by default. Adds a live agent monitor to the session header after saving; the official Agent Team UI is always available.',
       'overview.triggerHint': 'Agent overview · {running} running / {total} total',
-      'overview.title': 'Agent overview', 'overview.close': 'Close', 'overview.refresh': 'Refresh',
-      'overview.refreshing': 'Refreshing…', 'overview.search': 'Search name, model or session ID',
+      'overview.triggerAttention': '{count} need attention',
+      'overview.triggerRunning': '{count} running',
+      'overview.title': 'Agents', 'overview.close': 'Close', 'overview.refresh': 'Refresh',
+      'overview.refreshing': 'Refreshing…', 'overview.search': 'Search name, task, model or session ID',
       'overview.all': 'All', 'overview.team': 'Team', 'overview.independent': 'Independent',
-      'overview.running': 'Running', 'overview.inactive': 'Inactive', 'overview.completed': 'Completed',
-      'overview.interrupted': 'Interrupted', 'overview.provisioning': 'Provisioning', 'overview.failed': 'Failed',
-      'overview.unknown': 'Unconfirmed', 'overview.members': 'Members', 'overview.tasks': 'Task board',
-      'overview.diagnostics': 'Diagnostics', 'overview.empty': 'No child agents in this session.',
-      'overview.noMatches': 'No matching members. Clear the filters to see all members.',
+      'overview.running': 'Running', 'overview.inactive': 'Idle', 'overview.completed': 'Done',
+      'overview.interrupted': 'Interrupted', 'overview.provisioning': 'Starting', 'overview.failed': 'Failed',
+      'overview.unknown': 'Unconfirmed', 'overview.members': 'Agents', 'overview.tasks': 'Task board',
+      'overview.diagnostics': 'Diagnostics', 'overview.empty': 'No child agents in this session yet. Delegated agents appear here with their task and live progress.',
+      'overview.noMatches': 'No matching agents.',
       'overview.loading': 'Loading the child catalog…', 'overview.unavailable': 'The child catalog is unavailable.',
       'overview.migration': 'Open this conversation in DSH to migrate its history.',
       'overview.stale': 'Some data could not be refreshed. Displayed records may be outdated.',
-      'overview.open': 'Open conversation', 'overview.noNavigation': 'This child mode cannot be opened here.',
-      'overview.details': 'Evidence and details', 'overview.model': 'Last request', 'overview.next': 'Planned next request',
-      'overview.noRequest': 'No request recorded', 'overview.noModel': 'Request model unconfirmed',
-      'overview.duration': 'Active time', 'overview.tokens': 'Recorded tokens', 'overview.created': 'Created',
+      'overview.open': 'Open', 'overview.noNavigation': 'This child mode cannot be opened here.',
+      'overview.details': 'Steps and details', 'overview.model': 'Model', 'overview.next': 'Planned next request',
+      'overview.noRequest': 'No request yet', 'overview.noModel': 'Model unconfirmed',
+      'overview.duration': 'Active time', 'overview.tokens': 'Tokens', 'overview.created': 'Created',
       'overview.kind': 'Type', 'overview.state': 'State', 'overview.sort': 'Sort',
       'overview.priority': 'Activity first', 'overview.newest': 'Newest first', 'overview.name': 'Name',
-      'overview.timeSort': 'Active time', 'overview.tokenSort': 'Recorded tokens',
-      'overview.inactiveNote': 'Inactive Team members are available for another turn. Only the task board records task completion.',
-      'overview.tokenNote': 'Token totals cover {known} of {total} members; missing records are not zero. No price estimate.',
+      'overview.timeSort': 'Active time', 'overview.tokenSort': 'Tokens',
+      'overview.inactiveNote': 'An idle Team member has no turn executing; only the task board records task completion.',
+      'overview.tokenNote': 'Token totals cover {known} of {total} agents; missing records are not zero. No price estimate.',
       'overview.durationNote': 'Active time sums agent turns, excluding time between turns. Interrupted open turns stop at the last recorded event.',
       'overview.owner': 'Owner', 'overview.unowned': 'Unassigned', 'overview.dependencies': 'Dependencies',
       'overview.scopes': 'Write scopes', 'overview.pending': 'Pending', 'overview.in_progress': 'In progress',
@@ -1987,32 +1998,46 @@ window.__ModuleLoader__.load({
       'overview.rejections': 'Dispatch rejections', 'overview.noRejections': 'No Hub guard rejections recorded.',
       'overview.noHistory': 'Rejection projection unavailable. Inspect tool results in the parent conversation.',
       'overview.historyCount': 'Showing the latest {shown} of {total} recorded rejections.',
-      'overview.reset': 'Clear filters', 'overview.current': 'Current conversation', 'overview.lead': 'Lead',
+      'overview.reset': 'Clear filters', 'overview.current': 'Current', 'overview.lead': 'Lead',
+      'overview.attention': 'Needs attention', 'overview.settled': 'Finished',
+      'overview.summary': '{running} running · {attention} need attention · {total} total',
+      'overview.summaryQuiet': '{total} agents · none running',
+      'overview.task': 'Task', 'overview.doing': 'Now', 'overview.thinking': 'Thinking…',
+      'overview.approval': 'Waiting for approval: {tool}', 'overview.plan': 'Plan',
+      'overview.planCurrent': 'now: {item}', 'overview.report': 'Report', 'overview.output': 'Latest output',
+      'overview.inbox': 'Latest message', 'overview.steps': 'Recent steps', 'overview.noSteps': 'No tool calls yet.',
+      'overview.counts': '{tools} tool calls · {errors} failed', 'overview.toolCount': '{tools} tool calls', 'overview.errorCount': '{errors} failed', 'overview.retries': '{count} LLM retries',
+      'overview.ago': '{time} ago', 'overview.endedBy': 'Last turn ended: {kind}',
+      'overview.noActivity': 'No activity digest yet. It appears after the next refresh once the Hub plugin is loaded.',
+      'overview.monitorNote': 'Live while open: running agents refresh every few seconds.',
+      'overview.effort': 'effort', 'overview.effortDefault': ' (model default)',
     })
     Object.assign(zh, {
       'overview.setting': '显示子智能体总览',
-      'overview.settingHint': '默认关闭。保存后在会话标题栏显示 Hub 总览入口；官方的智能体团队界面始终可用。',
+      'overview.settingHint': '默认关闭。保存后在会话标题栏显示子智能体实时监控入口；官方的智能体团队界面始终可用。',
       'overview.triggerHint': '子智能体总览 · {running} 个运行中 / 共 {total} 个',
-      'overview.title': '子智能体总览', 'overview.close': '关闭', 'overview.refresh': '刷新',
-      'overview.refreshing': '刷新中…', 'overview.search': '搜索名称、模型或会话 ID',
+      'overview.triggerAttention': '{count} 个需处理',
+      'overview.triggerRunning': '{count} 个运行中',
+      'overview.title': '子智能体', 'overview.close': '关闭', 'overview.refresh': '刷新',
+      'overview.refreshing': '刷新中…', 'overview.search': '搜索名称、任务、模型或会话 ID',
       'overview.all': '全部', 'overview.team': 'Team 成员', 'overview.independent': '独立子任务',
       'overview.running': '运行中', 'overview.inactive': '空闲', 'overview.completed': '已完成',
       'overview.interrupted': '已中断', 'overview.provisioning': '创建中', 'overview.failed': '创建失败',
       'overview.unknown': '未确认', 'overview.members': '成员', 'overview.tasks': '共享任务板',
-      'overview.diagnostics': '诊断', 'overview.empty': '这个会话还没有子智能体。',
-      'overview.noMatches': '没有匹配的成员。清除筛选可查看全部成员。',
+      'overview.diagnostics': '诊断', 'overview.empty': '这个会话还没有子智能体。派发后，这里会显示每个子智能体的任务和实时进展。',
+      'overview.noMatches': '没有匹配的子智能体。',
       'overview.loading': '正在加载子任务目录…', 'overview.unavailable': '暂时无法获取子任务目录。',
       'overview.migration': '请在 DSH 中打开此会话以迁移历史记录。',
       'overview.stale': '部分数据刷新失败，当前显示的记录可能不是最新状态。',
-      'overview.open': '打开会话', 'overview.noNavigation': '此类子任务暂不支持从这里打开。',
-      'overview.details': '证据与详情', 'overview.model': '最近一次请求', 'overview.next': '下次请求计划',
-      'overview.noRequest': '尚无请求记录', 'overview.noModel': '请求模型未确认',
-      'overview.duration': '累计执行', 'overview.tokens': '已记录 Token', 'overview.created': '创建时间',
+      'overview.open': '打开', 'overview.noNavigation': '此类子任务暂不支持从这里打开。',
+      'overview.details': '步骤与详情', 'overview.model': '模型', 'overview.next': '下次请求计划',
+      'overview.noRequest': '尚无请求', 'overview.noModel': '模型未确认',
+      'overview.duration': '累计执行', 'overview.tokens': 'Token', 'overview.created': '创建时间',
       'overview.kind': '类型', 'overview.state': '状态', 'overview.sort': '排序',
       'overview.priority': '活动优先', 'overview.newest': '最新创建', 'overview.name': '名称',
       'overview.timeSort': '执行耗时', 'overview.tokenSort': 'Token 用量',
       'overview.inactiveNote': 'Team 成员空闲表示当前没有回合在执行，任务是否完成以共享任务板为准。',
-      'overview.tokenNote': 'Token 汇总覆盖 {known}/{total} 位成员；缺失记录不当作零，不估算费用。',
+      'overview.tokenNote': 'Token 汇总覆盖 {known}/{total} 个子智能体；缺失记录不当作零，不估算费用。',
       'overview.durationNote': '累计执行时间只计各执行回合，不含回合间空闲；中断回合固定到最后一条事件的时间。',
       'overview.owner': '负责人', 'overview.unowned': '未分配', 'overview.dependencies': '依赖任务',
       'overview.scopes': '写入范围', 'overview.pending': '待处理', 'overview.in_progress': '进行中',
@@ -2024,49 +2049,93 @@ window.__ModuleLoader__.load({
       'overview.noHistory': '拒绝记录投影不可用，可在父会话工具结果中查看。',
       'overview.historyCount': '显示最近 {shown} 条，共记录 {total} 次拒绝。',
       'overview.reset': '清除筛选', 'overview.current': '当前会话', 'overview.lead': 'Lead',
+      'overview.attention': '需处理', 'overview.settled': '已结束',
+      'overview.summary': '{running} 个运行中 · {attention} 个需处理 · 共 {total} 个',
+      'overview.summaryQuiet': '共 {total} 个 · 没有正在运行的',
+      'overview.task': '任务', 'overview.doing': '正在', 'overview.thinking': '思考中…',
+      'overview.approval': '等待审批：{tool}', 'overview.plan': '计划',
+      'overview.planCurrent': '当前：{item}', 'overview.report': '汇报', 'overview.output': '最新输出',
+      'overview.inbox': '最新消息', 'overview.steps': '最近步骤', 'overview.noSteps': '还没有工具调用。',
+      'overview.counts': '{tools} 次工具调用 · {errors} 次失败', 'overview.toolCount': '{tools} 次工具调用', 'overview.errorCount': '{errors} 次失败', 'overview.retries': '{count} 次模型重试',
+      'overview.ago': '{time}前', 'overview.endedBy': '上一回合结束方式：{kind}',
+      'overview.noActivity': '暂无活动摘要。Hub 插件加载后，下次刷新即可看到。',
+      'overview.monitorNote': '面板打开期间实时更新：运行中的子智能体每隔几秒刷新一次。',
+      'overview.effort': '推理', 'overview.effortDefault': '（模型默认）',
     })
 
     const OVERVIEW_CSS = `
-.sah-overview-trigger{display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:12px;font-weight:400;min-height:28px;padding:3px 7px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary,#999);cursor:pointer;white-space:nowrap;-webkit-app-region:no-drag}
-.sah-overview-trigger:hover,.sah-overview-trigger:focus-visible,.sah-overview-trigger[aria-expanded=true]{color:var(--dsw-alias-label-primary,#eee)}
+.sah-overview-trigger{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;font-weight:400;min-height:28px;padding:3px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary,#999);cursor:pointer;white-space:nowrap;-webkit-app-region:no-drag;transition:background-color .12s ease-out,color .12s ease-out}
+.sah-overview-trigger:hover,.sah-overview-trigger:focus-visible,.sah-overview-trigger[aria-expanded=true]{color:var(--dsw-alias-label-primary,#eee);background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}
 .sah-overview-trigger-icon{display:inline-flex;align-items:center;flex:none}
-.sah-overview-trigger-count{color:var(--dsw-alias-label-caption,#888);font-variant-numeric:tabular-nums;font-size:12px;font-weight:400;line-height:16px}
+.sah-overview-trigger-count{color:var(--dsw-alias-label-caption,#888);font-variant-numeric:tabular-nums;font-size:12px;line-height:16px}
+.sah-overview-trigger[data-live=true] .sah-overview-trigger-count{color:var(--dsw-alias-state-business-primary,#9bb8ff)}
+.sah-overview-trigger[data-attention=true] .sah-overview-trigger-count{color:var(--dsw-alias-state-warning-primary,#f5c26b)}
 @container (width<=480px){.sah-overview-trigger-label{display:none}}
-.sah-overview{box-sizing:border-box;width:min(880px,calc(100vw - 32px));max-height:min(760px,calc(100dvh - 32px));padding:0;border:0;border-radius:12px;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#ffffff1f);box-shadow:var(--dsw-elevation-prominent,0 0 0 .5px #ffffff1f,0 3px 8px #0000000a,0 0 20px #0000000d);background:var(--dsw-specific-menu,#303136f0);-webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:20px;overflow:hidden;-webkit-app-region:no-drag}
-.sah-overview[open]{display:flex;flex-direction:column}
-.sah-overview::backdrop{background:#0000004d}
-.sah-overview *{box-sizing:border-box}.sah-overview h2{font-size:14px;font-weight:500;margin:0}.sah-overview h3{font-size:13px;font-weight:500;margin:0}.sah-overview p{margin:4px 0;overflow-wrap:anywhere}
-.sah-overview-head{flex:none;display:flex;align-items:center;gap:4px;padding:12px 12px 8px 18px}.sah-overview-head h2{margin-inline-end:auto}
-.sah-overview-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:4px 12px 18px 18px;display:grid;align-content:start;gap:14px}
-.sah-overview button,.sah-overview select,.sah-overview input{font:inherit;font-size:12px;color:inherit;border-radius:6px;min-height:28px}
-.sah-overview button{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 9px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#bbb);cursor:pointer;white-space:nowrap;transition:background-color .12s ease-out,color .12s ease-out,transform .1s ease-out}
+.sah-overview-dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--dsw-alias-label-caption,#6e6e78)}
+.sah-overview-dot[data-state=running],.sah-overview-dot[data-state=provisioning]{background:var(--dsw-alias-state-business-primary,#9bb8ff);animation:sah-overview-pulse 1.6s ease-in-out infinite}
+.sah-overview-dot[data-state=completed]{background:var(--dsw-alias-state-success-primary,#7fd1a0)}
+.sah-overview-dot[data-state=failed],.sah-overview-dot[data-state=interrupted]{background:var(--dsw-alias-state-error-primary,#ff8a80)}
+.sah-overview-dot[data-attention=true]{background:var(--dsw-alias-state-warning-primary,#f5c26b)}
+@keyframes sah-overview-pulse{0%,100%{opacity:1}50%{opacity:.35}}
+@keyframes sah-overview-in{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
+.sah-overview{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:440px;height:600px;padding:0;border:0;border-radius:12px;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#ffffff1f);box-shadow:var(--dsw-elevation-prominent,0 0 0 .5px #ffffff1f,0 3px 8px #0000000a,0 0 20px #0000000d);background:var(--dsw-specific-menu,#303136f0);-webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:20px;overflow:hidden;z-index:50;-webkit-app-region:no-drag}
+.sah-overview{display:none}.sah-overview[data-open]{display:flex;flex-direction:column;animation:sah-overview-in .16s cubic-bezier(.2,.8,.2,1)}
+.sah-overview *{box-sizing:border-box}.sah-overview h2{font-size:14px;font-weight:600;margin:0}.sah-overview h3{font-size:13px;font-weight:500;margin:0}.sah-overview p{margin:0;overflow-wrap:anywhere}
+.sah-overview-head{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 4px;padding:12px 10px 10px 16px;border-bottom:.5px solid var(--dsw-alias-border-l2,#ffffff1f)}
+.sah-overview-head-actions{display:flex;gap:2px}
+.sah-overview-summary{grid-column:1/-1;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
+.sah-overview-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:10px 10px 16px 16px;display:grid;align-content:start;gap:10px}
+.sah-overview button,.sah-overview input{font:inherit;font-size:12px;color:inherit;border-radius:6px;min-height:28px}
+.sah-overview button{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 8px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#bbb);cursor:pointer;white-space:nowrap;transition:background-color .12s ease-out,color .12s ease-out,transform .1s ease-out}
 .sah-overview button:not(:disabled):active{transform:scale(.96)}
 .sah-overview button:disabled{opacity:.5;cursor:default}
-.sah-overview select,.sah-overview input{padding:4px 8px;border:0;background:var(--dsw-alias-bg-layer-2,#ffffff0d);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview input{width:100%;padding:4px 8px;border:0;background:var(--dsw-alias-bg-layer-2,#ffffff0d);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
 .sah-overview input::placeholder{color:var(--dsw-alias-label-caption,#888)}
 @media(hover:hover){.sah-overview button:not(:disabled):hover{background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee)}}
-.sah-overview :is(button,input,select,summary):focus-visible,.sah-overview-trigger:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#719cff);outline-offset:2px}
-.sah-overview-stats,.sah-overview-toolbar,.sah-overview-tabs{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
-.sah-overview-stat{flex:1;min-width:100px;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
-.sah-overview-stat strong{display:block;margin-top:2px;font-size:18px;line-height:24px;font-weight:500;font-variant-numeric:tabular-nums}
+.sah-overview :is(button,input,summary):focus-visible,.sah-overview-trigger:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#719cff);outline-offset:2px}
+.sah-overview-tabs,.sah-overview-filters{display:flex;flex-wrap:wrap;align-items:center;gap:2px}
+.sah-overview-tabs button[aria-pressed=true],.sah-overview-filters button[aria-pressed=true]{background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee);font-weight:500}
+.sah-overview-filters button{min-height:24px;padding:2px 8px;font-size:12px}
+.sah-overview-badge{margin-inline-start:2px;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption,#888)}
 .sah-overview-muted{color:var(--dsw-alias-label-tertiary,#999)}
-.sah-overview-tabs{gap:2px}.sah-overview-tabs button[aria-pressed=true]{background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee);font-weight:500}
-.sah-overview-toolbar{color:var(--dsw-alias-label-tertiary,#999);font-size:12px}.sah-overview-toolbar label{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.sah-overview-toolbar input{width:100%;min-width:0}.sah-overview-search{flex:1 1 100%}
 .sah-overview-list{display:grid;gap:8px;list-style:none;margin:0;padding:0}
-.sah-overview-card{min-width:0;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f);overflow-wrap:anywhere}
-.sah-overview-card-head{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.sah-overview-card-head h3{flex:1;min-width:0}
-.sah-overview-chip{font-size:11px;line-height:16px;padding:1px 7px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
-.sah-overview-chip[data-state=running]{color:var(--dsw-alias-state-business-primary,#9bb8ff);background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#9bb8ff) 14%,transparent)}
-.sah-overview-chip[data-state=failed],.sah-overview-error{color:var(--dsw-alias-state-error-primary,#ffb0a8)}
-.sah-overview-chip[data-state=failed]{background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ffb0a8) 14%,transparent)}
-.sah-overview-meta{display:flex;flex-wrap:wrap;gap:4px 16px;margin-block:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
-.sah-overview details{margin-block-start:4px}.sah-overview summary{cursor:pointer;min-height:28px;display:flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);border-radius:6px}.sah-overview summary:hover{color:var(--dsw-alias-label-primary,#eee)}
-.sah-overview dl{display:grid;grid-template-columns:minmax(90px,auto) minmax(0,1fr);gap:4px 16px;margin:6px 0;font-size:12px}.sah-overview dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}.sah-overview dt{color:var(--dsw-alias-label-tertiary,#999)}
+.sah-overview-card{min-width:0;padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f);overflow-wrap:anywhere;display:grid;gap:6px}
+.sah-overview-card[data-attention=true]{box-shadow:inset 2px 0 0 var(--dsw-alias-state-warning-primary,#f5c26b),var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview-card-head{display:flex;align-items:center;gap:8px;min-width:0}.sah-overview-card-head h3{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-overview-card-head button{margin-inline-end:-6px}
+.sah-overview-state{flex:none;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sah-overview-model{font-size:12px;color:var(--dsw-alias-label-tertiary,#999);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:-4px}
+.sah-overview-fields{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 10px;margin:0;font-size:12px;line-height:18px}
+.sah-overview-fields dt{color:var(--dsw-alias-label-tertiary,#999);white-space:nowrap}
+.sah-overview-fields dd{margin:0;min-width:0;color:var(--dsw-alias-label-secondary,#ccc)}
+.sah-overview-clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--lines,2);overflow:hidden}
+.sah-overview-now{display:flex;align-items:baseline;gap:6px;min-width:0}
+.sah-overview-now code{font-size:11px;padding:0 5px;border-radius:4px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-primary,#eee);flex:none}
+.sah-overview-now span:first-of-type{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-overview-now .sah-overview-elapsed{flex:none;margin-inline-start:auto;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption,#888)}
+.sah-overview-warn{color:var(--dsw-alias-state-warning-primary,#f5c26b)}
+.sah-overview-error{color:var(--dsw-alias-state-error-primary,#ffb0a8)}
+.sah-overview-progress{display:flex;align-items:center;gap:8px;min-width:0}
+.sah-overview-bar{flex:none;width:56px;height:4px;border-radius:2px;overflow:hidden;background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}.sah-overview-bar span{display:block;height:100%;border-radius:inherit;background:var(--dsw-alias-state-business-primary,#9bb8ff);transition:width .2s ease-out}
+.sah-overview-progress span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-overview-meta{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);font-variant-numeric:tabular-nums}
+.sah-overview details summary{cursor:pointer;min-height:24px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);border-radius:6px;list-style:none}
+.sah-overview details summary::-webkit-details-marker{display:none}
+.sah-overview details summary::before{content:'›';display:inline-block;transition:transform .12s ease-out}
+.sah-overview details[open] summary::before{transform:rotate(90deg)}
+.sah-overview details summary:hover{color:var(--dsw-alias-label-primary,#eee)}
+.sah-overview-trail{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:2px;font-size:12px}
+.sah-overview-trail li{display:grid;grid-template-columns:14px auto minmax(0,1fr) auto;align-items:baseline;gap:6px}
+.sah-overview-trail li span:nth-child(3){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-overview-trail li span:last-child{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-caption,#888)}
+.sah-overview-trail [data-ok=true]{color:var(--dsw-alias-state-success-primary,#7fd1a0)}.sah-overview-trail [data-ok=false]{color:var(--dsw-alias-state-error-primary,#ff8a80)}
+.sah-overview dl.sah-overview-evidence{display:grid;grid-template-columns:minmax(80px,auto) minmax(0,1fr);gap:2px 12px;margin:8px 0 0;font-size:12px}.sah-overview-evidence dd{margin:0;overflow-wrap:anywhere}.sah-overview-evidence dt{color:var(--dsw-alias-label-tertiary,#999)}
 .sah-overview code{font-size:12px;overflow-wrap:anywhere}
-.sah-overview-notice{padding:10px 12px;border-radius:10px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);--dsw-elevation-stroke-color:var(--dsw-alias-border-l2,#ffffff1f);box-shadow:var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-overview-notice{padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);font-size:12px}
+.sah-overview-section{display:grid;gap:6px}
 .sah-overview-task-description{white-space:pre-wrap}
-@media(prefers-reduced-motion:reduce){.sah-overview button{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
-@media(max-width:520px){.sah-overview{width:calc(100vw - 16px);max-height:calc(100dvh - 16px)}.sah-overview-head{padding:10px 8px 6px 12px}.sah-overview-body{padding:4px 8px 12px 12px;gap:12px}.sah-overview dl{grid-template-columns:1fr;gap:2px}.sah-overview dd{margin-block-end:6px}.sah-overview-toolbar label{flex:1 1 100%}.sah-overview-toolbar select{flex:1;min-width:0}.sah-overview-card-head button{margin-inline-start:auto}}
+.sah-overview-foot{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);display:grid;gap:2px}
+@media(prefers-reduced-motion:reduce){.sah-overview[data-open],.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
 `
 
     function overviewDuration(timing, running, now) {
@@ -2085,6 +2154,22 @@ window.__ModuleLoader__.load({
       if (!Number.isFinite(ms)) return '—'
       const seconds = Math.floor(Math.max(0, ms) / 1000)
       return `${Math.floor(seconds / 3600)}:${String(Math.floor(seconds / 60) % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
+    }
+    /** Compact elapsed span: 820ms, 4.2s, 3m 05s, 1h 02m. */
+    function overviewSpan(ms) {
+      if (!Number.isFinite(ms) || ms < 0) return '—'
+      if (ms < 1000) return `${Math.round(ms)}ms`
+      if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)}s`
+      const minutes = Math.floor(ms / 60_000)
+      if (minutes < 60) return `${minutes}m ${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}s`
+      return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
+    }
+    /** Compact token count: 980, 12.4K, 2.41M. */
+    function overviewCount(value) {
+      if (!Number.isFinite(value)) return '—'
+      if (value < 1000) return String(value)
+      if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}K`
+      return `${(value / 1_000_000).toFixed(2)}M`
     }
     /** Membership is authoritative only in the parent's catalog/roster, never inferred from global sessions. */
     function overviewData(rootId, state, statuses, now = Date.now()) {
@@ -2110,8 +2195,16 @@ window.__ModuleLoader__.load({
           : member.kind === 'team' ? 'inactive'
           : member.mode === 'one-shot' && timing?.lastTurnCompleted === true ? 'completed'
           : timing?.lastTurnCompleted === false ? 'interrupted' : 'inactive'
-        return { ...member, status, model: modelBadgeData({ subagent: true }, projected.modelSelection),
+        const activity = projected[ACTIVITY_PROJECTION] ?? undefined
+        const lastActive = activity?.last ?? timing?.active?.through
+        // Waiting for approval always needs someone; a failure only while it is recent, so one
+        // old interruption cannot keep the trigger amber forever. Unknown age counts as old.
+        const when = lastActive ?? member.createdAt
+        const recent = Number.isFinite(when) && now - when <= ATTENTION_WINDOW_MS
+        const attention = activity?.approval !== undefined || ((status === 'failed' || status === 'interrupted') && recent)
+        return { ...member, status, attention, activity, model: modelBadgeData({ subagent: true }, projected.modelSelection),
           duration: overviewDuration(timing, running === true, now), tokens: overviewTokens(projected.tokenUsage),
+          lastActive,
           readState: child?.state, readError: child?.error?.message,
           address: ['one-shot', 'continuable'].includes(member.mode) ? { parentSessionId: rootId, childSessionId: member.id, mode: member.mode } : undefined }
       })
@@ -2126,19 +2219,25 @@ window.__ModuleLoader__.load({
         teamAvailable: team !== undefined, catalogAvailable: Array.isArray(catalog),
         readState: snapshot?.state ?? (state?.phase === 'pending' ? 'loading' : 'idle'),
         running: rows.filter(row => row.status === 'running').length,
+        attention: rows.filter(row => row.attention).length,
         tokenKnown: rows.filter(row => row.tokens !== undefined).length,
         tokens: rows.reduce((sum, row) => sum + (row.tokens ?? 0), 0) }
     }
+    const SETTLED = new Set(['inactive', 'completed', 'unknown'])
     function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}, groups = []) {
       const query = search.trim().toLocaleLowerCase()
       const rank = { running: 0, provisioning: 1, failed: 2, interrupted: 3, unknown: 4, inactive: 5, completed: 6 }
-      return rows.filter(row => (kind === 'all' || row.kind === kind) && (status === 'all' || row.status === status)
-        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, routeModelName(groups, row.model.last), row.error].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
+      const statusMatch = row => status === 'all' || row.status === status
+        || (status === 'attention' && row.attention)
+        || (status === 'settled' && !row.attention && (SETTLED.has(row.status) || row.status === 'failed' || row.status === 'interrupted'))
+      return rows.filter(row => (kind === 'all' || row.kind === kind) && statusMatch(row)
+        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, routeModelName(groups, row.model.last), row.error, row.activity?.task?.text].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
         .sort((a, b) => {
           const primary = sort === 'name' ? a.name.localeCompare(b.name)
             : sort === 'newest' ? (b.createdAt ?? -1) - (a.createdAt ?? -1)
             : sort === 'timeSort' ? (b.duration ?? -1) - (a.duration ?? -1)
-            : sort === 'tokenSort' ? (b.tokens ?? -1) - (a.tokens ?? -1) : rank[a.status] - rank[b.status]
+            : sort === 'tokenSort' ? (b.tokens ?? -1) - (a.tokens ?? -1)
+            : (Number(b.attention) - Number(a.attention)) || rank[a.status] - rank[b.status] || (b.lastActive ?? -1) - (a.lastActive ?? -1)
           return primary || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
         })
     }
@@ -2156,87 +2255,170 @@ window.__ModuleLoader__.load({
       await Promise.all([worker(), worker(), worker(), worker()])
       return failures
     }
-    function OverviewMember({ row, currentId, openChild, t, groups = [] }) {
-      // The card names a route the way the configuration page does; the details keep the exact
-      // wire ids so the record itself stays checkable.
-      const label = value => `${routeLabel(groups, value).value}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
+    /** The child's own plan: done count and the item it is on. */
+    function overviewPlan(todos) {
+      if (!Array.isArray(todos) || todos.length === 0) return undefined
+      const done = todos.filter(todo => todo.status === 'completed').length
+      const current = todos.find(todo => todo.status === 'in_progress') ?? todos.find(todo => todo.status !== 'completed')
+      return { done, total: todos.length, current: current?.content }
+    }
+    /** Whichever the child said last: a report to another agent, or its own assistant text. */
+    function overviewVoice(activity) {
+      const report = activity?.report
+      const output = activity?.output
+      if (report && (!output || report.time >= output.time)) return { kind: 'report', ...report }
+      return output ? { kind: 'output', ...output } : undefined
+    }
+    function OverviewMember({ row, currentId, openChild, t, groups = [], now = Date.now() }) {
+      // The native view drops an adapter-defaulted effort; the Hub digest keeps what actually ran.
+      const effortText = value => value.reasoningEffort ?? (row.activity?.effort ? `${row.activity.effort.value}${row.activity.effort.defaulted ? t('overview.effortDefault') : ''}` : undefined)
+      const modelLabel = value => `${routeLabel(groups, value).value}${effortText(value) ? ` · ${t('overview.effort')} ${effortText(value)}` : ''}`
       const raw = value => `${value.provider} / ${value.model}${value.reasoningEffort ? ` · ${value.reasoningEffort}` : ''}`
-      return h('li', { className: 'sah-overview-card' },
-        h('div', { className: 'sah-overview-card-head' }, h('h3', null, row.name),
-          h('span', { className: 'sah-overview-chip' }, t(`overview.${row.kind}`)),
-          h('span', { className: 'sah-overview-chip', 'data-state': row.status }, t(`overview.${row.status}`)),
+      const activity = row.activity
+      const live = row.status === 'running'
+      const current = live ? activity?.pending?.at(-1) : undefined
+      const plan = overviewPlan(activity?.todos)
+      const voice = overviewVoice(activity)
+      const field = (label, value, extra = {}) => h(React.Fragment, null, h('dt', null, label), h('dd', extra, value))
+      const stateText = [t(`overview.${row.status}`), Number.isFinite(row.duration) ? overviewTime(row.duration) : undefined].filter(Boolean).join(' · ')
+      return h('li', { className: 'sah-overview-card', 'data-attention': row.attention ? 'true' : undefined },
+        h('div', { className: 'sah-overview-card-head' },
+          h('span', { className: 'sah-overview-dot', 'data-state': row.status, 'data-attention': activity?.approval ? 'true' : undefined, 'aria-hidden': true }),
+          h('h3', { title: row.name }, row.name),
+          h('span', { className: 'sah-overview-state' }, stateText),
           h('button', { type: 'button', disabled: !row.address || row.id === currentId,
             title: !row.address ? t('overview.noNavigation') : undefined,
             onClick: () => openChild(row.address) }, t(row.id === currentId ? 'overview.current' : 'overview.open'))),
-        h('p', null, row.model.kind === 'recorded' ? `${t('overview.model')}: ${label(row.model.last)}`
+        h('p', { className: 'sah-overview-model' }, row.model.kind === 'recorded'
+          ? `${modelLabel(row.model.last)}${row.kind === 'team' ? ` · ${t('overview.team')}` : ''}`
           : t(row.model.kind === 'waiting' ? 'overview.noRequest' : 'overview.noModel')),
-        h('div', { className: 'sah-overview-meta sah-overview-muted' },
-          h('span', null, `${t('overview.duration')}: ${overviewTime(row.duration)}`),
-          h('span', null, `${t('overview.tokens')}: ${row.tokens?.toLocaleString() ?? '—'}`)),
+        activity ? h('dl', { className: 'sah-overview-fields' },
+          activity.task ? field(t('overview.task'), activity.task.text, { className: 'sah-overview-clamp', title: activity.task.text }) : null,
+          activity.approval ? field(t('overview.doing'), t('overview.approval', { tool: activity.approval.tool }), { className: 'sah-overview-warn' })
+            : live ? field(t('overview.doing'), current
+              ? h('span', { className: 'sah-overview-now' }, h('code', null, current.name), h('span', null, current.hint ?? ''),
+                h('span', { className: 'sah-overview-elapsed' }, overviewSpan(now - current.since)))
+              : h('span', { className: 'sah-overview-muted' }, t('overview.thinking'))) : null,
+          plan ? field(t('overview.plan'), h('span', { className: 'sah-overview-progress' },
+            h('span', { className: 'sah-overview-bar', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': plan.total, 'aria-valuenow': plan.done, 'aria-label': t('overview.plan') },
+              h('span', { style: { width: `${Math.round(plan.done / plan.total * 100)}%` } })),
+            h('span', null, `${plan.done}/${plan.total}${plan.current ? ` · ${t('overview.planCurrent', { item: plan.current })}` : ''}`))) : null,
+          activity.inbox && row.kind === 'team' ? field(t('overview.inbox'), activity.inbox.text, { className: 'sah-overview-clamp', style: { '--lines': 2 } }) : null,
+          voice ? field(t(voice.kind === 'report' ? 'overview.report' : 'overview.output'), voice.text, { className: 'sah-overview-clamp', style: { '--lines': 3 }, title: voice.text }) : null)
+          : row.readState === 'ready' ? h('p', { className: 'sah-overview-muted', style: { fontSize: 12 } }, t('overview.noActivity')) : null,
         row.error || row.readError ? h('p', { className: 'sah-overview-error' }, row.error || row.readError) : null,
+        h('div', { className: 'sah-overview-meta' },
+          activity ? h('span', null, t('overview.toolCount', { tools: activity.tools }),
+            activity.errors ? h(React.Fragment, null, ' · ', h('span', { className: 'sah-overview-error' }, t('overview.errorCount', { errors: activity.errors }))) : null) : null,
+          row.tokens !== undefined ? h('span', null, `${t('overview.tokens')} ${overviewCount(row.tokens)}`) : null,
+          Number.isFinite(row.lastActive) && !live ? h('span', null, t('overview.ago', { time: overviewSpan(now - row.lastActive) })) : null),
         h('details', null, h('summary', null, t('overview.details')),
-          h('dl', null, h('dt', null, 'Session ID'), h('dd', null, h('code', null, row.id)),
+          activity ? (activity.recent.length
+            ? h('ol', { className: 'sah-overview-trail', 'aria-label': t('overview.steps') }, ...[...activity.recent].reverse().map((step, index) => h('li', { key: `${step.time}-${index}` },
+              h('span', { 'data-ok': String(step.ok), 'aria-hidden': true }, step.ok ? '✓' : '✕'),
+              h('code', null, step.name), h('span', null, step.hint ?? ''), h('span', null, overviewSpan(step.ms)))))
+            : h('p', { className: 'sah-overview-muted', style: { fontSize: 12, marginTop: 6 } }, t('overview.noSteps'))) : null,
+          h('dl', { className: 'sah-overview-evidence' }, h('dt', null, 'Session ID'), h('dd', null, h('code', null, row.id)),
             h('dt', null, t('overview.kind')), h('dd', null, row.mode),
             Number.isFinite(row.createdAt) ? h(React.Fragment, null, h('dt', null, t('overview.created')), h('dd', null, new Date(row.createdAt).toLocaleString())) : null,
-            row.model.next ? h(React.Fragment, null, h('dt', null, t('overview.next')), h('dd', null, raw(row.model.next))) : null),
+            row.model.kind === 'recorded' ? h(React.Fragment, null, h('dt', null, t('overview.model')), h('dd', null, raw(row.model.last))) : null,
+            effortText(row.model.last ?? {}) ? h(React.Fragment, null, h('dt', null, t('overview.effort')), h('dd', null, effortText(row.model.last ?? {}))) : null,
+            row.model.next ? h(React.Fragment, null, h('dt', null, t('overview.next')), h('dd', null, raw(row.model.next))) : null,
+            Number.isFinite(row.duration) ? h(React.Fragment, null, h('dt', null, t('overview.duration')), h('dd', null, overviewTime(row.duration))) : null,
+            activity?.retries ? h(React.Fragment, null, h('dt', null, 'LLM'), h('dd', null, t('overview.retries', { count: activity.retries }))) : null,
+            activity?.end ? h(React.Fragment, null, h('dt', null, t('overview.state')), h('dd', null, t('overview.endedBy', { kind: activity.end.kind }))) : null,
+            activity?.task ? h(React.Fragment, null, h('dt', null, t('overview.task')), h('dd', { className: 'sah-overview-task-description' }, activity.task.text)) : null),
           row.readState === 'migration-required' ? h('p', null, t('overview.migration')) : null))
     }
     function OverviewTasks({ tasks, teamAvailable, t }) {
       if (!teamAvailable) return h('p', { role: 'status' }, t('overview.noTeam'))
       if (!tasks.length) return h('p', null, t('overview.noTasks'))
       return h('ul', { className: 'sah-overview-list' }, ...tasks.map(task => h('li', { key: task.id, className: 'sah-overview-card' },
-        h('div', { className: 'sah-overview-card-head' }, h('h3', null, task.subject),
-          h('span', { className: 'sah-overview-chip' }, t(`overview.${task.status}`)),
-          task.status === 'pending' ? h('span', { className: 'sah-overview-chip' }, t(task.ready ? 'overview.ready' : 'overview.blocked')) : null),
-        h('p', { className: 'sah-overview-muted' }, `${task.id} · ${t('overview.owner')}: ${task.ownerName ?? t('overview.unowned')}`),
+        h('div', { className: 'sah-overview-card-head' },
+          h('span', { className: 'sah-overview-dot', 'data-state': task.status === 'completed' ? 'completed' : task.status === 'in_progress' ? 'running' : 'inactive', 'aria-hidden': true }),
+          h('h3', null, task.subject),
+          h('span', { className: 'sah-overview-state' }, [t(`overview.${task.status}`), task.status === 'pending' ? t(task.ready ? 'overview.ready' : 'overview.blocked') : undefined].filter(Boolean).join(' · '))),
+        h('p', { className: 'sah-overview-model' }, `${task.id} · ${t('overview.owner')}: ${task.ownerName ?? t('overview.unowned')}`),
         h('details', null, h('summary', null, t('overview.details')),
-          h('p', { className: 'sah-overview-task-description' }, task.description),
-          h('dl', null, h('dt', null, t('overview.dependencies')), h('dd', null, task.blockedBy?.join(', ') || '—'),
+          h('p', { className: 'sah-overview-task-description', style: { marginTop: 6 } }, task.description),
+          h('dl', { className: 'sah-overview-evidence' }, h('dt', null, t('overview.dependencies')), h('dd', null, task.blockedBy?.join(', ') || '—'),
             h('dt', null, t('overview.scopes')), h('dd', null, task.writeScopes?.join('\n') || '—'))),
         ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
     }
-    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [] }) {
+    const FILTERS_FROM = 5
+    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now() }) {
       const [tab, setTab] = React.useState('members')
-      const [filters, setFilters] = React.useState({ search: '', kind: 'all', status: 'all', sort: 'priority' })
+      const [filters, setFilters] = React.useState({ search: '', status: 'all' })
       const rows = overviewFilter(data.rows, filters, groups)
       const issues = [...data.issues, ...errors]
-      const select = (key, values) => h('label', null, t(`overview.${key === 'status' ? 'state' : key}`),
-        h('select', { value: filters[key], onChange: event => setFilters(old => ({ ...old, [key]: event.target.value })) },
-          ...values.map(value => h('option', { key: value, value }, t(`overview.${value}`)))))
+      const count = status => overviewFilter(data.rows, { status }).length
+      // The task board only exists for Agent Team work; an empty board is noise, not information.
+      const tabs = ['members', ...(data.teamAvailable && data.tasks.length > 0 ? ['tasks'] : []), 'diagnostics']
+      const shown = tabs.includes(tab) ? tab : 'members'
       return h('div', { className: 'sah-overview-body' },
-        h('div', { className: 'sah-overview-stats' }, ...[
-          ['members', data.rows.length], ['running', data.running], ['tasks', data.tasks.length],
-          ['tokens', data.tokenKnown ? data.tokens.toLocaleString() : '—'],
-        ].map(([label, count]) => h('div', { key: label, className: 'sah-overview-stat' }, h('span', { className: 'sah-overview-muted' }, t(`overview.${label}`)), h('strong', null, count)))),
-        issues.length ? h('div', { className: 'sah-overview-notice sah-overview-error', role: 'status' }, t('overview.stale')) : null,
+        issues.length ? h('p', { className: 'sah-overview-notice sah-overview-error', role: 'status' }, t('overview.stale')) : null,
         h('div', { className: 'sah-overview-tabs', role: 'group', 'aria-label': t('overview.title') },
-          ...['members', 'tasks', 'diagnostics'].map(value => h('button', { type: 'button', key: value, 'aria-pressed': tab === value, onClick: () => setTab(value) },
-            t(`overview.${value}`), value === 'diagnostics' && issues.length ? ` (${issues.length})` : ''))),
-        tab === 'members' ? h(React.Fragment, null,
-          h('div', { className: 'sah-overview-toolbar' },
-            h('label', { className: 'sah-overview-search' }, t('overview.search'), h('input', { type: 'search', value: filters.search, onChange: event => setFilters(old => ({ ...old, search: event.target.value })) })),
-            select('kind', ['all', 'team', 'independent']),
-            select('status', ['all', 'running', 'provisioning', 'inactive', 'completed', 'interrupted', 'failed', 'unknown']),
-            select('sort', ['priority', 'newest', 'name', 'timeSort', 'tokenSort']),
-            h('button', { type: 'button', onClick: () => setFilters({ search: '', kind: 'all', status: 'all', sort: 'priority' }) }, t('overview.reset'))),
-          !data.catalogAvailable ? h('p', { role: 'status' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
-          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups })))
-            : data.rows.length || data.catalogAvailable ? h('p', { role: 'status' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null,
-          h('p', { className: 'sah-overview-muted' }, t('overview.inactiveNote')))
-          : tab === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
-            : h('section', null, h('h3', null, t('overview.diagnostics')),
-              issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', null, t('overview.healthy')),
+          ...tabs.map(value => h('button', { type: 'button', key: value, 'aria-pressed': shown === value, onClick: () => setTab(value) },
+            t(`overview.${value}`),
+            value === 'members' && data.rows.length ? h('span', { className: 'sah-overview-badge' }, data.rows.length) : null,
+            value === 'tasks' && data.tasks.length ? h('span', { className: 'sah-overview-badge' }, data.tasks.length) : null,
+            value === 'diagnostics' && issues.length ? h('span', { className: 'sah-overview-badge' }, issues.length) : null))),
+        shown === 'members' ? h(React.Fragment, null,
+          data.rows.length >= FILTERS_FROM ? h(React.Fragment, null,
+            h('input', { type: 'search', placeholder: t('overview.search'), 'aria-label': t('overview.search'), value: filters.search, onChange: event => setFilters(old => ({ ...old, search: event.target.value })) }),
+            h('div', { className: 'sah-overview-filters', role: 'group', 'aria-label': t('overview.state') },
+              ...['all', 'running', 'attention', 'settled'].map(value => h('button', { type: 'button', key: value, 'aria-pressed': filters.status === value, onClick: () => setFilters(old => ({ ...old, status: value })) },
+                t(`overview.${value}`), value === 'all' ? null : h('span', { className: 'sah-overview-badge' }, count(value)))))) : null,
+          !data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
+          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups, now })))
+            : data.rows.length || data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null)
+          : shown === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
+            : h('section', { className: 'sah-overview-section' }, h('h3', null, t('overview.diagnostics')),
+              issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', { className: 'sah-overview-muted' }, t('overview.healthy')),
               h('h3', null, t('overview.rejections')),
-              !data.dispatch ? h('p', null, t('overview.noHistory')) : data.dispatch.records.length
+              !data.dispatch ? h('p', { className: 'sah-overview-muted' }, t('overview.noHistory')) : data.dispatch.records.length
                 ? h(React.Fragment, null,
-                  h('p', null, t('overview.historyCount', { shown: data.dispatch.records.length, total: data.dispatch.total })),
+                  h('p', { className: 'sah-overview-muted' }, t('overview.historyCount', { shown: data.dispatch.records.length, total: data.dispatch.total })),
                   h('ul', { className: 'sah-overview-list' }, ...[...data.dispatch.records].reverse().map(record => h('li', { key: record.seq, className: 'sah-overview-card' },
                     h('h3', null, record.tool), h('p', { className: 'sah-overview-muted' }, `${new Date(record.time).toLocaleString()} · #${record.seq}`),
                     h('p', null, record.reason), h('code', null, record.callId)))))
-                : h('p', null, t('overview.noRejections')),
-              h('p', null, t('overview.coverage'))),
-        h('div', { className: 'sah-overview-muted' },
-          h('p', null, t('overview.tokenNote', { known: data.tokenKnown, total: data.rows.length })), h('p', null, t('overview.durationNote'))))
+                : h('p', { className: 'sah-overview-muted' }, t('overview.noRejections')),
+              h('div', { className: 'sah-overview-foot' },
+                h('p', null, t('overview.monitorNote')),
+                h('p', null, t('overview.tokenNote', { known: data.tokenKnown, total: data.rows.length })),
+                h('p', null, t('overview.durationNote')),
+                data.teamAvailable ? h('p', null, t('overview.inactiveNote')) : null,
+                h('p', null, t('overview.coverage')))))
+    }
+    /**
+     * The session header is a size container with clipped overflow, so an in-place fixed panel
+     * would be positioned and cut off by it. A manual popover lives in the top layer instead,
+     * without making the panel modal or light-dismissed.
+     */
+    function showOverview(panel) {
+      if (!panel) return
+      try { if (typeof panel.showPopover === 'function' && !panel.matches(':popover-open')) panel.showPopover() } catch {}
+    }
+    function hideOverview(panel) {
+      if (!panel) return
+      try { if (typeof panel.hidePopover === 'function' && panel.matches(':popover-open')) panel.hidePopover() } catch {}
+    }
+    /** Pin the non-modal monitor under its trigger at the window's right edge, zoom-safe. */
+    function placeOverview(panel, anchor) {
+      const win = panel.ownerDocument.defaultView
+      const rect = anchor.getBoundingClientRect()
+      panel.style.left = '0px'
+      panel.style.top = '0px'
+      const origin = panel.getBoundingClientRect()
+      const scaleX = origin.width / panel.offsetWidth || 1
+      const scaleY = origin.height / panel.offsetHeight || 1
+      const margin = win.innerWidth <= 520 ? 8 : 12
+      const width = Math.min(460, win.innerWidth - margin * 2)
+      const top = Math.min(Math.max(margin, rect.bottom + 6), win.innerHeight - 240)
+      panel.style.width = `${width / scaleX}px`
+      panel.style.height = `${Math.max(240, win.innerHeight - top - margin) / scaleY}px`
+      panel.style.left = `${(win.innerWidth - width - margin - origin.left) / scaleX}px`
+      panel.style.top = `${(top - origin.top) / scaleY}px`
     }
     function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t }) {
       const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
@@ -2252,7 +2434,7 @@ window.__ModuleLoader__.load({
       const generation = React.useRef(0)
       const data = overviewData(rootId, state, statuses, now)
       const titleId = React.useId()
-      const close = () => { dialog.current?.close(); setOpen(false); trigger.current?.focus() }
+      const close = React.useCallback(() => { hideOverview(dialog.current); setOpen(false); trigger.current?.focus() }, [])
       const refresh = React.useCallback(async () => {
         const run = ++generation.current
         const cancelled = () => generation.current !== run
@@ -2266,18 +2448,29 @@ window.__ModuleLoader__.load({
       }, [sessions, rootId])
       React.useEffect(() => {
         if (!open) return
-        dialog.current?.showModal()
+        const panel = dialog.current
+        showOverview(panel)
+        const place = () => { if (panel && trigger.current) placeOverview(panel, trigger.current) }
+        place()
+        const win = panel?.ownerDocument.defaultView
+        win?.addEventListener('resize', place)
         setNow(Date.now())
-        dialog.current?.querySelector('[data-overview-close]')?.focus()
+        panel?.querySelector('[data-overview-close]')?.focus()
         refresh()
-        return () => { generation.current++; dialog.current?.close() }
+        return () => { generation.current++; win?.removeEventListener('resize', place); hideOverview(panel) }
       }, [open, refresh])
       React.useEffect(() => { setOpen(false); setErrors([]); setBusy(false) }, [sessionId])
+      // Live while open: tick elapsed times every second, re-read running agents every few.
+      const runningIds = data.rows.filter(row => row.status === 'running' || row.status === 'provisioning').map(row => row.id).join('\n')
       React.useEffect(() => {
-        if (!open || !data.running) return
-        const timer = setInterval(() => setNow(Date.now()), 1000)
-        return () => clearInterval(timer)
-      }, [open, data.running])
+        if (!open || runningIds === '') return
+        const tick = setInterval(() => setNow(Date.now()), 1000)
+        let stopped = false
+        const poll = setInterval(() => {
+          if (!stopped) refreshOverview(sessions, rootId, runningIds.split('\n'), () => stopped).catch(() => {})
+        }, LIVE_REFRESH_MS)
+        return () => { stopped = true; clearInterval(tick); clearInterval(poll) }
+      }, [open, runningIds, sessions, rootId])
       // Names come from the same Host catalog the configuration page reads, once per runtime.
       React.useEffect(() => {
         if (open) loadModelNames(names, remote)
@@ -2286,21 +2479,33 @@ window.__ModuleLoader__.load({
         try { await openSession(address); close() }
         catch (error) { setErrors(old => [...old, { id: address.childSessionId, message: String(error?.message ?? error) }]) }
       }
+      const live = data.running > 0
+      const hint = t('overview.triggerHint', { running: data.running, total: data.rows.length })
+        + (data.attention ? ` · ${t('overview.triggerAttention', { count: data.attention })}` : '')
       return h(React.Fragment, null, h('style', null, OVERVIEW_CSS),
         h('button', { type: 'button', ref: trigger, className: 'sah-overview-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': open,
-          'aria-label': t('overview.triggerHint', { running: data.running, total: data.rows.length }),
-          title: t('overview.triggerHint', { running: data.running, total: data.rows.length }), onClick: () => setOpen(true) },
-          h('span', { className: 'sah-overview-trigger-icon', 'aria-hidden': true }, glyph('IconBrowseOutlineRegular',
-            h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
-              h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }),
-              h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 })))),
+          'data-live': live ? 'true' : undefined, 'data-attention': data.attention ? 'true' : undefined,
+          'aria-label': hint, title: hint, onClick: () => (open ? close() : setOpen(true)) },
+          live || data.attention
+            ? h('span', { className: 'sah-overview-dot', 'data-state': live ? 'running' : 'inactive', 'data-attention': data.attention ? 'true' : undefined, 'aria-hidden': true })
+            : h('span', { className: 'sah-overview-trigger-icon', 'aria-hidden': true }, glyph('IconBrowseOutlineRegular',
+              h('svg', { width: 14, height: 14, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.5 },
+                h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }),
+                h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 })))),
           h('span', { className: 'sah-overview-trigger-label' }, t('overview.title')),
           data.rows.length ? h('span', { className: 'sah-overview-trigger-count', 'aria-hidden': true }, `${data.running}/${data.rows.length}`) : null),
-        h('dialog', { ref: dialog, className: 'sah-overview', 'aria-labelledby': titleId, onCancel: event => { event.preventDefault(); close() }, onClose: () => { if (!dialog.current?.open) setOpen(false) } },
+        h('div', { ref: dialog, className: 'sah-overview', role: 'dialog', 'aria-modal': false, 'aria-labelledby': titleId, popover: 'manual', 'data-open': open ? '' : undefined,
+          onKeyDown: event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() } },
+        },
           h('div', { className: 'sah-overview-head' }, h('h2', { id: titleId }, t('overview.title')),
-            h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh')),
-            h('button', { type: 'button', onClick: close, 'data-overview-close': '', autoFocus: true }, t('overview.close'))),
-          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups }) : null))
+            h('div', { className: 'sah-overview-head-actions' },
+              h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh')),
+              h('button', { type: 'button', onClick: close, 'data-overview-close': '' }, t('overview.close'))),
+            h('p', { className: 'sah-overview-summary', role: 'status' }, data.running || data.attention
+              ? t('overview.summary', { running: data.running, attention: data.attention, total: data.rows.length })
+              : t('overview.summaryQuiet', { total: data.rows.length }),
+              data.tokenKnown ? ` · ${t('overview.tokens')} ${overviewCount(data.tokens)}` : '')),
+          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups, now }) : null))
     }
     function OverviewGate({ overviewForm, ...props }) {
       const [snapshot, setSnapshot] = React.useState(() => overviewForm?.getSnapshot())
@@ -2349,6 +2554,7 @@ window.__ModuleLoader__.load({
       // Pure helpers, exported for tests only.
       AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
       overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
+      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,

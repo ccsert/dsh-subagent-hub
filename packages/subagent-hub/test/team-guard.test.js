@@ -67,8 +67,8 @@ test('spawn_teammate fork cannot inherit Codex when only the MiniMax child route
   const { result, startedRoute, proceeded } = await execute(service())
   assert.equal(result.kind, 'deny', `spawn_teammate(fork) proceeded with ${startedRoute?.provider}/${startedRoute?.model} despite a MiniMax-only child allowlist`)
   assert.equal(proceeded, false, 'the tool must be stopped before any teammate starts')
-  assert.match(result.reason, /codex\/gpt-6\.1-sol/)
-  assert.match(result.reason, /minimax\/MiniMax-M3\.1-Flash/)
+  assert.match(result.reason, /provider="codex" model="gpt-6\.1-sol"/)
+  assert.match(result.reason, /provider="minimax" model="MiniMax-M3\.1-Flash"/)
   assert.match(result.reason, /Both fresh and fork inherit/)
 })
 
@@ -92,13 +92,13 @@ test('unsupported extra provider/model arguments cannot disguise a Codex inherit
   const { result, proceeded } = await execute(service(), { arguments: { ...args, provider: minimax.provider, model: minimax.model } })
   assert.equal(result.kind, 'deny')
   assert.equal(proceeded, false)
-  assert.match(result.reason, /codex\/gpt-6\.1-sol/)
+  assert.match(result.reason, /provider="codex" model="gpt-6\.1-sol"/)
 })
 
 test('the current parent request takes precedence over allowed creation options', async () => {
   const { result } = await execute(service(), { agent: { ...parent, options: allowedParent.options } })
   assert.equal(result.kind, 'deny')
-  assert.match(result.reason, /codex\/gpt-6\.1-sol/)
+  assert.match(result.reason, /provider="codex" model="gpt-6\.1-sol"/)
 })
 
 test('an unconfirmed inherited model and an invalid nonempty route list both stop Team creation', async () => {
@@ -169,7 +169,7 @@ test('a Team-only session receives the catalog and its actual selection limitati
   assert.match(text, /Agent Teams without an independent subagent/)
   assert.match(text, /Both `context=fresh` and `context=fork` inherit/)
   assert.match(text, /No visible independent delegation tool exposes model selection/)
-  assert.match(text, /minimax\/MiniMax-M3\.1-Flash/)
+  assert.match(text, /provider="minimax" model="MiniMax-M3\.1-Flash"/)
   assert.doesNotMatch(text, /set `manageOfficialSettings: true`/)
   assert.doesNotMatch(text, /At most 4|concurrency cap is 4/)
 })

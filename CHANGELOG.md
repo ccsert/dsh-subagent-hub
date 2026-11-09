@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — 路线推理强度生效，子智能体总览改为实时监控
+
+- 修复 [#1](https://github.com/ccsert/dsh-subagent-hub/issues/1)：路线上配置的 `reasoningEffort` 此前只保存不生效。宿主 `tools/pre-execute` 契约不允许改写参数（参数冻结，决策只有 allow/deny/cancel/ask），因此改为：提示词列出每条路线的默认 effort 并要求显式传入；`subagent` / `subagent_fork` 漏传且实际 effort 不等于路线默认时，守卫拒绝并给出只加 `reasoning_effort` 的精确重试写法。显式值一律放行；子会话沿用的父会话 effort 等于默认时放行；判定异常时放行。`spawn_teammate` 与 workflow 没有 effort 参数，不受影响。
+- 白名单拒绝改用无歧义的 `provider="…" model="…"` 展示；provider/model 拆分错误时直接给出正确拆法，不再误导为“需要新会话”。
+- 子智能体总览重做为非模态右侧监控栏（popover 顶层渲染，不被会话标题栏的尺寸容器裁剪）：入口按钮显示运行与需处理状态；卡片显示任务、正在调用的工具与计时、审批等待、计划进度、最近汇报或输出、模型与实际推理强度（含“模型默认”）；展开可见最近 12 步时间线。打开期间运行中的成员每 3 秒刷新。
+- 新增插件会话投影 `subagentHubActivity`（`lib/activity.js`），从持久化历史折叠活动摘要；只记录工具的描述性短字段，不存命令行或文件内容。
+- “需处理”只包含等待审批，以及一小时内中断或失败的子智能体；更早的归入“已结束”。共享任务板标签页仅在 Team 任务板有任务时显示。
+- 验证：235 项单元测试。
+
 ## 0.11.4 — 官方预设镜像升级安全：不再冻结整份预设，旧快照自愈
 
 - 修复：`manageOfficialSettings` 曾把整份官方预设（含写入当时的所有插件行）写进 profile patch，DSH 升级后冻结旧默认值；旧版 DSH 的 `tool-subagent-list-agents` 行（`@deepseek-ai/dsh-tool-subagent-control/list-agents`）在新包已无导出，导致 `agent-preset/invalid: … never started` 与会话不可用。现在托管范围收缩为 spawn 委派行的 `allowedAgentPresets`，写策略由新的 `lib/preset-migration.js` 纯函数决定，`lib/mirror.js` 只按步执行：

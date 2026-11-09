@@ -53,6 +53,6 @@ test('allowedModels is exactly the official exact-route allowlist in table order
 test('route labels and summaries carry provider/model, tags and note', () => {
   const { routes } = indexRoutes([{ id: 'pro', provider: 'p', model: 'pro', tags: ['reasoning'], note: 'Pro' }])
   const route = routes.get('pro')
-  assert.equal(routeLabel(route), 'p/pro')
-  assert.equal(routeSummary(route), 'p/pro [reasoning] (Pro)')
+  assert.equal(routeLabel(route), 'provider="p" model="pro"')
+  assert.equal(routeSummary(route), 'provider="p" model="pro" [reasoning] (Pro)')
 })

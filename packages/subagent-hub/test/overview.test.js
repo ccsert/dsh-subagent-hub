@@ -126,8 +126,8 @@ test('renders escaped names, meaningful labels, model plans and evidence details
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
   const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t }))
   assert.match(html, /&lt;script&gt;/)
-  assert.match(html, /最近一次请求/)
-  assert.match(html, /1\/3/)
+  assert.match(html, /模型未确认/)
+  assert.match(html, /成员<span class="sah-overview-badge">3<\/span>/)
   assert.doesNotMatch(html, /overview\./)
   assert.match(html, /下次请求计划/)
 })
@@ -136,12 +136,86 @@ test('the last request is named by the catalog while the planned route keeps its
   const groups = [{ id: 'minimax', name: 'MiniMax', models: [{ id: 'MiniMax-M3.1-Flash', name: 'M3.1-Flash · MiniMax Code' }] }]
   const t = (key, args = {}) => (ui.overviewLocales.en[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
   const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, groups }))
-  assert.match(html, /Last request: M3\.1-Flash · MiniMax Code/)
-  assert.doesNotMatch(html, /Last request: minimax \/ MiniMax-M3\.1-Flash/)
+  assert.match(html, /<p class="sah-overview-model">M3\.1-Flash · MiniMax Code<\/p>/)
+  assert.doesNotMatch(html, /<p class="sah-overview-model">minimax/)
   // The planned route is evidence, not a request: it keeps the exact pair.
   assert.match(html, /next \/ planned/)
   // Search still matches the bare wire id, and now also the displayed name.
   assert.equal(ui.overviewFilter(data.rows, { search: 'MINIMAX' })[0].id, 'a')
   assert.equal(ui.overviewFilter(data.rows, { search: 'MiniMax Code' }).length, 0)
   assert.equal(ui.overviewFilter(data.rows, { search: 'MiniMax Code' }, groups)[0].id, 'a')
+})
+test('cards answer what the agent was asked, is doing, plans and last said', () => {
+  const state = fixture()
+  state.projectionsBySession.c.values.subagentHubActivity = {
+    task: { text: 'Investigate the effort issue', time: 1 }, pending: [{ callId: 'x', name: 'grep', hint: 'reasoningEffort', since: 4000 }],
+    recent: [{ name: 'read', hint: 'lib/router.js', ok: false, time: 3, ms: 1200 }], tools: 3, errors: 1, retries: 0,
+    todos: [{ content: 'Read', status: 'completed' }, { content: 'Fix router', status: 'in_progress' }],
+    output: { text: 'Working on it', time: 2 }, report: { text: 'Root cause found', time: 3 }, last: 4000 }
+  state.projectionsBySession.a.values.subagentHubActivity = { pending: [], recent: [], tools: 0, errors: 0, retries: 0, approval: { tool: 'bash', since: 1 } }
+  const data = ui.overviewData('root', state, new Map(), 5000)
+  assert.equal(data.attention, 1)
+  assert.equal(ui.overviewFilter(data.rows)[0].id, 'a', 'attention sorts first')
+  assert.equal(ui.overviewFilter(data.rows, { status: 'attention' }).length, 1)
+  assert.equal(ui.overviewFilter(data.rows, { search: 'effort issue' })[0].id, 'c')
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, now: 5000 }))
+  assert.match(html, /Investigate the effort issue/)
+  assert.match(html, /<code>grep<\/code><span>reasoningEffort<\/span><span class="sah-overview-elapsed">1\.0s<\/span>/)
+  assert.match(html, /1\/2 · 当前：Fix router/)
+  assert.match(html, /<dt>汇报<\/dt>.*Root cause found/)
+  assert.match(html, /等待审批：bash/)
+  assert.match(html, /3 次工具调用 · <span class="sah-overview-error">1 次失败<\/span>/)
+  assert.match(html, /data-ok="false"/)
+  assert.doesNotMatch(html, /overview\./)
+})
+test('compact spans and counts', () => {
+  assert.equal(ui.overviewSpan(820), '820ms')
+  assert.equal(ui.overviewSpan(4200), '4.2s')
+  assert.equal(ui.overviewSpan(185000), '3m 05s')
+  assert.equal(ui.overviewSpan(3720000), '1h 02m')
+  assert.equal(ui.overviewCount(2412406), '2.41M')
+  assert.equal(ui.overviewCount(12400), '12K')
+  assert.deepEqual(plain(ui.overviewPlan([{ status: 'completed' }, { status: 'pending', content: 'B' }])), { done: 1, total: 2, current: 'B' })
+})
+test('an adapter-defaulted effort is shown from the Hub digest, an explicit one from the native view', () => {
+  const state = fixture()
+  state.projectionsBySession.a.values.subagentHubActivity = { pending: [], recent: [], tools: 0, errors: 0, retries: 0, effort: { value: 'high', defaulted: true } }
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  let html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  assert.match(html, /MiniMax-M3\.1-Flash · 推理 high（模型默认）/)
+  state.projectionsBySession.a.values.modelSelection.lastUsed = { ...route, reasoningEffort: 'max' }
+  html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  assert.match(html, /MiniMax-M3\.1-Flash · 推理 max</)
+})
+test('the task board tab only appears when the Team board has tasks', () => {
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const render = state => renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  const state = fixture()
+  assert.doesNotMatch(render(state), /共享任务板/)
+  state.projectionsBySession.root.values.agentTeam.tasks.push({ id: 't1', subject: 'S', description: 'D', status: 'pending', ready: true })
+  assert.match(render(state), /共享任务板/)
+})
+test('only approvals and recent failures need attention; old failures count as finished', () => {
+  const hour = ui.ATTENTION_WINDOW_MS
+  const state = fixture()
+  const activity = extra => ({ pending: [], recent: [], tools: 0, errors: 0, retries: 0, ...extra })
+  state.byId.c.running = false
+  state.projectionsBySession.c.values.subagentTiming = { settledMs: 100, lastTurnCompleted: false }
+  state.projectionsBySession.c.values.subagentHubActivity = activity({ last: 1000 })
+  const now = 1000 + hour + 1
+  let data = ui.overviewData('root', state, new Map(), now)
+  let row = data.rows.find(item => item.id === 'c')
+  assert.equal(row.status, 'interrupted')
+  assert.equal(row.attention, false)
+  assert.equal(data.attention, 0)
+  assert.equal(ui.overviewFilter(data.rows, { status: 'settled' }).some(item => item.id === 'c'), true)
+  data = ui.overviewData('root', state, new Map(), 1000 + hour - 1)
+  assert.equal(data.rows.find(item => item.id === 'c').attention, true)
+  assert.equal(ui.overviewFilter(data.rows, { status: 'settled' }).some(item => item.id === 'c'), false)
+  // An approval wait needs attention however old it is; unknown age never does for a failure.
+  state.projectionsBySession.c.values.subagentHubActivity = activity({ last: 1000, approval: { tool: 'bash', since: 1000 } })
+  assert.equal(ui.overviewData('root', state, new Map(), now * 10).rows.find(item => item.id === 'c').attention, true)
+  delete state.projectionsBySession.c.values.subagentHubActivity
+  assert.equal(ui.overviewData('root', state, new Map(), now).rows.find(item => item.id === 'c').attention, false)
 })

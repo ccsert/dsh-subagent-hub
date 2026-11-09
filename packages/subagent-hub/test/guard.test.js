@@ -39,14 +39,14 @@ test('explicit allowed and inherited allowed routes pass', () => {
 test('explicit route outside the named agent routes is rejected with both lists', () => {
   const reason = verdict({ agent_preset: 'hub-agent-reviewer', provider: 'p', model: 'pro' })
   assert.ok(reason.startsWith(GUARD_PREFIX), reason)
-  assert.match(reason, /named agent "reviewer" is limited to routes p\/flash/)
-  assert.match(reason, /requested p\/pro is not allowed/)
+  assert.match(reason, /named agent "reviewer" is limited to routes provider="p" model="flash"/)
+  assert.match(reason, /requested provider="p" model="pro" is not allowed/)
   assert.match(reason, /route ids: flash/)
 })
 
 test('an inherited parent route outside the named agent routes is rejected too', () => {
   const reason = verdict({ agent_preset: 'hub-agent-reviewer' }, parent('p', 'pro'))
-  assert.match(reason, /would inherit the parent route p\/pro/)
+  assert.match(reason, /would inherit the parent route provider="p" model="pro"/)
   assert.match(reason, /Pass `provider` and `model` together/)
 })
 
@@ -99,8 +99,8 @@ test('a Session snapshot that lacks a newly configured route is refused by the s
   const reason = session([{ provider: 'q', model: 'pro' }])
   assert.ok(reason.startsWith(GUARD_PREFIX), reason)
   assert.match(reason, /refused by the Session model allowlist \(layer 2\/2\), captured when this Session started/)
-  assert.match(reason, /q\/pro/, 'the layer lists the routes it actually allows')
-  assert.match(reason, /The call subagent would use p\/flash/)
+  assert.match(reason, /provider="q" model="pro"/, 'the layer lists the routes it actually allows')
+  assert.match(reason, /The call subagent would use provider="p" model="flash"/)
   assert.match(reason, /Hub route configuration \(layer 1\/2\) allows this route/)
   assert.match(reason, /new top-level Session/)
   assert.doesNotMatch(reason, /outside the configured child routes/)
@@ -108,7 +108,7 @@ test('a Session snapshot that lacks a newly configured route is refused by the s
 
 test('a snapshot missing several configured routes names what only a new Session can use', () => {
   const reason = session([{ provider: 'q', model: 'pro' }])
-  assert.match(reason, /additionally allows p\/flash, p\/pro, which only a new Session can use/)
+  assert.match(reason, /additionally allows provider="p" model="flash", provider="p" model="pro", which only a new Session can use/)
 })
 
 test('a route the Session still captures but the configuration dropped is refused by the config layer', () => {
@@ -116,8 +116,8 @@ test('a route the Session still captures but the configuration dropped is refuse
     toolName: 'subagent', arguments: { provider: 'z', model: 'old' }, parent: parent('z', 'old'),
     catalog, parameters: selecting, sessionPolicy: [{ provider: 'z', model: 'old' }],
   })
-  assert.match(reason, /refused by the Hub route configuration \(layer 1\/2\), which allows p\/flash, p\/pro/)
-  assert.match(reason, /would use z\/old/)
+  assert.match(reason, /refused by the Hub route configuration \(layer 1\/2\), which allows provider="p" model="flash", provider="p" model="pro"/)
+  assert.match(reason, /would use provider="z" model="old"/)
   assert.ok(reason.includes('No child was started.'))
   assert.doesNotMatch(reason, /layer 2\/2/)
 })
@@ -135,7 +135,7 @@ test('an inherited route captured by the Session still passes without provider/m
     parameters: { properties: { prompt: {} } }, sessionPolicy: [{ provider: 'p', model: 'flash' }],
   })
   assert.match(reason, /Session model allowlist \(layer 2\/2\)/)
-  assert.match(reason, /The call subagent_fork would use p\/pro/, 'the inherited route is reported as the call route')
-  assert.match(reason, /allows p\/flash, p\/pro, but this Session keeps the older list/)
+  assert.match(reason, /The call subagent_fork would use provider="p" model="pro"/, 'the inherited route is reported as the call route')
+  assert.match(reason, /allows this route, but this Session keeps the older list/)
   assert.match(reason, /no provider\/model selector/, 'a model-less tool keeps its own guidance')
 })

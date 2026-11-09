@@ -61,9 +61,9 @@ export function allowedModels(routes) {
   return [...routes.values()].map(route => ({ provider: route.provider, model: route.model }))
 }
 
-/** Model-facing `provider/model` label. */
+/** Unambiguous model-facing exact route pair, including IDs containing slashes. */
 export function routeLabel(route) {
-  return `${route.provider}/${route.model}`
+  return `provider=${JSON.stringify(route.provider)} model=${JSON.stringify(route.model)}`
 }
 
 /** Human/model-facing route summary used by the prompt and the guard rejection. */

@@ -12,13 +12,14 @@
 // live. After such an edit the service re-registers affected presets and re-syncs the official
 // allowlists (see `loader/volatile-update` below).
 import { dispatchProjection } from './dispatch-history.js'
+import { activityProjection } from './activity.js'
 import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
-import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable } from './guard.js'
+import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable, routeEffortVerdict } from './guard.js'
 import { promptSection } from './prompt.js'
 import { MODEL_SETTINGS_ID, officialSettingsPlan } from './official-settings.js'
 import { syncOfficialMirror } from './mirror.js'
@@ -145,6 +146,7 @@ export default class SubagentHub extends Service {
     }))
     this.disposers.push(this.ctx.inject(['sessionProjections'], scope => {
       scope.sessionProjections.register(dispatchProjection)
+      scope.sessionProjections.register(activityProjection)
     }))
     // The official runtime captures a Session's model allowlist at start and never refreshes it,
     // so a live configuration edit cannot reach an open Session. Say that in the runtime context
@@ -495,6 +497,19 @@ export default class SubagentHub extends Service {
         return Promise.resolve({ kind: 'deny', reason: `${GUARD_PREFIX} ${exec.name} could not verify its model against the Hub child routes. No child was started; check the route configuration and tool availability.` })
       }
       this.ctx.logger?.warn?.(`${PACKAGE}: route guard skipped one call: ${String(error?.message ?? error)}`)
+    }
+    // Effort advice is fail-open, separately from the mandatory route guards above.
+    try {
+      const reason = routeEffortVerdict({
+        toolName: exec.name,
+        arguments: exec.arguments,
+        parent: exec.agent,
+        catalog: this.catalog,
+        parameters: this.ctx.get('tools')?.get(exec.name, exec.agent)?.parameters,
+      })
+      if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
+    } catch {
+      // A failure to inspect effort must never prevent a delegation.
     }
     return next()
   }

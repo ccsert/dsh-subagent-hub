@@ -60,6 +60,33 @@ export function concurrencyVerdict({ toolName, delegationTools, limit, running }
 
 export const CREATION_TOOLS = ['subagent', 'subagent_fork', 'spawn_teammate']
 
+/** Route effort is guidance enforced by retry, never by rewriting readonly tool arguments.
+ * Any unavailable or malformed input leaves the call to the native tool.
+ */
+export function routeEffortVerdict(input) {
+  try {
+    const { toolName, arguments: args = {}, parent, catalog, parameters } = input
+    if (!['subagent', 'subagent_fork'].includes(toolName)) return undefined
+    if (!Object.hasOwn(parameters?.properties ?? {}, 'reasoning_effort')) return undefined
+    const effort = args.reasoning_effort
+    if (effort !== undefined && effort !== null && effort !== '') return undefined
+    // Unlike the route guard's legacy fallback, any inspection exception here must allow.
+    const headerConfig = parent?.session?.requestHeader?.()?.config
+    const inherited = headerConfig !== null && typeof headerConfig === 'object' ? headerConfig : parent?.options
+    const route = effectiveRoute(modelSelectionAvailable(parameters) ? args : {}, { options: inherited })
+    if (route === undefined) return undefined
+    const configured = [...catalog.routes.values()].find(item => item.provider === route.provider && item.model === route.model)
+    if (typeof configured?.reasoningEffort !== 'string' || configured.reasoningEffort === '') return undefined
+    // The runtime inherits effort for the same route even if provider/model were explicit.
+    if (inherited?.provider === route.provider && inherited?.model === route.model
+      && inherited.reasoningEffort === configured.reasoningEffort) return undefined
+    const value = JSON.stringify(configured.reasoningEffort)
+    return `${GUARD_PREFIX} No child was started. Route ${routeLabel(route)} has configured default reasoning effort ${value}. Retry the original call unchanged, adding only \`reasoning_effort: ${value}\`. If the task needs a different effort, pass it explicitly; the Hub does not block explicit values.`
+  } catch {
+    return undefined
+  }
+}
+
 export function modelSelectionAvailable(parameters) {
   const properties = parameters?.properties ?? {}
   return Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model')
@@ -90,7 +117,7 @@ export function creationRouteVerdict({ toolName, arguments: args, parent, catalo
   const route = effectiveRoute(canSelectModel ? args ?? {} : {}, parent)
   const mode = toolName === 'spawn_teammate' ? ` (${args?.context === 'fork' ? 'fork' : 'fresh'})` : ''
   const call = `${toolName}${mode}`
-  const actual = route === undefined ? 'an unconfirmed model' : `${route.provider}/${route.model}`
+  const actual = route === undefined ? 'an unconfirmed model' : routeLabel(route)
   const alternative = canSelectModel
     ? 'Choose provider and model from the allowed routes.'
     : toolName === 'spawn_teammate'
@@ -99,21 +126,28 @@ export function creationRouteVerdict({ toolName, arguments: args, parent, catalo
 
   // Layer 2: the allowlist this Session captured when it started.
   const layers = compareLayers(allowed, sessionPolicy)
+  const splitHint = route === undefined || includesPair(layers.config, route.provider, route.model) ? '' : [...layers.config, ...layers.session]
+    .filter(pair => !includesPair([pair], route.provider, route.model)
+      && `${pair.provider}/${pair.model}` === `${route.provider}/${route.model}`)
+    .map(routeLabel)
+    .filter((label, index, labels) => labels.indexOf(label) === index)
+    .join(', ')
+  const correction = splitHint === '' ? '' : ` The provider/model split is incorrect. Use the exact separate values: ${splitHint}.`
   if (route !== undefined && layers.session.length > 0 && !includesPair(layers.session, route.provider, route.model)) {
+    if (splitHint !== '') return `${GUARD_PREFIX} refused by the ${LAYERS.session}, which allows ${describePairs(layers.session)}. The call ${call} would use ${actual}. No child was started.${correction}`
     const fresh = 'only a new top-level Session captures the current list again: a new child started under this Session inherits the list above'
-    const hint = canSelectModel && includesPair(layers.config, route.provider, route.model)
-      ? `The ${LAYERS.config} allows this route, but this Session keeps the older list; ${fresh}.`
-      : canSelectModel
-        ? `The ${LAYERS.config} allows ${configLabels}; choose one of those, or change the configuration, whereupon ${fresh}.`
-        : `${alternative} The ${LAYERS.config} allows ${configLabels}, but this Session keeps the older list; ${fresh}.`
-    const drift = layers.notInSession.length > 0
+    const stale = includesPair(layers.config, route.provider, route.model)
+    const hint = stale
+      ? `${canSelectModel ? '' : `${alternative} `}The ${LAYERS.config} allows this route, but this Session keeps the older list; ${fresh}.`
+      : `${alternative} The ${LAYERS.config} allows ${configLabels}.`
+    const drift = stale && layers.notInSession.length > 0
       ? ` The live configuration additionally allows ${describePairs(layers.notInSession)}, which only a new Session can use.`
       : ''
     return `${GUARD_PREFIX} refused by the ${LAYERS.session}, captured when this Session started: ${describePairs(layers.session)}. The call ${call} would use ${actual}.${drift} No child was started. ${hint}`
   }
 
   if (route !== undefined && allowed.some(allowed => allowed.provider === route.provider && allowed.model === route.model)) return undefined
-  return `${GUARD_PREFIX} refused by the ${LAYERS.config}, which allows ${configLabels}. The call ${call} would use ${actual}. No child was started. ${alternative}`
+  return `${GUARD_PREFIX} refused by the ${LAYERS.config}, which allows ${configLabels}. The call ${call} would use ${actual}. No child was started.${correction} ${alternative}`
 }
 
 /**
@@ -144,13 +178,15 @@ export function guardVerdict({ arguments: args, parent, catalog, canSelectModel 
   if (allowed.some(route => route.provider === requested.provider && route.model === requested.model)) return undefined
 
   const labels = allowed.map(routeLabel).join(', ')
+  const split = allowed.filter(route => `${route.provider}/${route.model}` === `${requested.provider}/${requested.model}`)
+  const correction = split.length === 0 ? '' : ` The provider/model split is incorrect. Use the exact separate values: ${split.map(routeLabel).join(', ')}.`
   const explicit = allowed.map(route => route.id).join(', ')
   const layer = `This is the ${LAYERS.agent}, which can only narrow the ${LAYERS.config}.`
   if (requested.source === 'inherited parent') {
     const guidance = canSelectModel
       ? `Pass \`provider\` and \`model\` together, choosing one of: ${labels} (route ids: ${explicit}).`
       : 'This tool has no provider/model selector. Use a tool whose actual schema supports model selection, or an allowed parent model; do not pass unsupported model arguments.'
-    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${requested.provider}/${requested.model}. ${guidance} ${layer}`
+    return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}, but the child would inherit the parent route ${routeLabel(requested)}. ${guidance}${correction} ${layer}`
   }
-  return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}; requested ${requested.provider}/${requested.model} is not allowed. Choose \`provider\` and \`model\` from: ${labels} (route ids: ${explicit}). ${layer}`
+  return `${GUARD_PREFIX} named agent "${agent.id}" is limited to routes ${labels}; requested ${routeLabel(requested)} is not allowed. Choose \`provider\` and \`model\` from: ${labels} (route ids: ${explicit}).${correction} ${layer}`
 }

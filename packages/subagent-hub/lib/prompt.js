@@ -55,7 +55,11 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
     for (const route of routes.values()) {
       const tagsPart = route.tags.length > 0 ? ` — tags: ${route.tags.join(', ')}` : ''
       const notePart = route.note === undefined ? '' : `; ${route.note}`
-      lines.push(`- \`${routeLabel(route)}\`${tagsPart}${notePart}`)
+      const effortPart = route.reasoningEffort === undefined ? '' : `; default reasoning_effort: ${JSON.stringify(route.reasoningEffort)}`
+      lines.push(`- \`${routeLabel(route)}\`${tagsPart}${effortPart}${notePart}`)
+    }
+    if ([...routes.values()].some(route => route.reasoningEffort !== undefined)) {
+      lines.push('When dispatching via `subagent` or `subagent_fork` whose schema exposes `reasoning_effort`, explicitly pass the route default in `reasoning_effort` unless the task clearly needs a different effort. Explicit values take precedence. This route effort guidance does not apply to `spawn_teammate` or `workflow`.')
     }
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
     lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.')
@@ -100,7 +104,7 @@ function declaredTags(routes, routeIds) {
 /** Route ids with their concrete provider/model; an empty declaration means "any configured model". */
 function describeRoutes(routes, routeIds) {
   if (routeIds === undefined || routeIds.length === 0) {
-    const labels = allowedModels(routes).map(route => `${route.provider}/${route.model}`)
+    const labels = allowedModels(routes).map(routeLabel)
     return labels.length === 0 ? 'any configured model' : `any configured model (${labels.join(', ')})`
   }
   return routeIds

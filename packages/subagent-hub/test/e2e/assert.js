@@ -65,9 +65,9 @@ check('the prompt section lists named agents, capability tags, routes, and model
     '`hub-agent-reviewer`',
     'Reviews a diff and reports findings',
     'tags: fast',
-    'routes: flash = deepseek-official/deepseek-flash',
-    '`deepseek-official/deepseek-flash` — tags: fast, cheap',
-    '`deepseek-official/deepseek-v4-pro` — tags: reasoning',
+    'routes: flash = provider="deepseek-official" model="deepseek-flash"',
+    '`provider="deepseek-official" model="deepseek-flash"` — tags: fast, cheap',
+    '`provider="deepseek-official" model="deepseek-v4-pro"` — tags: reasoning',
     'Pass `agent_preset` to choose a named agent',
     'must be one of that agent\'s routes',
   ]) assert.ok(text.includes(needle), `missing ${needle}`)
@@ -86,8 +86,8 @@ check('the Session captured allowlist is readable in the real runtime and matche
 check('an out-of-route provider/model is rejected by the guard with a reason', () => {
   assert.equal(checks.outOfRoute.isError, true)
   assert.match(checks.outOfRoute.message, /^subagent-hub:/)
-  assert.match(checks.outOfRoute.message, /named agent "reviewer" is limited to routes deepseek-official\/deepseek-flash/)
-  assert.match(checks.outOfRoute.message, /requested deepseek-official\/deepseek-v4-pro is not allowed/)
+  assert.match(checks.outOfRoute.message, /named agent "reviewer" is limited to routes provider="deepseek-official" model="deepseek-flash"/)
+  assert.match(checks.outOfRoute.message, /requested provider="deepseek-official" model="deepseek-v4-pro" is not allowed/)
   assert.match(checks.outOfRoute.message, /route ids: flash/)
 })
 check('a named agent selected through agent_preset runs its preset with the persona instructions', () => {

@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.11.4"><img src="https://img.shields.io/badge/version-0.11.4-66c8ab" alt="Version 0.11.4"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.0"><img src="https://img.shields.io/badge/version-0.12.0-66c8ab" alt="Version 0.12.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-204_unit_%2B_33_runtime-66c8ab" alt="204 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-248_unit_%2B_33_runtime-66c8ab" alt="248 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -29,11 +29,21 @@
 | **会话并发上限** | 限制一个父会话同时运行的子 agent 数量，与官方全局容量同时生效 |
 | **原生配置表单** | 在 **设置 → 子代理中枢** 编辑模型、角色、标签与托管开关 |
 | **请求模型可见** | 子会话标题栏显示最近请求的供应商与模型，展开读取完整 id 与推理强度 |
-| **子智能体总览**（可选） | 标题栏入口汇总独立子任务与 Team 成员、共享任务和派发拒绝诊断，默认关闭 |
+| **路线推理强度** | 每条路线可设默认 `reasoning_effort`；主 agent 漏传时 Hub 拒绝并给出精确重试写法，显式值优先 |
+| **子智能体总览**（可选） | 标题栏实时监控：每个子 agent 的任务、当前动作、计划、汇报、模型与推理强度，按路线的 Token 用量，新结果与可能卡住提醒；默认关闭 |
 
 ## 子智能体总览
 
-0.11.1 起提供可选的 **子智能体总览**，默认关闭。在「设置 → 子代理中枢 → 基础设置」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。总览汇总独立子任务和 Team 成员，支持搜索、筛选、排序、打开原生子会话，以及查看共享任务、依赖和写入范围警告。最近请求模型、累计执行耗时和 Token 均读取原生投影；Team 空闲不表示任务完成，缺失用量不当作零。
+可选的 **子智能体总览** 默认关闭。在「设置 → 子代理中枢 → 基础设置」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。
+
+0.12.0 起它是一个不遮挡对话的右侧监控栏：
+
+- **入口即状态**：按钮显示运行数；有子 agent 等待审批、一小时内中断或失败、或疑似卡住时变黄；关闭面板期间有子 agent 完成回合或发来汇报时显示蓝色计数。
+- **卡片回答“它在干什么”**：任务、正在调用的工具与计时、审批等待、自己的计划进度、最近汇报或输出、模型与实际推理强度（含“模型默认”）；展开可见最近 12 步时间线。
+- **用量页**：按每次请求实际使用的路线统计子 agent 的 Token、请求数与缓存命中率，矩形树图按路线着色，排名与列表联动，并显示 Hub 路线标签。
+- **可能卡住**：运行中超过 5 分钟无任何动作，或单个工具运行超过 15 分钟时提示。
+
+活动摘要来自插件自己的会话投影 `subagentHubActivity`，从持久化历史折叠：只记录工具的描述性短字段，不存命令行或文件内容。共享任务板只在 Team 任务板有任务时显示。Team 空闲不表示任务完成，缺失用量不当作零。
 
 诊断页从持久化工具结果重建最近 64 条 Hub 守卫拒绝，显示已记录总数；不包含其他工具错误。面板打开或点击刷新时只读刷新投影，并发最多 4 个，不启动子会话或模型请求。实现与验证范围见[总览契约](docs/overview-design.md)。
 
@@ -49,7 +59,11 @@
 
 **子智能体总览**
 
-![总览面板中的成员、运行状态、模型与 Token 证据](docs/assets/overview.webp)
+![总览监控栏：每个子智能体的任务、当前动作、计划与汇报](docs/assets/overview.webp)
+
+**按路线的用量**
+
+![用量页：总量与缓存命中、按路线着色的矩形树图和子智能体排名](docs/assets/usage.webp)
 
 截图使用实际插件组件和演示数据，不包含用户 profile、真实会话或密钥。完整图、移动宽度预览与来源见[截图说明](docs/screenshots.md)。Hero 由 [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen) 生成。
 
@@ -57,11 +71,11 @@
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.11.4.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.12.0.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.11.4.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.12.0.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -178,7 +192,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **204 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **248 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

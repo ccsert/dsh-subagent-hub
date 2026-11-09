@@ -24,8 +24,8 @@ check('an updated child allowlist denies fresh and fork before teammate creation
     const result = report.teamBlocked[context]
     assert.equal(result.isError, true)
     assert.match(result.reason, /^subagent-hub:/)
-    assert.match(result.reason, /deepseek-official\/deepseek-v4-pro/)
-    assert.match(result.reason, /deepseek-official\/deepseek-flash/)
+    assert.match(result.reason, /provider="deepseek-official" model="deepseek-v4-pro"/)
+    assert.match(result.reason, /provider="deepseek-official" model="deepseek-flash"/)
   }
   assert.equal(report.teamBlocked.memberCount, 0)
   assert.equal(report.teamBlocked.childrenCreated, 0)
@@ -33,7 +33,7 @@ check('an updated child allowlist denies fresh and fork before teammate creation
 check('Team-only or mixed new sessions receive accurate model-selection guidance', () => {
   assert.match(report.teamSection, /Both `context=fresh` and `context=fork` inherit/)
   assert.match(report.teamSection, /spawn_teammate.*no `provider`, `model`, or `agent_preset`/)
-  assert.match(report.teamSection, /deepseek-official\/deepseek-flash/)
+  assert.match(report.teamSection, /provider="deepseek-official" model="deepseek-flash"/)
 })
 check('allowed fresh and fork children keep their native lifecycle and recorded model', () => {
   for (const result of Object.values(report.teamAllowed)) {
@@ -51,7 +51,7 @@ check('model-selection alternatives match the tools actually exposed by the new 
 check('model-less independent forks also stop before an out-of-list model request', () => {
   assert.equal(report.independentForkProbe?.isError, true)
   assert.match(report.independentForkProbe?.reason, /^subagent-hub:/)
-  assert.match(report.independentForkProbe?.reason, /deepseek-official\/deepseek-v4-pro/)
+  assert.match(report.independentForkProbe?.reason, /provider="deepseek-official" model="deepseek-v4-pro"/)
 })
 console.log(results.join('\n'))
 console.log('Native independent schemas: ' + JSON.stringify(report.independentSchemas))

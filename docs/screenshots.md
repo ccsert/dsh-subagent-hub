@@ -24,9 +24,15 @@
 
 ## 子智能体总览
 
-![总览面板中的成员、运行状态、模型与 Token 证据](assets/overview.webp)
+![总览监控栏：每个子智能体的任务、当前动作、计划与汇报](assets/overview.webp)
 
 [PNG 原图](assets/overview.png)
+
+**按路线的用量**
+
+![用量页：总量与缓存命中、按路线着色的矩形树图和子智能体排名](assets/usage.webp)
+
+[PNG 原图](assets/usage.png)
 
 ## 320px 窄屏
 

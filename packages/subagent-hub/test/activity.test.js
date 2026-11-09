@@ -111,3 +111,130 @@ test('records the effort the request ran with, including an adapter default', ()
   assert.equal(state.view.effort, undefined)
   activityProjection.wire.viewSchema.parse(state.view)
 })
+
+const route = (provider = 'p', model = 'm', reason = 'initial') => ({
+  type: 'request/header', data: { header: { config: { provider, model } }, reason },
+})
+const sample = (inputTokens = 10, outputTokens = 2, extra = {}) => ({ inputTokens, outputTokens, ...extra })
+const settlement = (turn, step, usage, extra = {}) => ({
+  type: 'assistant/message', data: { turn, step, message: { content: [] }, ...(usage === undefined ? {} : { usage }), ...extra },
+})
+const usageChunk = usage => ({ type: 'chunk', chunk: { type: 'usage', usage } })
+const usageRow = (provider, model, requests, uncachedInputTokens, outputTokens, cacheReadTokens = 0, cacheWriteTokens = 0) =>
+  ({ provider, model, requests, uncachedInputTokens, outputTokens, cacheReadTokens, cacheWriteTokens })
+
+function checkedUsage(events) {
+  const state = fold(events)
+  activityProjection.stateSchema.parse(state)
+  activityProjection.wire.viewSchema.parse(state.view)
+  assert.equal(activityProjection.stateVersion, 3)
+  assert.equal('usageRoute' in state.view, false)
+  assert.equal('usageLast' in state.view, false)
+  return state.view.usage
+}
+
+test('accumulates provider token buckets and actual requests on one route across turns', () => {
+  const usage = checkedUsage([
+    route(), settlement(1, 1, sample(10, 2, { cacheReadTokens: 5, cacheWriteTokens: 3 })),
+    settlement(1, 2, sample(20, 4)),
+    { type: 'turn/end', data: { reason: { kind: 'completed' } } },
+    { type: 'turn/start', data: { turn: 2 } }, user('next', 5),
+    route('p', 'm', 'resume'), route('p', 'm', 'series'), settlement(2, 1, sample(30, 6)),
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 3, 60, 12, 5, 3)])
+})
+
+test('keeps routes in first usage order and accumulates when switching back', () => {
+  const usage = checkedUsage([
+    route('a', 'm'), settlement(1, 1, sample()),
+    route('a', 'n', 'change'), settlement(1, 2, sample(20, 4)),
+    route('b', 'm', 'change'), settlement(1, 3, sample(30, 6)),
+    route('a', 'm', 'change'), settlement(1, 4, sample()),
+  ])
+  assert.deepEqual(usage, [usageRow('a', 'm', 2, 20, 4), usageRow('a', 'n', 1, 20, 4), usageRow('b', 'm', 1, 30, 6)])
+})
+
+test('replaces the latest settlement usage despite interruption or surface rewrites', () => {
+  const usage = checkedUsage([
+    route(), settlement(1, 1, sample(10, 2, { cacheReadTokens: 8 })),
+    { type: 'assistant/attempt', data: { turn: 1, step: 1, stream: [usageChunk(sample(12, 3))] } },
+    settlement(1, 1, sample(11, 2), { interrupted: true }),
+    { ...settlement(1, 1, sample(11, 2)), surface: { op: 'replace', start: 0, end: 1 } },
+    { type: 'surface/replace', data: { start: 0, end: 1 } },
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 1, 11, 2)])
+})
+
+test('uses the final raw stream usage for attempts and messages, with message usage preferred', () => {
+  const usage = checkedUsage([
+    route(),
+    { type: 'assistant/attempt', data: { turn: 1, step: 1, stream: [usageChunk(sample(1, 1)), { type: 'text-chunks', texts: ['x'] }, usageChunk(sample(3, 2))] } },
+    settlement(1, 2, undefined, { stream: [usageChunk(sample(5, 4))] }),
+    settlement(1, 3, sample(7, 6), { stream: [usageChunk(sample(100, 100))] }),
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 3, 15, 12)])
+})
+
+test('retry-started closes only the matching slot and charges billed retries separately', () => {
+  const usage = checkedUsage([
+    route(), { type: 'assistant/attempt', data: { turn: 1, step: 1, stream: [usageChunk(sample())] } },
+    { type: 'llm/retry-started', data: { turn: 1, step: 2 } },
+    settlement(1, 1, sample(12, 3)),
+    { type: 'llm/retry-started', data: { turn: 1, step: 1 } },
+    route('p', 'n', 'change'), settlement(1, 1, sample(20, 4)),
+    settlement(1, 1, sample(21, 5)),
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 1, 12, 3), usageRow('p', 'n', 1, 21, 5)])
+})
+
+test('updates stay attributed to the request route even after another header', () => {
+  const usage = checkedUsage([
+    route(), settlement(1, 1, sample()), route('p', 'n', 'change'),
+    settlement(1, 1, sample(12, 4)), settlement(1, 2, sample(20, 6)),
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 1, 12, 4), usageRow('p', 'n', 1, 20, 6)])
+})
+
+test('fork descriptor clears route, usage, and replacement state inherited from parent', () => {
+  const parent = fold([route(), settlement(1, 1, sample())])
+  const child = activityFold(parent, { type: 'subagent/descriptor', time: 10, data: {} })
+  assert.equal(child.view.usage, undefined)
+  assert.equal(child.usageRoute, undefined)
+  assert.equal(child.usageLast, undefined)
+  assert.deepEqual(checkedUsage([
+    route(), settlement(1, 1, sample()), { type: 'subagent/descriptor', data: {} },
+    settlement(1, 2, sample(100, 100)), route('child', 'm'), settlement(1, 1, sample(3, 1)),
+  ]), [usageRow('child', 'm', 1, 3, 1)])
+})
+
+test('missing or invalid usage does not count or replace a valid sample', () => {
+  const invalid = [null, {}, sample(-1), sample(Infinity), sample(NaN), sample(1, -1),
+    sample(1, Infinity), sample(1, 2, { cacheReadTokens: -1 }), sample(1, 2, { cacheWriteTokens: NaN }),
+    sample('10'), sample(1, 2, { cacheReadTokens: '2' })]
+  assert.deepEqual(checkedUsage([
+    settlement(1, 0, sample()), route(), settlement(1, 1, undefined),
+    ...invalid.map(value => settlement(1, 1, value)),
+  ]), undefined)
+  const usage = checkedUsage([
+    route(), settlement(1, 1, sample()),
+    ...invalid.map(value => settlement(1, 1, value)),
+    settlement(1, 1, undefined),
+  ])
+  assert.deepEqual(usage, [usageRow('p', 'm', 1, 10, 2)])
+  const state = fold([route()])
+  const ignored = { type: 'assistant/attempt', data: { turn: 1, step: 1, stream: [] } }
+  assert.equal(activityFold(state, ignored), state)
+  assert.equal(activityFold(state, { type: 'irrelevant', data: {} }), state)
+})
+
+test('retains the first 16 routes and discards overflow without contaminating replacements', () => {
+  const events = []
+  for (let index = 0; index < 18; index++) events.push(route('p', `m${index}`), settlement(1, index, sample()))
+  events.push(route('p', 'm0'), settlement(1, 17, sample(100, 100)), settlement(1, 18, sample(3, 1)))
+  const usage = checkedUsage(events)
+  assert.equal(usage.length, 16)
+  assert.deepEqual(usage.map(row => row.model), Array.from({ length: 16 }, (_, index) => `m${index}`))
+  assert.deepEqual(usage[0], usageRow('p', 'm0', 2, 13, 3))
+  assert.deepEqual(usage[15], usageRow('p', 'm15', 1, 10, 2))
+  assert.throws(() => activityProjection.wire.viewSchema.parse({ ...fold([]).view, usage: [...usage, usage[0]] }))
+})

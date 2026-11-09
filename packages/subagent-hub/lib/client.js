@@ -1962,6 +1962,13 @@ window.__ModuleLoader__.load({
     const LIVE_REFRESH_MS = 3000
     /** A failure or interruption older than this is history, not something to act on. */
     const ATTENTION_WINDOW_MS = 60 * 60 * 1000
+    /** Running with no tool call and no recorded event for this long looks stuck. */
+    const STALL_MS = 5 * 60 * 1000
+    /** One tool call open for this long is worth a look (tests and CI waits are legitimately slow). */
+    const LONG_CALL_MS = 15 * 60 * 1000
+    /** While the panel is closed, running agents are re-read at this slower pace for the trigger. */
+    const BACKGROUND_REFRESH_MS = 15_000
+    const SEEN_KEY = 'subagent-hub:overview-seen:'
     Object.assign(en, {
       'overview.setting': 'Show agent overview',
       'overview.settingHint': 'Off by default. Adds a live agent monitor to the session header after saving; the official Agent Team UI is always available.',
@@ -2011,6 +2018,16 @@ window.__ModuleLoader__.load({
       'overview.noActivity': 'No activity digest yet. It appears after the next refresh once the Hub plugin is loaded.',
       'overview.monitorNote': 'Live while open: running agents refresh every few seconds.',
       'overview.effort': 'effort', 'overview.effortDefault': ' (model default)',
+      'overview.fresh': 'New', 'overview.triggerFresh': '{count} with new results',
+      'overview.stallQuiet': 'No activity for {time}; it may be stuck or thinking at length',
+      'overview.stallCall': '{tool} has been running for {time}',
+      'overview.usage': 'Usage', 'overview.usageTitle': 'Tokens by route in this session',
+      'overview.usageAgents': '{count} agents', 'overview.usageRequests': '{count} requests',
+      'overview.usageSplit': 'in {input} · out {output} · cache hit {rate}',
+      'overview.usageApprox': 'Partly estimated from session totals', 'overview.usageUnrouted': 'Not a Hub route',
+      'overview.usageMissing': '{count} agents have no recorded usage yet and are not counted.',
+      'overview.usageNote': 'Child agents only; the main agent\'s own usage is not included. No price estimate.',
+      'overview.usageEmpty': 'No recorded usage yet.',
     })
     Object.assign(zh, {
       'overview.setting': '显示子智能体总览',
@@ -2061,6 +2078,16 @@ window.__ModuleLoader__.load({
       'overview.noActivity': '暂无活动摘要。Hub 插件加载后，下次刷新即可看到。',
       'overview.monitorNote': '面板打开期间实时更新：运行中的子智能体每隔几秒刷新一次。',
       'overview.effort': '推理', 'overview.effortDefault': '（模型默认）',
+      'overview.fresh': '新', 'overview.triggerFresh': '{count} 个有新结果',
+      'overview.stallQuiet': '已 {time} 没有新动作，可能卡住，也可能在长时间思考',
+      'overview.stallCall': '{tool} 已运行 {time}',
+      'overview.usage': '用量', 'overview.usageTitle': '本会话各路线的 Token 用量',
+      'overview.usageAgents': '{count} 个子智能体', 'overview.usageRequests': '{count} 次请求',
+      'overview.usageSplit': '输入 {input} · 输出 {output} · 缓存命中 {rate}',
+      'overview.usageApprox': '部分按会话总量估算', 'overview.usageUnrouted': '非 Hub 路线',
+      'overview.usageMissing': '{count} 个子智能体还没有用量记录，未计入。',
+      'overview.usageNote': '只统计子智能体，不含主智能体自身用量；不估算费用。',
+      'overview.usageEmpty': '还没有用量记录。',
     })
 
     const OVERVIEW_CSS = `
@@ -2134,6 +2161,15 @@ window.__ModuleLoader__.load({
 .sah-overview-notice{padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);font-size:12px}
 .sah-overview-section{display:grid;gap:6px}
 .sah-overview-task-description{white-space:pre-wrap}
+.sah-overview-fresh{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;color:var(--dsw-alias-state-business-primary,#9bb8ff);background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#9bb8ff) 16%,transparent)}
+.sah-overview-trigger-fresh{flex:none;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:11px;line-height:16px;text-align:center;font-variant-numeric:tabular-nums;color:#fff;background:var(--dsw-alias-state-business-primary,#5b8cff)}
+.sah-overview-usage{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.sah-overview-usage li{display:grid;gap:4px}
+.sah-overview-usage-head{display:flex;align-items:baseline;gap:6px;min-width:0}
+.sah-overview-usage-head strong{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-overview-usage-head span:last-child{margin-inline-start:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sah-overview-usage .sah-overview-bar{width:100%;height:6px;border-radius:3px}
+.sah-overview-tag{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
 .sah-overview-foot{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);display:grid;gap:2px}
 @media(prefers-reduced-motion:reduce){.sah-overview[data-open],.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
 `
@@ -2201,10 +2237,11 @@ window.__ModuleLoader__.load({
         // old interruption cannot keep the trigger amber forever. Unknown age counts as old.
         const when = lastActive ?? member.createdAt
         const recent = Number.isFinite(when) && now - when <= ATTENTION_WINDOW_MS
-        const attention = activity?.approval !== undefined || ((status === 'failed' || status === 'interrupted') && recent)
-        return { ...member, status, attention, activity, model: modelBadgeData({ subagent: true }, projected.modelSelection),
+        const stall = status === 'running' ? overviewStall(activity, lastActive, now) : undefined
+        const attention = activity?.approval !== undefined || stall !== undefined || ((status === 'failed' || status === 'interrupted') && recent)
+        return { ...member, status, attention, stall, activity, model: modelBadgeData({ subagent: true }, projected.modelSelection),
           duration: overviewDuration(timing, running === true, now), tokens: overviewTokens(projected.tokenUsage),
-          lastActive,
+          tokenUsage: projected.tokenUsage, lastActive,
           readState: child?.state, readError: child?.error?.message,
           address: ['one-shot', 'continuable'].includes(member.mode) ? { parentSessionId: rootId, childSessionId: member.id, mode: member.mode } : undefined }
       })
@@ -2223,8 +2260,79 @@ window.__ModuleLoader__.load({
         tokenKnown: rows.filter(row => row.tokens !== undefined).length,
         tokens: rows.reduce((sum, row) => sum + (row.tokens ?? 0), 0) }
     }
+    /**
+     * Whether a running agent looks stuck: quiet with no open tool call, or one call open far
+     * longer than usual. Long model thinking also records no event, so this is a hint, not a verdict.
+     */
+    function overviewStall(activity, lastActive, now) {
+      const call = activity?.pending?.at(-1)
+      if (call !== undefined) {
+        const ms = now - call.since
+        return Number.isFinite(ms) && ms >= LONG_CALL_MS ? { kind: 'call', ms, tool: call.name } : undefined
+      }
+      const ms = now - lastActive
+      return Number.isFinite(ms) && ms >= STALL_MS ? { kind: 'quiet', ms } : undefined
+    }
+    /** When an agent last produced something worth reading: a report, or the end of a turn. */
+    function overviewNews(row) {
+      const times = [row.activity?.report?.time, row.activity?.end?.time].filter(Number.isFinite)
+      return times.length ? Math.max(...times) : undefined
+    }
+    /** Ids with a result newer than `seen`; `settled` adds agents seen to stop running meanwhile. */
+    function overviewFresh(rows, seen, settled = new Set()) {
+      if (!Number.isFinite(seen)) return new Set()
+      return new Set(rows.filter(row => settled.has(row.id) || (overviewNews(row) ?? -Infinity) > seen).map(row => row.id))
+    }
+    const USAGE_BUCKETS = ['uncachedInputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens']
+    const validBuckets = value => value && USAGE_BUCKETS.every(key => Number.isFinite(value[key]) && value[key] >= 0)
+    /**
+     * Token use per route across this session's agents. The Hub digest splits a child's usage by
+     * the route each request actually used; a child without it falls back to its session total
+     * under its last recorded route, and that row is marked approximate.
+     */
+    function overviewUsage(rows, routes = []) {
+      const byRoute = new Map()
+      const entry = (provider, model) => {
+        const key = `${provider}\0${model}`
+        let item = byRoute.get(key)
+        if (item === undefined) {
+          const hub = routes.find(route => route?.provider === provider && route?.model === model)
+          byRoute.set(key, item = { provider, model, agents: new Set(), requests: 0, approximate: false,
+            uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
+            ...(hub ? { routeId: hub.id, tags: hub.tags ?? [] } : {}) })
+        }
+        return item
+      }
+      const add = (item, usage) => { for (const key of USAGE_BUCKETS) item[key] += usage[key] }
+      let missing = 0
+      for (const row of rows) {
+        const split = Array.isArray(row.activity?.usage) ? row.activity.usage.filter(validBuckets) : []
+        if (split.length) {
+          for (const usage of split) {
+            const item = entry(usage.provider, usage.model)
+            item.agents.add(row.id)
+            item.requests += Number.isFinite(usage.requests) ? usage.requests : 0
+            add(item, usage)
+          }
+        } else if (validBuckets(row.tokenUsage) && row.model.kind === 'recorded') {
+          const item = entry(row.model.last.provider, row.model.last.model)
+          item.agents.add(row.id)
+          item.approximate = true
+          add(item, row.tokenUsage)
+        } else missing++
+      }
+      const items = [...byRoute.values()].map(item => ({ ...item, agents: item.agents.size,
+        total: USAGE_BUCKETS.reduce((sum, key) => sum + item[key], 0) }))
+      const total = items.reduce((sum, item) => sum + item.total, 0)
+      return { total, missing, routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
+    }
+    /** Share of prompt tokens served from cache, or undefined when nothing was read. */
+    function overviewCacheRate(item) {
+      const prompt = item.uncachedInputTokens + item.cacheReadTokens + item.cacheWriteTokens
+      return prompt > 0 ? item.cacheReadTokens / prompt : undefined
+    }
     const SETTLED = new Set(['inactive', 'completed', 'unknown'])
-    function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}, groups = []) {
+    function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}, groups = [], fresh = new Set()) {
       const query = search.trim().toLocaleLowerCase()
       const rank = { running: 0, provisioning: 1, failed: 2, interrupted: 3, unknown: 4, inactive: 5, completed: 6 }
       const statusMatch = row => status === 'all' || row.status === status
@@ -2237,7 +2345,8 @@ window.__ModuleLoader__.load({
             : sort === 'newest' ? (b.createdAt ?? -1) - (a.createdAt ?? -1)
             : sort === 'timeSort' ? (b.duration ?? -1) - (a.duration ?? -1)
             : sort === 'tokenSort' ? (b.tokens ?? -1) - (a.tokens ?? -1)
-            : (Number(b.attention) - Number(a.attention)) || rank[a.status] - rank[b.status] || (b.lastActive ?? -1) - (a.lastActive ?? -1)
+            : (Number(b.attention) - Number(a.attention)) || (Number(fresh.has(b.id)) - Number(fresh.has(a.id)))
+              || rank[a.status] - rank[b.status] || (b.lastActive ?? -1) - (a.lastActive ?? -1)
           return primary || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
         })
     }
@@ -2269,7 +2378,7 @@ window.__ModuleLoader__.load({
       if (report && (!output || report.time >= output.time)) return { kind: 'report', ...report }
       return output ? { kind: 'output', ...output } : undefined
     }
-    function OverviewMember({ row, currentId, openChild, t, groups = [], now = Date.now() }) {
+    function OverviewMember({ row, currentId, openChild, t, groups = [], now = Date.now(), fresh = false }) {
       // The native view drops an adapter-defaulted effort; the Hub digest keeps what actually ran.
       const effortText = value => value.reasoningEffort ?? (row.activity?.effort ? `${row.activity.effort.value}${row.activity.effort.defaulted ? t('overview.effortDefault') : ''}` : undefined)
       const modelLabel = value => `${routeLabel(groups, value).value}${effortText(value) ? ` · ${t('overview.effort')} ${effortText(value)}` : ''}`
@@ -2283,8 +2392,9 @@ window.__ModuleLoader__.load({
       const stateText = [t(`overview.${row.status}`), Number.isFinite(row.duration) ? overviewTime(row.duration) : undefined].filter(Boolean).join(' · ')
       return h('li', { className: 'sah-overview-card', 'data-attention': row.attention ? 'true' : undefined },
         h('div', { className: 'sah-overview-card-head' },
-          h('span', { className: 'sah-overview-dot', 'data-state': row.status, 'data-attention': activity?.approval ? 'true' : undefined, 'aria-hidden': true }),
+          h('span', { className: 'sah-overview-dot', 'data-state': row.status, 'data-attention': activity?.approval || row.stall ? 'true' : undefined, 'aria-hidden': true }),
           h('h3', { title: row.name }, row.name),
+          fresh ? h('span', { className: 'sah-overview-fresh' }, t('overview.fresh')) : null,
           h('span', { className: 'sah-overview-state' }, stateText),
           h('button', { type: 'button', disabled: !row.address || row.id === currentId,
             title: !row.address ? t('overview.noNavigation') : undefined,
@@ -2295,6 +2405,9 @@ window.__ModuleLoader__.load({
         activity ? h('dl', { className: 'sah-overview-fields' },
           activity.task ? field(t('overview.task'), activity.task.text, { className: 'sah-overview-clamp', title: activity.task.text }) : null,
           activity.approval ? field(t('overview.doing'), t('overview.approval', { tool: activity.approval.tool }), { className: 'sah-overview-warn' })
+            : row.stall ? field(t('overview.doing'), row.stall.kind === 'call'
+              ? t('overview.stallCall', { tool: row.stall.tool, time: overviewSpan(row.stall.ms) })
+              : t('overview.stallQuiet', { time: overviewSpan(row.stall.ms) }), { className: 'sah-overview-warn' })
             : live ? field(t('overview.doing'), current
               ? h('span', { className: 'sah-overview-now' }, h('code', null, current.name), h('span', null, current.hint ?? ''),
                 h('span', { className: 'sah-overview-elapsed' }, overviewSpan(now - current.since)))
@@ -2346,14 +2459,41 @@ window.__ModuleLoader__.load({
         ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
     }
     const FILTERS_FROM = 5
-    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now() }) {
+    function OverviewUsage({ usage, groups = [], t }) {
+      if (!usage.routes.length) return h('p', { className: 'sah-overview-muted' }, t('overview.usageEmpty'))
+      const percent = value => `${Math.round(value * 100)}%`
+      return h('section', { className: 'sah-overview-section' },
+        h('h3', null, t('overview.usageTitle')),
+        h('ul', { className: 'sah-overview-usage' }, ...usage.routes.map(item => {
+          const rate = overviewCacheRate(item)
+          return h('li', { key: `${item.provider}\0${item.model}` },
+            h('div', { className: 'sah-overview-usage-head' },
+              h('strong', { title: `${item.provider} / ${item.model}` }, routeLabel(groups, item).value),
+              ...(item.tags ?? []).map(tag => h('span', { key: tag, className: 'sah-overview-tag' }, tag)),
+              item.routeId === undefined ? h('span', { className: 'sah-overview-tag' }, t('overview.usageUnrouted')) : null,
+              h('span', null, `${overviewCount(item.total)} · ${percent(item.share)}`)),
+            h('span', { className: 'sah-overview-bar', role: 'img', 'aria-label': percent(item.share) },
+              h('span', { style: { width: percent(item.share) } })),
+            h('p', { className: 'sah-overview-meta' },
+              h('span', null, t('overview.usageAgents', { count: item.agents })),
+              item.requests ? h('span', null, t('overview.usageRequests', { count: item.requests })) : null,
+              h('span', null, t('overview.usageSplit', { input: overviewCount(item.uncachedInputTokens + item.cacheReadTokens + item.cacheWriteTokens),
+                output: overviewCount(item.outputTokens), rate: rate === undefined ? '—' : percent(rate) })),
+              item.approximate ? h('span', { className: 'sah-overview-warn' }, t('overview.usageApprox')) : null))
+        })),
+        h('div', { className: 'sah-overview-foot' },
+          usage.missing ? h('p', null, t('overview.usageMissing', { count: usage.missing })) : null,
+          h('p', null, t('overview.usageNote'))))
+    }
+    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now(), fresh = new Set(), routes = [] }) {
       const [tab, setTab] = React.useState('members')
       const [filters, setFilters] = React.useState({ search: '', status: 'all' })
-      const rows = overviewFilter(data.rows, filters, groups)
+      const rows = overviewFilter(data.rows, filters, groups, fresh)
+      const usage = overviewUsage(data.rows, routes)
       const issues = [...data.issues, ...errors]
       const count = status => overviewFilter(data.rows, { status }).length
       // The task board only exists for Agent Team work; an empty board is noise, not information.
-      const tabs = ['members', ...(data.teamAvailable && data.tasks.length > 0 ? ['tasks'] : []), 'diagnostics']
+      const tabs = ['members', ...(usage.routes.length ? ['usage'] : []), ...(data.teamAvailable && data.tasks.length > 0 ? ['tasks'] : []), 'diagnostics']
       const shown = tabs.includes(tab) ? tab : 'members'
       return h('div', { className: 'sah-overview-body' },
         issues.length ? h('p', { className: 'sah-overview-notice sah-overview-error', role: 'status' }, t('overview.stale')) : null,
@@ -2370,8 +2510,9 @@ window.__ModuleLoader__.load({
               ...['all', 'running', 'attention', 'settled'].map(value => h('button', { type: 'button', key: value, 'aria-pressed': filters.status === value, onClick: () => setFilters(old => ({ ...old, status: value })) },
                 t(`overview.${value}`), value === 'all' ? null : h('span', { className: 'sah-overview-badge' }, count(value)))))) : null,
           !data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
-          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups, now })))
+          rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups, now, fresh: fresh.has(row.id) })))
             : data.rows.length || data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null)
+          : shown === 'usage' ? h(OverviewUsage, { usage, groups, t })
           : shown === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
             : h('section', { className: 'sah-overview-section' }, h('h3', null, t('overview.diagnostics')),
               issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', { className: 'sah-overview-muted' }, t('overview.healthy')),
@@ -2420,7 +2561,19 @@ window.__ModuleLoader__.load({
       panel.style.left = `${(win.innerWidth - width - margin - origin.left) / scaleX}px`
       panel.style.top = `${(top - origin.top) / scaleY}px`
     }
-    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t }) {
+    /** Per-conversation "seen up to" time; the first visit starts now so old history is not news. */
+    function readSeen(rootId) {
+      try {
+        const stored = Number(globalThis.localStorage?.getItem(SEEN_KEY + rootId))
+        if (Number.isFinite(stored) && stored > 0) return stored
+      } catch {}
+      return writeSeen(rootId, Date.now())
+    }
+    function writeSeen(rootId, time) {
+      try { globalThis.localStorage?.setItem(SEEN_KEY + rootId, String(time)) } catch {}
+      return time
+    }
+    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t, routes = [] }) {
       const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
       const state = useSessions(value => value)
       const statuses = useSessionStatus(value => value)
@@ -2434,7 +2587,24 @@ window.__ModuleLoader__.load({
       const generation = React.useRef(0)
       const data = overviewData(rootId, state, statuses, now)
       const titleId = React.useId()
-      const close = React.useCallback(() => { hideOverview(dialog.current); setOpen(false); trigger.current?.focus() }, [])
+      // "New" = a report or finished turn after the last time the panel was looked at. Status
+      // pushes arrive while closed even when digests are stale, so a running → stopped transition
+      // observed meanwhile also counts.
+      const [seen, setSeen] = React.useState(() => readSeen(rootId))
+      const [settled, setSettled] = React.useState(() => new Set())
+      const [highlight, setHighlight] = React.useState(() => new Set())
+      const wasRunning = React.useRef(new Set())
+      React.useEffect(() => { setSeen(readSeen(rootId)); setSettled(new Set()); setHighlight(new Set()); wasRunning.current = new Set() }, [rootId])
+      const runningNow = data.rows.filter(row => row.status === 'running').map(row => row.id)
+      React.useEffect(() => {
+        const stopped = [...wasRunning.current].filter(id => !runningNow.includes(id))
+        wasRunning.current = new Set(runningNow)
+        if (!open && stopped.length) setSettled(old => new Set([...old, ...stopped]))
+      }, [runningNow.join('\n'), open])
+      const fresh = open ? highlight : overviewFresh(data.rows, seen, settled)
+      const markSeen = React.useCallback(() => { setSeen(writeSeen(rootId, Date.now())); setSettled(new Set()) }, [rootId])
+      const close = React.useCallback(() => { hideOverview(dialog.current); setOpen(false); markSeen(); trigger.current?.focus() }, [markSeen])
+      const openPanel = () => { setHighlight(overviewFresh(data.rows, seen, settled)); markSeen(); setOpen(true) }
       const refresh = React.useCallback(async () => {
         const run = ++generation.current
         const cancelled = () => generation.current !== run
@@ -2460,6 +2630,17 @@ window.__ModuleLoader__.load({
         return () => { generation.current++; win?.removeEventListener('resize', place); hideOverview(panel) }
       }, [open, refresh])
       React.useEffect(() => { setOpen(false); setErrors([]); setBusy(false) }, [sessionId])
+      // Closed: keep the trigger honest about stalls and new results at a gentler pace.
+      const backgroundIds = data.rows.filter(row => row.status === 'running').map(row => row.id).join('\n')
+      React.useEffect(() => {
+        if (open || backgroundIds === '') return
+        let stopped = false
+        const timer = setInterval(() => {
+          setNow(Date.now())
+          if (!stopped) refreshOverview(sessions, undefined, backgroundIds.split('\n'), () => stopped).catch(() => {})
+        }, BACKGROUND_REFRESH_MS)
+        return () => { stopped = true; clearInterval(timer) }
+      }, [open, backgroundIds, sessions])
       // Live while open: tick elapsed times every second, re-read running agents every few.
       const runningIds = data.rows.filter(row => row.status === 'running' || row.status === 'provisioning').map(row => row.id).join('\n')
       React.useEffect(() => {
@@ -2480,12 +2661,15 @@ window.__ModuleLoader__.load({
         catch (error) { setErrors(old => [...old, { id: address.childSessionId, message: String(error?.message ?? error) }]) }
       }
       const live = data.running > 0
+      // One number everywhere: the usage tab's total, which also covers per-route digests.
+      const usageTotal = open ? overviewUsage(data.rows, routes).total : 0
       const hint = t('overview.triggerHint', { running: data.running, total: data.rows.length })
         + (data.attention ? ` · ${t('overview.triggerAttention', { count: data.attention })}` : '')
+        + (!open && fresh.size ? ` · ${t('overview.triggerFresh', { count: fresh.size })}` : '')
       return h(React.Fragment, null, h('style', null, OVERVIEW_CSS),
         h('button', { type: 'button', ref: trigger, className: 'sah-overview-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': open,
           'data-live': live ? 'true' : undefined, 'data-attention': data.attention ? 'true' : undefined,
-          'aria-label': hint, title: hint, onClick: () => (open ? close() : setOpen(true)) },
+          'aria-label': hint, title: hint, onClick: () => (open ? close() : openPanel()) },
           live || data.attention
             ? h('span', { className: 'sah-overview-dot', 'data-state': live ? 'running' : 'inactive', 'data-attention': data.attention ? 'true' : undefined, 'aria-hidden': true })
             : h('span', { className: 'sah-overview-trigger-icon', 'aria-hidden': true }, glyph('IconBrowseOutlineRegular',
@@ -2493,7 +2677,8 @@ window.__ModuleLoader__.load({
                 h('rect', { x: 3, y: 3, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 3, width: 7, height: 7, rx: 1.5 }),
                 h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 })))),
           h('span', { className: 'sah-overview-trigger-label' }, t('overview.title')),
-          data.rows.length ? h('span', { className: 'sah-overview-trigger-count', 'aria-hidden': true }, `${data.running}/${data.rows.length}`) : null),
+          data.rows.length ? h('span', { className: 'sah-overview-trigger-count', 'aria-hidden': true }, `${data.running}/${data.rows.length}`) : null,
+          !open && fresh.size ? h('span', { className: 'sah-overview-trigger-fresh', 'aria-hidden': true }, fresh.size) : null),
         h('div', { ref: dialog, className: 'sah-overview', role: 'dialog', 'aria-modal': false, 'aria-labelledby': titleId, popover: 'manual', 'data-open': open ? '' : undefined,
           onKeyDown: event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() } },
         },
@@ -2504,8 +2689,8 @@ window.__ModuleLoader__.load({
             h('p', { className: 'sah-overview-summary', role: 'status' }, data.running || data.attention
               ? t('overview.summary', { running: data.running, attention: data.attention, total: data.rows.length })
               : t('overview.summaryQuiet', { total: data.rows.length }),
-              data.tokenKnown ? ` · ${t('overview.tokens')} ${overviewCount(data.tokens)}` : '')),
-          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups, now }) : null))
+              usageTotal ? ` · ${t('overview.tokens')} ${overviewCount(usageTotal)}` : '')),
+          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups, now, fresh, routes }) : null))
     }
     function OverviewGate({ overviewForm, ...props }) {
       const [snapshot, setSnapshot] = React.useState(() => overviewForm?.getSnapshot())
@@ -2516,7 +2701,7 @@ window.__ModuleLoader__.load({
         return dispose
       }, [overviewForm])
       return snapshot?.status === 'ready' && snapshot.value?.showAgentOverview === true
-        ? h(AgentOverview, props) : null
+        ? h(AgentOverview, { ...props, routes: Array.isArray(snapshot.value.routes) ? snapshot.value.routes : [] }) : null
     }
     function registerOverview(ctx, t, names = createModelNames()) {
       ctx.inject(['sessions', 'uiWorkspace'], scope => scope.slots.inject(OVERVIEW_SLOT, () => scope.slots.register({
@@ -2554,7 +2739,7 @@ window.__ModuleLoader__.load({
       // Pure helpers, exported for tests only.
       AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
       overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
-      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
+      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,

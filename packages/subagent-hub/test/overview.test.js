@@ -219,3 +219,60 @@ test('only approvals and recent failures need attention; old failures count as f
   delete state.projectionsBySession.c.values.subagentHubActivity
   assert.equal(ui.overviewData('root', state, new Map(), now).rows.find(item => item.id === 'c').attention, false)
 })
+test('a running agent that is quiet or stuck in one call needs attention', () => {
+  const quiet = ui.overviewStall({ pending: [] }, 1000, 1000 + ui.STALL_MS)
+  assert.equal(quiet.kind, 'quiet')
+  assert.equal(ui.overviewStall({ pending: [] }, 1000, 1000 + ui.STALL_MS - 1), undefined)
+  // An open call is normal work until it is very long.
+  assert.equal(ui.overviewStall({ pending: [{ name: 'bash', since: 0 }] }, 0, ui.STALL_MS * 2), undefined)
+  assert.equal(ui.overviewStall({ pending: [{ name: 'bash', since: 0 }] }, 0, ui.LONG_CALL_MS).tool, 'bash')
+  const state = fixture()
+  state.projectionsBySession.c.values.subagentHubActivity = { pending: [], recent: [], tools: 1, errors: 0, retries: 0, last: 1000 }
+  const data = ui.overviewData('root', state, new Map(), 1000 + ui.STALL_MS)
+  const row = data.rows.find(item => item.id === 'c')
+  assert.equal(row.status, 'running')
+  assert.equal(row.attention, true)
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, now: 1000 + ui.STALL_MS }))
+  assert.match(html, /已 5m 00s 没有新动作/)
+})
+test('new results are what arrived after the last look, plus agents seen to stop meanwhile', () => {
+  const rows = [
+    { id: 'a', activity: { report: { text: 'r', time: 50 } } },
+    { id: 'b', activity: { end: { kind: 'completed', time: 200 } } },
+    { id: 'c', activity: {} },
+  ]
+  assert.deepEqual([...ui.overviewFresh(rows, 100)], ['b'])
+  assert.deepEqual([...ui.overviewFresh(rows, 100, new Set(['c']))].sort(), ['b', 'c'])
+  assert.equal(ui.overviewFresh(rows, undefined).size, 0)
+  // Fresh rows sort right after rows that need attention.
+  const data = ui.overviewData('root', fixture(), new Map())
+  assert.equal(ui.overviewFilter(data.rows, {}, [], new Set(['b']))[0].id, 'c')
+  assert.equal(ui.overviewFilter(data.rows, {}, [], new Set(['b']))[1].id, 'b')
+})
+test('usage splits by the route each request used and falls back to session totals', () => {
+  const state = fixture()
+  const usage = (provider, model, input, output, requests) => ({ provider, model, requests, uncachedInputTokens: input, outputTokens: output, cacheReadTokens: 0, cacheWriteTokens: 0 })
+  state.projectionsBySession.c.values.subagentHubActivity = { pending: [], recent: [], tools: 0, errors: 0, retries: 0,
+    usage: [usage('minimax', 'MiniMax-M3.1-Flash', 100, 20, 2), usage('deepseek', 'flash', 300, 0, 1)] }
+  const data = ui.overviewData('root', state, new Map())
+  const result = ui.overviewUsage(data.rows, [{ id: 'minimax', provider: 'minimax', model: 'MiniMax-M3.1-Flash', tags: ['free'] }])
+  const minimax = result.routes.find(item => item.model === 'MiniMax-M3.1-Flash')
+  // a: split-less fallback (180 total) + c: 120 on the same route.
+  assert.equal(minimax.total, 300)
+  assert.equal(minimax.agents, 2)
+  assert.equal(minimax.approximate, true)
+  assert.deepEqual(plain(minimax.tags), ['free'])
+  const deepseek = result.routes.find(item => item.provider === 'deepseek')
+  assert.equal(deepseek.routeId, undefined)
+  assert.equal(deepseek.requests, 1)
+  assert.equal(result.total, 600)
+  assert.equal(result.missing, 1)
+  assert.equal(ui.overviewCacheRate({ uncachedInputTokens: 50, cacheReadTokens: 150, cacheWriteTokens: 0 }), 0.75)
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewUsage, { usage: result, t }))
+  assert.match(html, /非 Hub 路线/)
+  assert.match(html, /部分按会话总量估算/)
+  assert.match(html, /1 个子智能体还没有用量记录/)
+  assert.doesNotMatch(html, /overview\./)
+})

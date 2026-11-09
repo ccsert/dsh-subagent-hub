@@ -286,7 +286,7 @@ test('the usage treemap fills the box without overlap and big counts read as bil
     assert.ok(overlap < 1e-6)
   }
   assert.ok(Math.abs(rects[0].width * rects[0].height / 100 - 50) < 1e-6)
-  assert.deepEqual(ui.overviewTreemap([0, 0]), [])
+  assert.deepEqual(plain(ui.overviewTreemap([0, 0])), [])
   assert.equal(ui.overviewCount(1691940000), '1.69B')
   assert.equal(ui.overviewCount(34_500_000), '34.5M')
   assert.equal(ui.overviewCount(345_000_000), '345M')

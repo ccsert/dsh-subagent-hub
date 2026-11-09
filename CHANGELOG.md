@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- 用量页：运行中的子智能体始终单独成格（还没有用量时也有最小面积），折叠的列表也会保留它们；格子按状态区分外观：运行中为亮边加脉动点，失败或中断为红色斜纹，已结束变暗；树图下方显示三种状态的数量。“另外 N 个”格子按面积参与排布，不再挤出细长条。
+
 ## 0.12.0 — 路线推理强度生效，子智能体总览改为实时监控
 
 - 修复 [#1](https://github.com/ccsert/dsh-subagent-hub/issues/1)：路线上配置的 `reasoningEffort` 此前只保存不生效。宿主 `tools/pre-execute` 契约不允许改写参数（参数冻结，决策只有 allow/deny/cancel/ask），因此改为：提示词列出每条路线的默认 effort 并要求显式传入；`subagent` / `subagent_fork` 漏传且实际 effort 不等于路线默认时，守卫拒绝并给出只加 `reasoning_effort` 的精确重试写法。显式值一律放行；子会话沿用的父会话 effort 等于默认时放行；判定异常时放行。`spawn_teammate` 与 workflow 没有 effort 参数，不受影响。

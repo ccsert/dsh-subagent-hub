@@ -2032,6 +2032,8 @@ window.__ModuleLoader__.load({
       'overview.usageMap': 'Token use by agent, colored by route', 'overview.usageRest': '{count} more',
       'overview.usageList': 'By agent', 'overview.usageHover': 'Hover a tile or row to see which agent it is.',
       'overview.usageAll': 'Show all {count}', 'overview.usageLess': 'Show top 10',
+      'overview.usageState.running': 'Running', 'overview.usageState.failed': 'Failed or interrupted', 'overview.usageState.done': 'Finished',
+      'overview.usageNoneYet': 'no usage yet', 'overview.usageFailedChip': 'failed',
       'overview.usageEstimated': '{count} agents (≈) are estimated from session totals under their last route; a restart refolds them per request.',
     })
     Object.assign(zh, {
@@ -2097,6 +2099,8 @@ window.__ModuleLoader__.load({
       'overview.usageMap': '各子智能体 Token 用量，按路线着色', 'overview.usageRest': '另外 {count} 个',
       'overview.usageList': '按子智能体', 'overview.usageHover': '悬停格子或列表行，查看对应的子智能体。',
       'overview.usageAll': '显示全部 {count} 个', 'overview.usageLess': '只看前 10 个',
+      'overview.usageState.running': '运行中', 'overview.usageState.failed': '失败或中断', 'overview.usageState.done': '已结束',
+      'overview.usageNoneYet': '暂无用量', 'overview.usageFailedChip': '中断',
       'overview.usageEstimated': '{count} 个子智能体（≈）按会话总量估算，计入其最后使用的路线；重启 Harness 后会按每次请求重新统计。',
     })
 
@@ -2216,6 +2220,24 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-tile[data-dim] .sah-usage-tile-inner{opacity:.45}
 .sah-usage-tile[data-hot] .sah-usage-tile-inner{background:color-mix(in srgb,var(--c) 30%,transparent);box-shadow:inset 0 0 0 1.5px var(--c)}
 .sah-usage-tile-inner{transition:background-color .12s ease-out,opacity .12s ease-out}
+.sah-usage-tile[data-status=done] .sah-usage-tile-inner{background:color-mix(in srgb,var(--c) 7%,#ffffff05);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 22%,transparent)}
+.sah-usage-tile[data-status=done] strong{color:color-mix(in srgb,var(--c) 55%,#9a9aa2)}
+.sah-usage-tile[data-status=running] .sah-usage-tile-inner{position:relative;background:color-mix(in srgb,var(--c) 30%,transparent);box-shadow:inset 0 0 0 1.5px var(--c),0 0 12px color-mix(in srgb,var(--c) 35%,transparent)}
+.sah-usage-tile[data-status=running] .sah-usage-tile-inner::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--c);animation:sah-overview-pulse 1.6s ease-in-out infinite}
+.sah-usage-tile[data-status=failed] .sah-usage-tile-inner{--c:var(--dsw-alias-state-error-primary,#ff8a80);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 18%,transparent) 0 5px,color-mix(in srgb,var(--c) 10%,transparent) 5px 10px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 60%,transparent)}
+.sah-usage-tile[data-status=failed] .sah-usage-tile-inner strong,.sah-usage-tile[data-status=failed] .sah-usage-tile-inner b{color:var(--c)}
+.sah-usage-states{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);margin-top:-6px}
+.sah-usage-states span{display:inline-flex;align-items:center;gap:6px}
+.sah-usage-states b{font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
+.sah-usage-states i{width:10px;height:10px;border-radius:3px}
+.sah-usage-states [data-status=running] i{background:#8fa8ff4d;box-shadow:inset 0 0 0 1.5px #8fa8ff}
+.sah-usage-states [data-status=failed] i{background:repeating-linear-gradient(135deg,#ff8a804d 0 2px,#ff8a801a 2px 4px);box-shadow:inset 0 0 0 1px #ff8a80}
+.sah-usage-states [data-status=done] i{background:#ffffff0d;box-shadow:inset 0 0 0 1px #ffffff2e}
+.sah-usage-list u{display:inline-block;width:6px;height:6px;margin-inline-end:6px;border-radius:50%;vertical-align:middle;background:var(--dsw-alias-state-business-primary,#9bb8ff);animation:sah-overview-pulse 1.6s ease-in-out infinite;text-decoration:none}
+.sah-usage-list li[data-status=done]>* span:nth-of-type(1){color:var(--dsw-alias-label-secondary,#bbb)}
+.sah-usage-list li[data-status=running]>* span:nth-of-type(1){font-weight:500}
+.sah-usage .sah-usage-failed{background:color-mix(in srgb,var(--dsw-alias-state-error-primary,#ff8a80) 16%,transparent)!important;color:var(--dsw-alias-state-error-primary,#ff8a80)!important}
+@media(prefers-reduced-motion:reduce){.sah-usage-tile[data-status=running] .sah-usage-tile-inner::after,.sah-usage-list u{animation:none}}
 .sah-overview .sah-usage-more{justify-self:start;margin-top:-6px}
 .sah-usage-track{height:4px;border-radius:2px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);overflow:hidden}
 .sah-usage-track span{display:block;height:100%;border-radius:inherit}
@@ -2363,7 +2385,8 @@ button.sah-usage-tile{cursor:pointer}
       for (const row of rows) {
         const split = Array.isArray(row.activity?.usage) ? row.activity.usage.filter(validBuckets) : []
         const tile = (provider, model, usage, isEstimate) => agents.push({ id: `${row.id}\0${provider}\0${model}`, rowId: row.id,
-          name: row.name, address: row.address, routeKey: `${provider}\0${model}`, value: sumOf(usage), estimated: isEstimate })
+          name: row.name, address: row.address, routeKey: `${provider}\0${model}`, value: sumOf(usage), estimated: isEstimate,
+          status: usageStatus(row) })
         if (split.length) {
           for (const usage of split) {
             const item = entry(usage.provider, usage.model)
@@ -2379,14 +2402,44 @@ button.sah-usage-tile{cursor:pointer}
           add(item, row.tokenUsage)
           tile(row.model.last.provider, row.model.last.model, row.tokenUsage, true)
           estimated++
-        } else missing++
+        } else {
+          missing++
+          // A running agent is shown even before its first usage report, so live work is never hidden.
+          if (row.status === 'running') {
+            const route = row.model.kind === 'recorded' ? row.model.last : undefined
+            agents.push({ id: `${row.id}\0pending`, rowId: row.id, name: row.name, address: row.address,
+              routeKey: route ? `${route.provider}\0${route.model}` : undefined, value: 0, estimated: false, status: 'running' })
+          }
+        }
       }
       const items = [...byRoute.values()].map(item => ({ ...item, key: `${item.provider}\0${item.model}`, agents: item.agents.size, total: sumOf(item) }))
       const total = items.reduce((sum, item) => sum + item.total, 0)
       const totals = Object.fromEntries(USAGE_BUCKETS.map(key => [key, items.reduce((sum, item) => sum + item[key], 0)]))
       return { total, missing, estimated, ...totals, requests: items.reduce((sum, item) => sum + item.requests, 0),
-        agents: agents.filter(agent => agent.value > 0).sort((a, b) => b.value - a.value),
+        agents: agents.filter(agent => agent.value > 0 || agent.status === 'running').sort((a, b) => b.value - a.value),
         routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
+    }
+    /** Three visual states for usage tiles: live, failed (failed or interrupted), and finished. */
+    function usageStatus(row) {
+      if (row.status === 'running' || row.status === 'provisioning') return 'running'
+      if (row.status === 'failed' || row.status === 'interrupted') return 'failed'
+      return 'done'
+    }
+    /**
+     * The agents that get their own treemap tile: every running one, then the largest others,
+     * `limit` in all; the rest share one tile. Running tiles get a minimum area so they stay visible.
+     */
+    function usageTiles(agents, limit = TREEMAP_TILES) {
+      const running = agents.filter(agent => agent.status === 'running')
+      const others = agents.filter(agent => agent.status !== 'running')
+      const room = Math.max(0, limit - running.length - (running.length + others.length > limit ? 1 : 0))
+      const own = [...running, ...others.slice(0, room)]
+      const rest = others.slice(room)
+      const total = agents.reduce((sum, agent) => sum + agent.value, 0)
+      const floor = total > 0 ? total * 0.025 : 1
+      const tiles = own.map(agent => ({ ...agent, area: agent.status === 'running' ? Math.max(agent.value, floor) : agent.value }))
+        .filter(tile => tile.area > 0).sort((a, b) => b.area - a.area)
+      return { tiles, rest }
     }
     /** Share of prompt tokens served from cache, or undefined when nothing was read. */
     function overviewCacheRate(item) {
@@ -2575,14 +2628,18 @@ button.sah-usage-tile{cursor:pointer}
       const nameOf = new Map(usage.routes.map(item => [item.key, routeLabel(groups, item).value]))
       const rate = overviewCacheRate(usage)
       // The biggest agents get their own tile; the long tail shares one so labels stay legible.
-      const head = usage.agents.slice(0, TREEMAP_TILES - (usage.agents.length > TREEMAP_TILES ? 1 : 0))
-      const tail = usage.agents.slice(head.length)
-      const tiles = [...head, ...(tail.length ? [{ id: 'rest', name: t('overview.usageRest', { count: tail.length }), value: tail.reduce((sum, item) => sum + item.value, 0) }] : [])]
-      const rects = overviewTreemap(tiles.map(tile => tile.value))
+      const { tiles: own, rest: tail } = usageTiles(usage.agents)
+      const restValue = tail.reduce((sum, item) => sum + item.value, 0)
+      // Squarified layout wants descending areas, so the shared tile takes its place by size.
+      const tiles = [...own, ...(tail.length && restValue > 0 ? [{ id: 'rest', name: t('overview.usageRest', { count: tail.length }), value: restValue, area: restValue }] : [])]
+        .sort((a, b) => b.area - a.area)
+      const rects = overviewTreemap(tiles.map(tile => tile.area))
+      const statusCount = status => new Set(usage.agents.filter(agent => agent.status === status).map(agent => agent.rowId)).size
       // One rank per agent, shared by tiles and rows, so a small unlabeled tile can be found below.
       const rank = new Map(usage.agents.map((agent, index) => [agent.id, index + 1]))
       const filtered = usage.agents.filter(agent => filter === 'all' || agent.routeKey === filter)
-      const listed = expanded ? filtered : filtered.slice(0, USAGE_LIST_TOP)
+      // Collapsed, the list keeps the top 10 plus every running agent, in rank order.
+      const listed = expanded ? filtered : filtered.filter((agent, index) => index < USAGE_LIST_TOP || agent.status === 'running')
       const max = Math.max(1, ...filtered.map(agent => agent.value))
       // Mark estimates per row only when they are mixed; when all are estimated the footer says so once.
       const mixed = usage.estimated > 0 && usage.estimated < new Set(usage.agents.map(agent => agent.rowId)).size
@@ -2610,14 +2667,15 @@ button.sah-usage-tile{cursor:pointer}
           const roomy = rect.px.w >= 72 && rect.px.h >= 40
           const numbered = !roomy && tile.id !== 'rest' && rect.px.w >= 22 && rect.px.h >= 18
           const radius = Math.max(2, Math.min(8, Math.min(rect.px.w, rect.px.h) / 4))
-          const label = `${tile.name} · ${overviewCount(tile.value)}${tile.routeKey ? ` · ${nameOf.get(tile.routeKey)}` : ''}`
+          const label = `${tile.name} · ${tile.value > 0 ? overviewCount(tile.value) : t('overview.usageNoneYet')}${tile.routeKey ? ` · ${nameOf.get(tile.routeKey)}` : ''}`
           const action = open(tile)
-          return h(action ? 'button' : 'div', { key: tile.id, type: action ? 'button' : undefined, className: 'sah-usage-tile', title: label, 'aria-label': label, onClick: action,
+          return h(action ? 'button' : 'div', { key: tile.id, type: action ? 'button' : undefined, className: 'sah-usage-tile', title: label, 'aria-label': tile.status ? `${label} · ${t(`overview.usageState.${tile.status}`)}` : label, onClick: action,
+            'data-status': tile.status,
             'data-hot': hot === tile.id ? '' : undefined, 'data-dim': hot !== undefined && hot !== tile.id ? '' : undefined, ...hover(tile.id),
             style: { left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%`, '--c': color } },
             h('span', { className: 'sah-usage-tile-inner', 'data-rest': tile.id === 'rest' ? '' : undefined, style: { borderRadius: radius, '--name-lines': rect.px.h >= 56 ? 2 : 1, ...(roomy ? {} : { padding: 0 }) } },
               roomy ? h('strong', null, tile.id === 'rest' ? tile.name : `${rank.get(tile.id)} ${tile.name}`) : null,
-              roomy ? h('small', null, `${overviewCount(tile.value)} · ${share(tile.value)}`) : null,
+              roomy ? h('small', null, tile.value > 0 ? `${overviewCount(tile.value)} · ${share(tile.value)}` : t('overview.usageNoneYet')) : null,
               numbered ? h('b', null, rank.get(tile.id)) : null))
         })),
         h('p', { className: 'sah-usage-caption', 'aria-live': 'polite' }, hotAgent
@@ -2625,6 +2683,8 @@ button.sah-usage-tile{cursor:pointer}
             h('span', null, hotAgent.id === 'rest' ? hotAgent.name : `${rank.get(hotAgent.id)}. ${hotAgent.name}`),
             h('b', null, `${overviewCount(hotAgent.value)} · ${share(hotAgent.value)}`))
           : h('span', { className: 'sah-overview-muted' }, t('overview.usageHover'))),
+        h('div', { className: 'sah-usage-states' }, ...['running', 'failed', 'done'].map(status => h('span', { key: status, 'data-status': status },
+          h('i', { 'aria-hidden': true }), t(`overview.usageState.${status}`), h('b', null, statusCount(status))))),
         h('div', { className: 'sah-usage-legend' }, ...usage.routes.map(item => h('span', { key: item.key, title: `${item.provider} / ${item.model}` },
           h('i', { style: { background: colorOf.get(item.key) } }),
           h('span', null, nameOf.get(item.key)),
@@ -2639,13 +2699,15 @@ button.sah-usage-tile{cursor:pointer}
                 h('span', { title: nameOf.get(item.key) }, modelIdTail(item.model)))))) : null),
         h('ol', { className: 'sah-usage-list' }, ...listed.map(agent => {
           const action = open(agent)
-          return h('li', { key: agent.id, 'data-hot': hot === agent.id || (hot === 'rest' && !tiles.some(tile => tile.id === agent.id)) ? '' : undefined },
+          return h('li', { key: agent.id, 'data-status': agent.status, 'data-hot': hot === agent.id || (hot === 'rest' && !tiles.some(tile => tile.id === agent.id)) ? '' : undefined },
             h(action ? 'button' : 'div', { type: action ? 'button' : undefined, onClick: action, title: action ? `${agent.name} · ${t('overview.open')}` : agent.name, ...hover(agent.id) },
               h('small', null, rank.get(agent.id)),
               h('i', { style: { background: colorOf.get(agent.routeKey) } }),
-              h('span', null, agent.name, mixed && agent.estimated ? h('em', { title: t('overview.usageApprox') }, '≈') : null),
+              h('span', null, agent.status === 'running' ? h('u', { 'aria-label': t('overview.usageState.running') }) : null, agent.name,
+                agent.status === 'failed' ? h('em', { className: 'sah-usage-failed' }, t('overview.usageFailedChip')) : null,
+                mixed && agent.estimated ? h('em', { title: t('overview.usageApprox') }, '≈') : null),
               h('span', { className: 'sah-usage-track' }, h('span', { style: { width: `${Math.max(2, agent.value / max * 100)}%`, background: colorOf.get(agent.routeKey) } })),
-              h('b', null, overviewCount(agent.value)),
+              h('b', null, agent.value > 0 ? overviewCount(agent.value) : '—'),
               h('small', null, share(agent.value))))
         })),
         filtered.length > USAGE_LIST_TOP ? h('button', { type: 'button', className: 'sah-usage-more', onClick: () => setExpanded(value => !value) },
@@ -2909,7 +2971,7 @@ button.sah-usage-tile{cursor:pointer}
       // Pure helpers, exported for tests only.
       AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
       overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
-      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
+      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, usageTiles, usageStatus, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,

@@ -276,3 +276,18 @@ test('usage splits by the route each request used and falls back to session tota
   assert.match(html, /1 个子智能体还没有用量记录/)
   assert.doesNotMatch(html, /overview\./)
 })
+test('the usage treemap fills the box without overlap and big counts read as billions', () => {
+  const rects = ui.overviewTreemap([50, 25, 12, 8, 5], 400, 200)
+  const area = rects.reduce((sum, rect) => sum + rect.width * rect.height, 0)
+  assert.ok(Math.abs(area - 100 * 100) < 1e-6)
+  for (const [i, a] of rects.entries()) for (const b of rects.slice(i + 1)) {
+    const overlap = Math.max(0, Math.min(a.left + a.width, b.left + b.width) - Math.max(a.left, b.left))
+      * Math.max(0, Math.min(a.top + a.height, b.top + b.height) - Math.max(a.top, b.top))
+    assert.ok(overlap < 1e-6)
+  }
+  assert.ok(Math.abs(rects[0].width * rects[0].height / 100 - 50) < 1e-6)
+  assert.deepEqual(ui.overviewTreemap([0, 0]), [])
+  assert.equal(ui.overviewCount(1691940000), '1.69B')
+  assert.equal(ui.overviewCount(34_500_000), '34.5M')
+  assert.equal(ui.overviewCount(345_000_000), '345M')
+})

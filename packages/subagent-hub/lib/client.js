@@ -2021,13 +2021,17 @@ window.__ModuleLoader__.load({
       'overview.fresh': 'New', 'overview.triggerFresh': '{count} with new results',
       'overview.stallQuiet': 'No activity for {time}; it may be stuck or thinking at length',
       'overview.stallCall': '{tool} has been running for {time}',
-      'overview.usage': 'Usage', 'overview.usageTitle': 'Tokens by route in this session',
+      'overview.usage': 'Usage', 'overview.usageTitle': 'Child agent tokens',
       'overview.usageAgents': '{count} agents', 'overview.usageRequests': '{count} requests',
       'overview.usageSplit': 'in {input} · out {output} · cache hit {rate}',
       'overview.usageApprox': 'Partly estimated from session totals', 'overview.usageUnrouted': 'Not a Hub route',
       'overview.usageMissing': '{count} agents have no recorded usage yet and are not counted.',
       'overview.usageNote': 'Child agents only; the main agent\'s own usage is not included. No price estimate.',
       'overview.usageEmpty': 'No recorded usage yet.',
+      'overview.usageCache': 'Prompt cache hits', 'overview.usageIo': 'in {input} · out {output}',
+      'overview.usageMap': 'Token use by agent, colored by route', 'overview.usageRest': '{count} more',
+      'overview.usageList': 'By agent',
+      'overview.usageEstimated': '{count} agents (≈) are estimated from session totals under their last route; a restart refolds them per request.',
     })
     Object.assign(zh, {
       'overview.setting': '显示子智能体总览',
@@ -2081,13 +2085,17 @@ window.__ModuleLoader__.load({
       'overview.fresh': '新', 'overview.triggerFresh': '{count} 个有新结果',
       'overview.stallQuiet': '已 {time} 没有新动作，可能卡住，也可能在长时间思考',
       'overview.stallCall': '{tool} 已运行 {time}',
-      'overview.usage': '用量', 'overview.usageTitle': '本会话各路线的 Token 用量',
+      'overview.usage': '用量', 'overview.usageTitle': '子智能体 Token 用量',
       'overview.usageAgents': '{count} 个子智能体', 'overview.usageRequests': '{count} 次请求',
       'overview.usageSplit': '输入 {input} · 输出 {output} · 缓存命中 {rate}',
       'overview.usageApprox': '部分按会话总量估算', 'overview.usageUnrouted': '非 Hub 路线',
       'overview.usageMissing': '{count} 个子智能体还没有用量记录，未计入。',
       'overview.usageNote': '只统计子智能体，不含主智能体自身用量；不估算费用。',
       'overview.usageEmpty': '还没有用量记录。',
+      'overview.usageCache': '提示词缓存命中', 'overview.usageIo': '输入 {input} · 输出 {output}',
+      'overview.usageMap': '各子智能体 Token 用量，按路线着色', 'overview.usageRest': '另外 {count} 个',
+      'overview.usageList': '按子智能体',
+      'overview.usageEstimated': '{count} 个子智能体（≈）按会话总量估算，计入其最后使用的路线；重启 Harness 后会按每次请求重新统计。',
     })
 
     const OVERVIEW_CSS = `
@@ -2163,12 +2171,42 @@ window.__ModuleLoader__.load({
 .sah-overview-task-description{white-space:pre-wrap}
 .sah-overview-fresh{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;color:var(--dsw-alias-state-business-primary,#9bb8ff);background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#9bb8ff) 16%,transparent)}
 .sah-overview-trigger-fresh{flex:none;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:11px;line-height:16px;text-align:center;font-variant-numeric:tabular-nums;color:#fff;background:var(--dsw-alias-state-business-primary,#5b8cff)}
-.sah-overview-usage{list-style:none;margin:0;padding:0;display:grid;gap:12px}
-.sah-overview-usage li{display:grid;gap:4px}
-.sah-overview-usage-head{display:flex;align-items:baseline;gap:6px;min-width:0}
-.sah-overview-usage-head strong{font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sah-overview-usage-head span:last-child{margin-inline-start:auto;font-variant-numeric:tabular-nums;white-space:nowrap}
-.sah-overview-usage .sah-overview-bar{width:100%;height:6px;border-radius:3px}
+.sah-usage{display:grid;gap:14px}
+.sah-usage p{margin:0}
+.sah-usage-hero{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:16px;align-items:start}
+.sah-usage-label{font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-big{margin-top:2px!important;font-size:30px;line-height:36px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.sah-usage-big span{font-size:13px;font-weight:400;letter-spacing:0;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-sub{font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
+.sah-usage-mid{margin:2px 0 6px!important;font-size:20px;line-height:28px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--dsw-alias-state-success-primary,#4fd1a5)}
+.sah-usage-cache-bar{display:block;width:100%!important}.sah-usage-cache-bar span{background:var(--dsw-alias-state-success-primary,#4fd1a5)!important}
+.sah-usage-map{position:relative;height:200px;margin-inline:-2px}
+.sah-usage-tile{position:absolute;padding:2px!important;margin:0;border:0!important;background:transparent!important;min-height:0!important;border-radius:0!important;display:block!important;text-align:start;cursor:default}
+button.sah-usage-tile{cursor:pointer}
+.sah-usage-tile-inner{display:flex;flex-direction:column;gap:1px;width:100%;height:100%;padding:6px 8px;border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--c) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 42%,transparent);transition:background-color .12s ease-out}
+.sah-usage-tile-inner[data-rest]{background:repeating-linear-gradient(135deg,#ffffff08 0 4px,transparent 4px 8px);box-shadow:inset 0 0 0 1px #ffffff1f}
+@media(hover:hover){button.sah-usage-tile:hover .sah-usage-tile-inner{background:color-mix(in srgb,var(--c) 26%,transparent)}}
+.sah-usage-tile strong{font-size:12px;line-height:16px;font-weight:600;color:var(--c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-tile-inner[data-rest] strong{color:var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-tile small{font-size:11px;line-height:14px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums;white-space:nowrap}
+.sah-usage-legend{display:grid;gap:6px;font-size:12px}
+.sah-usage-legend>span{display:flex;align-items:center;gap:6px;min-width:0}
+.sah-usage-legend i,.sah-usage-list i{flex:none;width:8px;height:8px;border-radius:2px}
+.sah-usage-legend>span>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-legend em,.sah-usage-list em{flex:none;font-style:normal;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-legend b{margin-inline-start:auto;flex:none;font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
+.sah-usage-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2,#ffffff1f)}
+.sah-usage-list-head .sah-overview-filters{width:100%}
+.sah-usage-list-head .sah-overview-filters button{display:inline-flex;align-items:center;gap:6px;max-width:150px;min-width:0}
+.sah-usage-list-head .sah-overview-filters button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-list-head .sah-overview-filters i{flex:none;width:8px;height:8px;border-radius:2px}
+.sah-usage-list{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.sah-usage-list li>*{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto 72px 52px;align-items:center;gap:8px;width:100%;min-height:30px!important;padding:4px 6px!important;border-radius:6px;font-size:12px;color:inherit!important;text-align:start;justify-content:stretch!important}
+.sah-usage-list li>* span:nth-of-type(1){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-list li>*:not(:has(em)){grid-template-columns:8px minmax(0,1fr) 72px 52px}
+.sah-usage-track{height:4px;border-radius:2px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);overflow:hidden}
+.sah-usage-track span{display:block;height:100%;border-radius:inherit}
+.sah-usage-list b{font-weight:400;text-align:end;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary,#ccc)}
 .sah-overview-tag{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
 .sah-overview-foot{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);display:grid;gap:2px}
 @media(prefers-reduced-motion:reduce){.sah-overview[data-open],.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
@@ -2200,12 +2238,13 @@ window.__ModuleLoader__.load({
       if (minutes < 60) return `${minutes}m ${String(Math.floor(ms / 1000) % 60).padStart(2, '0')}s`
       return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, '0')}m`
     }
-    /** Compact token count: 980, 12.4K, 2.41M. */
+    /** Compact token count: 980, 12.4K, 2.41M, 34.5M, 1.69B. */
     function overviewCount(value) {
       if (!Number.isFinite(value)) return '—'
-      if (value < 1000) return String(value)
+      if (value < 1000) return String(Math.round(value))
       if (value < 1_000_000) return `${(value / 1000).toFixed(value < 10_000 ? 1 : 0)}K`
-      return `${(value / 1_000_000).toFixed(2)}M`
+      if (value < 1_000_000_000) return `${(value / 1_000_000).toFixed(value < 10_000_000 ? 2 : value < 100_000_000 ? 1 : 0)}M`
+      return `${(value / 1_000_000_000).toFixed(2)}B`
     }
     /** Membership is authoritative only in the parent's catalog/roster, never inferred from global sessions. */
     function overviewData(rootId, state, statuses, now = Date.now()) {
@@ -2304,27 +2343,37 @@ window.__ModuleLoader__.load({
         return item
       }
       const add = (item, usage) => { for (const key of USAGE_BUCKETS) item[key] += usage[key] }
+      const sumOf = usage => USAGE_BUCKETS.reduce((sum, key) => sum + usage[key], 0)
+      const agents = []
       let missing = 0
+      let estimated = 0
       for (const row of rows) {
         const split = Array.isArray(row.activity?.usage) ? row.activity.usage.filter(validBuckets) : []
+        const tile = (provider, model, usage, isEstimate) => agents.push({ id: `${row.id}\0${provider}\0${model}`, rowId: row.id,
+          name: row.name, address: row.address, routeKey: `${provider}\0${model}`, value: sumOf(usage), estimated: isEstimate })
         if (split.length) {
           for (const usage of split) {
             const item = entry(usage.provider, usage.model)
             item.agents.add(row.id)
             item.requests += Number.isFinite(usage.requests) ? usage.requests : 0
             add(item, usage)
+            tile(usage.provider, usage.model, usage, false)
           }
         } else if (validBuckets(row.tokenUsage) && row.model.kind === 'recorded') {
           const item = entry(row.model.last.provider, row.model.last.model)
           item.agents.add(row.id)
           item.approximate = true
           add(item, row.tokenUsage)
+          tile(row.model.last.provider, row.model.last.model, row.tokenUsage, true)
+          estimated++
         } else missing++
       }
-      const items = [...byRoute.values()].map(item => ({ ...item, agents: item.agents.size,
-        total: USAGE_BUCKETS.reduce((sum, key) => sum + item[key], 0) }))
+      const items = [...byRoute.values()].map(item => ({ ...item, key: `${item.provider}\0${item.model}`, agents: item.agents.size, total: sumOf(item) }))
       const total = items.reduce((sum, item) => sum + item.total, 0)
-      return { total, missing, routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
+      const totals = Object.fromEntries(USAGE_BUCKETS.map(key => [key, items.reduce((sum, item) => sum + item[key], 0)]))
+      return { total, missing, estimated, ...totals, requests: items.reduce((sum, item) => sum + item.requests, 0),
+        agents: agents.filter(agent => agent.value > 0).sort((a, b) => b.value - a.value),
+        routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
     }
     /** Share of prompt tokens served from cache, or undefined when nothing was read. */
     function overviewCacheRate(item) {
@@ -2459,29 +2508,115 @@ window.__ModuleLoader__.load({
         ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
     }
     const FILTERS_FROM = 5
-    function OverviewUsage({ usage, groups = [], t }) {
+    /** Route colors, in route order; tuned for the dark menu surface. */
+    const USAGE_COLORS = ['#8fa8ff', '#4fd1a5', '#f5b85b', '#5cc8f0', '#e58fd6', '#b49cff', '#ff9f8a', '#c2d36b']
+    const TREEMAP_TILES = 24
+    /**
+     * Squarified treemap (Bruls et al.) of positive values into a w×h box, returned as
+     * percentages so the tiles follow the container's actual size.
+     */
+    function overviewTreemap(values, w = 420, h = 200) {
+      const total = values.reduce((sum, value) => sum + value, 0)
+      if (!(total > 0)) return []
+      const items = values.map((value, index) => ({ index, area: value / total * w * h }))
+      const out = []
+      let box = { x: 0, y: 0, w, h }
+      const worst = (row, side) => {
+        const sum = row.reduce((acc, item) => acc + item.area, 0)
+        const max = Math.max(...row.map(item => item.area))
+        const min = Math.min(...row.map(item => item.area))
+        return Math.max(side * side * max / (sum * sum), sum * sum / (side * side * min))
+      }
+      const place = row => {
+        const sum = row.reduce((acc, item) => acc + item.area, 0)
+        if (box.w >= box.h) {
+          const width = sum / box.h
+          let y = box.y
+          for (const item of row) { const height = item.area / width; out[item.index] = { x: box.x, y, w: width, h: height }; y += height }
+          box = { x: box.x + width, y: box.y, w: box.w - width, h: box.h }
+        } else {
+          const height = sum / box.w
+          let x = box.x
+          for (const item of row) { const width = item.area / height; out[item.index] = { x, y: box.y, w: width, h: height }; x += width }
+          box = { x: box.x, y: box.y + height, w: box.w, h: box.h - height }
+        }
+      }
+      let row = []
+      for (const item of items) {
+        const side = Math.min(box.w, box.h)
+        if (row.length === 0 || worst([...row, item], side) <= worst(row, side)) { row.push(item); continue }
+        place(row)
+        row = [item]
+      }
+      if (row.length) place(row)
+      return out.map(rect => ({ left: rect.x / w * 100, top: rect.y / h * 100, width: rect.w / w * 100, height: rect.h / h * 100, px: rect }))
+    }
+    function OverviewUsage({ usage, groups = [], t, openChild }) {
+      const [filter, setFilter] = React.useState('all')
       if (!usage.routes.length) return h('p', { className: 'sah-overview-muted' }, t('overview.usageEmpty'))
-      const percent = value => `${Math.round(value * 100)}%`
-      return h('section', { className: 'sah-overview-section' },
-        h('h3', null, t('overview.usageTitle')),
-        h('ul', { className: 'sah-overview-usage' }, ...usage.routes.map(item => {
-          const rate = overviewCacheRate(item)
-          return h('li', { key: `${item.provider}\0${item.model}` },
-            h('div', { className: 'sah-overview-usage-head' },
-              h('strong', { title: `${item.provider} / ${item.model}` }, routeLabel(groups, item).value),
-              ...(item.tags ?? []).map(tag => h('span', { key: tag, className: 'sah-overview-tag' }, tag)),
-              item.routeId === undefined ? h('span', { className: 'sah-overview-tag' }, t('overview.usageUnrouted')) : null,
-              h('span', null, `${overviewCount(item.total)} · ${percent(item.share)}`)),
-            h('span', { className: 'sah-overview-bar', role: 'img', 'aria-label': percent(item.share) },
-              h('span', { style: { width: percent(item.share) } })),
-            h('p', { className: 'sah-overview-meta' },
-              h('span', null, t('overview.usageAgents', { count: item.agents })),
-              item.requests ? h('span', null, t('overview.usageRequests', { count: item.requests })) : null,
-              h('span', null, t('overview.usageSplit', { input: overviewCount(item.uncachedInputTokens + item.cacheReadTokens + item.cacheWriteTokens),
-                output: overviewCount(item.outputTokens), rate: rate === undefined ? '—' : percent(rate) })),
-              item.approximate ? h('span', { className: 'sah-overview-warn' }, t('overview.usageApprox')) : null))
+      const percent = value => `${value >= 0.995 || value === 0 ? Math.round(value * 100) : value < 0.01 ? '<1' : Math.round(value * 100)}%`
+      const colorOf = new Map(usage.routes.map((item, index) => [item.key, USAGE_COLORS[index % USAGE_COLORS.length]]))
+      const nameOf = new Map(usage.routes.map(item => [item.key, routeLabel(groups, item).value]))
+      const rate = overviewCacheRate(usage)
+      // The biggest agents get their own tile; the long tail shares one so labels stay legible.
+      const head = usage.agents.slice(0, TREEMAP_TILES - (usage.agents.length > TREEMAP_TILES ? 1 : 0))
+      const tail = usage.agents.slice(head.length)
+      const tiles = [...head, ...(tail.length ? [{ id: 'rest', name: t('overview.usageRest', { count: tail.length }), value: tail.reduce((sum, item) => sum + item.value, 0) }] : [])]
+      const rects = overviewTreemap(tiles.map(tile => tile.value))
+      const listed = usage.agents.filter(agent => filter === 'all' || agent.routeKey === filter)
+      const max = Math.max(1, ...listed.map(agent => agent.value))
+      const open = agent => (agent.address && openChild ? () => openChild(agent.address) : undefined)
+      return h('section', { className: 'sah-usage' },
+        h('div', { className: 'sah-usage-hero' },
+          h('div', null,
+            h('p', { className: 'sah-usage-label' }, t('overview.usageTitle')),
+            h('p', { className: 'sah-usage-big' }, overviewCount(usage.total), h('span', null, ' token')),
+            h('p', { className: 'sah-usage-sub' }, [t('overview.usageAgents', { count: usage.agents.length ? new Set(usage.agents.map(agent => agent.rowId)).size : 0 }),
+              usage.requests ? t('overview.usageRequests', { count: usage.requests.toLocaleString() }) : undefined].filter(Boolean).join(' · ')),
+            h('p', { className: 'sah-usage-sub' }, t('overview.usageIo', { input: overviewCount(usage.uncachedInputTokens + usage.cacheReadTokens + usage.cacheWriteTokens), output: overviewCount(usage.outputTokens) }))),
+          h('div', { className: 'sah-usage-cache' },
+            h('p', { className: 'sah-usage-label' }, t('overview.usageCache')),
+            h('p', { className: 'sah-usage-mid' }, rate === undefined ? '—' : percent(rate)),
+            h('span', { className: 'sah-overview-bar sah-usage-cache-bar', role: 'img', 'aria-label': rate === undefined ? '—' : percent(rate) },
+              h('span', { style: { width: `${Math.round((rate ?? 0) * 100)}%` } })))),
+        h('div', { className: 'sah-usage-map', role: 'img', 'aria-label': t('overview.usageMap') }, ...tiles.map((tile, index) => {
+          const rect = rects[index]
+          if (!rect) return null
+          const color = colorOf.get(tile.routeKey) ?? '#8c8c94'
+          const roomy = rect.px.w >= 72 && rect.px.h >= 40
+          const radius = Math.max(2, Math.min(8, Math.min(rect.px.w, rect.px.h) / 4))
+          const label = `${tile.name} · ${overviewCount(tile.value)}${tile.routeKey ? ` · ${nameOf.get(tile.routeKey)}` : ''}`
+          const action = open(tile)
+          return h(action ? 'button' : 'div', { key: tile.id, type: action ? 'button' : undefined, className: 'sah-usage-tile', title: label, 'aria-label': label, onClick: action,
+            style: { left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%`, '--c': color } },
+            h('span', { className: 'sah-usage-tile-inner', 'data-rest': tile.id === 'rest' ? '' : undefined, style: { borderRadius: radius, ...(roomy ? {} : { padding: 0 }) } },
+              roomy ? h('strong', null, tile.name) : null,
+              roomy ? h('small', null, `${overviewCount(tile.value)}${tile.estimated ? ' ≈' : ''}`) : null))
+        })),
+        h('div', { className: 'sah-usage-legend' }, ...usage.routes.map(item => h('span', { key: item.key, title: `${item.provider} / ${item.model}` },
+          h('i', { style: { background: colorOf.get(item.key) } }),
+          h('span', null, nameOf.get(item.key)),
+          ...(item.tags ?? []).slice(0, 3).map(tag => h('em', { key: tag }, tag)),
+          item.routeId === undefined ? h('em', null, t('overview.usageUnrouted')) : null,
+          h('b', null, `${overviewCount(item.total)} · ${percent(item.share)}`)))),
+        h('div', { className: 'sah-usage-list-head' },
+          h('h3', null, t('overview.usageList')),
+          usage.routes.length > 1 ? h('div', { className: 'sah-overview-filters', role: 'group', 'aria-label': t('overview.usageList') },
+            ...[{ key: 'all' }, ...usage.routes].map(item => h('button', { type: 'button', key: item.key, 'aria-pressed': filter === item.key, onClick: () => setFilter(item.key) },
+              item.key === 'all' ? t('overview.all') : h(React.Fragment, null, h('i', { style: { background: colorOf.get(item.key) } }),
+                h('span', { title: nameOf.get(item.key) }, modelIdTail(item.model)))))) : null),
+        h('ul', { className: 'sah-usage-list' }, ...listed.map(agent => {
+          const action = open(agent)
+          return h('li', { key: agent.id },
+            h(action ? 'button' : 'div', { type: action ? 'button' : undefined, onClick: action, title: action ? t('overview.open') : undefined },
+              h('i', { style: { background: colorOf.get(agent.routeKey) } }),
+              h('span', null, agent.name),
+              agent.estimated ? h('em', { title: t('overview.usageApprox') }, '≈') : null,
+              h('span', { className: 'sah-usage-track' }, h('span', { style: { width: `${Math.max(2, agent.value / max * 100)}%`, background: colorOf.get(agent.routeKey) } })),
+              h('b', null, overviewCount(agent.value))))
         })),
         h('div', { className: 'sah-overview-foot' },
+          usage.estimated ? h('p', null, t('overview.usageEstimated', { count: usage.estimated })) : null,
           usage.missing ? h('p', null, t('overview.usageMissing', { count: usage.missing })) : null,
           h('p', null, t('overview.usageNote'))))
     }
@@ -2512,7 +2647,7 @@ window.__ModuleLoader__.load({
           !data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
           rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups, now, fresh: fresh.has(row.id) })))
             : data.rows.length || data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null)
-          : shown === 'usage' ? h(OverviewUsage, { usage, groups, t })
+          : shown === 'usage' ? h(OverviewUsage, { usage, groups, t, openChild })
           : shown === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
             : h('section', { className: 'sah-overview-section' }, h('h3', null, t('overview.diagnostics')),
               issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', { className: 'sah-overview-muted' }, t('overview.healthy')),
@@ -2739,7 +2874,7 @@ window.__ModuleLoader__.load({
       // Pure helpers, exported for tests only.
       AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
       overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
-      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
+      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,

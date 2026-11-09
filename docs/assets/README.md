@@ -22,7 +22,7 @@ The Hero is project artwork. It does not depict a working product screen. The se
 | [Model badge](model-badge.webp) | 976 × 222 | Actual header contribution and the installed official conversation header CSS; the chip shows a demo catalog name, the panel the recorded ids |
 | [Narrow model badge](model-badge-narrow.webp) | 304 × 242 | The same component in a 320px viewport, where the chip label collapses and the panel carries the evidence |
 | [Agent overview](overview.webp) | 920 × 1226 | Actual overview monitor (members tab) at 2× with synthetic native session stores, a synthetic `subagentHubActivity` digest and the installed dark-theme token values |
-| [Usage by route](usage.webp) | 920 × 1642 | Same component on its usage tab with 45 synthetic agents on three demo routes; tile 9 is hovered to show rank linking |
+| [Usage by route](usage.webp) | 920 × 1642 | Same component on its usage tab with 45 synthetic agents on three demo routes, including running (bright edge, pulse) and interrupted (red hatch) agents |
 
 Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
 

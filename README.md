@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.0"><img src="https://img.shields.io/badge/version-0.12.0-66c8ab" alt="Version 0.12.0"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.1"><img src="https://img.shields.io/badge/version-0.12.1-66c8ab" alt="Version 0.12.1"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-248_unit_%2B_33_runtime-66c8ab" alt="248 unit tests and 33 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-249_unit_%2B_33_runtime-66c8ab" alt="249 unit tests and 33 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -36,7 +36,7 @@
 
 可选的 **子智能体总览** 默认关闭。在「设置 → 子代理中枢 → 基础设置」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。
 
-0.12.0 起它是一个不遮挡对话的右侧监控栏：
+0.12.1 起它是一个不遮挡对话的右侧监控栏：
 
 - **入口即状态**：按钮显示运行数；有子 agent 等待审批、一小时内中断或失败、或疑似卡住时变黄；关闭面板期间有子 agent 完成回合或发来汇报时显示蓝色计数。
 - **卡片回答“它在干什么”**：任务、正在调用的工具与计时、审批等待、自己的计划进度、最近汇报或输出、模型与实际推理强度（含“模型默认”）；展开可见最近 12 步时间线。
@@ -71,11 +71,11 @@
 
 已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.12.0.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.12.1.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.12.0.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.12.1.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
@@ -192,7 +192,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **248 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本验证了 **249 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

@@ -2030,7 +2030,8 @@ window.__ModuleLoader__.load({
       'overview.usageEmpty': 'No recorded usage yet.',
       'overview.usageCache': 'Prompt cache hits', 'overview.usageIo': 'in {input} · out {output}',
       'overview.usageMap': 'Token use by agent, colored by route', 'overview.usageRest': '{count} more',
-      'overview.usageList': 'By agent',
+      'overview.usageList': 'By agent', 'overview.usageHover': 'Hover a tile or row to see which agent it is.',
+      'overview.usageAll': 'Show all {count}', 'overview.usageLess': 'Show top 10',
       'overview.usageEstimated': '{count} agents (≈) are estimated from session totals under their last route; a restart refolds them per request.',
     })
     Object.assign(zh, {
@@ -2094,7 +2095,8 @@ window.__ModuleLoader__.load({
       'overview.usageEmpty': '还没有用量记录。',
       'overview.usageCache': '提示词缓存命中', 'overview.usageIo': '输入 {input} · 输出 {output}',
       'overview.usageMap': '各子智能体 Token 用量，按路线着色', 'overview.usageRest': '另外 {count} 个',
-      'overview.usageList': '按子智能体',
+      'overview.usageList': '按子智能体', 'overview.usageHover': '悬停格子或列表行，查看对应的子智能体。',
+      'overview.usageAll': '显示全部 {count} 个', 'overview.usageLess': '只看前 10 个',
       'overview.usageEstimated': '{count} 个子智能体（≈）按会话总量估算，计入其最后使用的路线；重启 Harness 后会按每次请求重新统计。',
     })
 
@@ -2186,7 +2188,7 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-tile-inner{display:flex;flex-direction:column;gap:1px;width:100%;height:100%;padding:6px 8px;border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--c) 15%,transparent);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 42%,transparent);transition:background-color .12s ease-out}
 .sah-usage-tile-inner[data-rest]{background:repeating-linear-gradient(135deg,#ffffff08 0 4px,transparent 4px 8px);box-shadow:inset 0 0 0 1px #ffffff1f}
 @media(hover:hover){button.sah-usage-tile:hover .sah-usage-tile-inner{background:color-mix(in srgb,var(--c) 26%,transparent)}}
-.sah-usage-tile strong{font-size:12px;line-height:16px;font-weight:600;color:var(--c);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-tile strong{flex:none;font-size:12px;line-height:15px;font-weight:600;color:var(--c);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:var(--name-lines,1);word-break:break-word;white-space:normal}
 .sah-usage-tile-inner[data-rest] strong{color:var(--dsw-alias-label-tertiary,#999)}
 .sah-usage-tile small{font-size:11px;line-height:14px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums;white-space:nowrap}
 .sah-usage-legend{display:grid;gap:6px;font-size:12px}
@@ -2201,9 +2203,20 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-list-head .sah-overview-filters button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sah-usage-list-head .sah-overview-filters i{flex:none;width:8px;height:8px;border-radius:2px}
 .sah-usage-list{list-style:none;margin:0;padding:0;display:grid;gap:0}
-.sah-usage-list li>*{display:grid!important;grid-template-columns:8px minmax(0,1fr) auto 72px 52px;align-items:center;gap:8px;width:100%;min-height:30px!important;padding:4px 6px!important;border-radius:6px;font-size:12px;color:inherit!important;text-align:start;justify-content:stretch!important}
+.sah-usage-list li>*{display:grid!important;grid-template-columns:18px 8px minmax(0,1fr) 64px 46px 34px;align-items:center;gap:8px;width:100%;min-height:30px!important;padding:4px 6px!important;border-radius:6px;font-size:12px;color:inherit!important;text-align:start;justify-content:stretch!important}
+.sah-usage-list li>* small{font-size:11px;color:var(--dsw-alias-label-caption,#888);font-variant-numeric:tabular-nums;text-align:end}
 .sah-usage-list li>* span:nth-of-type(1){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sah-usage-list li>*:not(:has(em)){grid-template-columns:8px minmax(0,1fr) 72px 52px}
+.sah-usage-list li>* span:nth-of-type(1) em{margin-inline-start:6px}
+.sah-usage-list li[data-hot]>*{background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}
+.sah-usage-caption{display:flex;align-items:center;gap:6px;min-height:20px;font-size:12px;margin-top:-6px!important}
+.sah-usage-caption i{flex:none;width:8px;height:8px;border-radius:2px}
+.sah-usage-caption span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-caption b{margin-inline-start:auto;flex:none;font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
+.sah-usage-tile b{margin:auto;font-size:11px;font-weight:600;color:var(--c);font-variant-numeric:tabular-nums}
+.sah-usage-tile[data-dim] .sah-usage-tile-inner{opacity:.45}
+.sah-usage-tile[data-hot] .sah-usage-tile-inner{background:color-mix(in srgb,var(--c) 30%,transparent);box-shadow:inset 0 0 0 1.5px var(--c)}
+.sah-usage-tile-inner{transition:background-color .12s ease-out,opacity .12s ease-out}
+.sah-overview .sah-usage-more{justify-self:start;margin-top:-6px}
 .sah-usage-track{height:4px;border-radius:2px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);overflow:hidden}
 .sah-usage-track span{display:block;height:100%;border-radius:inherit}
 .sah-usage-list b{font-weight:400;text-align:end;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary,#ccc)}
@@ -2510,7 +2523,8 @@ button.sah-usage-tile{cursor:pointer}
     const FILTERS_FROM = 5
     /** Route colors, in route order; tuned for the dark menu surface. */
     const USAGE_COLORS = ['#8fa8ff', '#4fd1a5', '#f5b85b', '#5cc8f0', '#e58fd6', '#b49cff', '#ff9f8a', '#c2d36b']
-    const TREEMAP_TILES = 24
+    const TREEMAP_TILES = 16
+    const USAGE_LIST_TOP = 10
     /**
      * Squarified treemap (Bruls et al.) of positive values into a w×h box, returned as
      * percentages so the tiles follow the container's actual size.
@@ -2553,6 +2567,8 @@ button.sah-usage-tile{cursor:pointer}
     }
     function OverviewUsage({ usage, groups = [], t, openChild }) {
       const [filter, setFilter] = React.useState('all')
+      const [hot, setHot] = React.useState(undefined)
+      const [expanded, setExpanded] = React.useState(false)
       if (!usage.routes.length) return h('p', { className: 'sah-overview-muted' }, t('overview.usageEmpty'))
       const percent = value => `${value >= 0.995 || value === 0 ? Math.round(value * 100) : value < 0.01 ? '<1' : Math.round(value * 100)}%`
       const colorOf = new Map(usage.routes.map((item, index) => [item.key, USAGE_COLORS[index % USAGE_COLORS.length]]))
@@ -2563,8 +2579,16 @@ button.sah-usage-tile{cursor:pointer}
       const tail = usage.agents.slice(head.length)
       const tiles = [...head, ...(tail.length ? [{ id: 'rest', name: t('overview.usageRest', { count: tail.length }), value: tail.reduce((sum, item) => sum + item.value, 0) }] : [])]
       const rects = overviewTreemap(tiles.map(tile => tile.value))
-      const listed = usage.agents.filter(agent => filter === 'all' || agent.routeKey === filter)
-      const max = Math.max(1, ...listed.map(agent => agent.value))
+      // One rank per agent, shared by tiles and rows, so a small unlabeled tile can be found below.
+      const rank = new Map(usage.agents.map((agent, index) => [agent.id, index + 1]))
+      const filtered = usage.agents.filter(agent => filter === 'all' || agent.routeKey === filter)
+      const listed = expanded ? filtered : filtered.slice(0, USAGE_LIST_TOP)
+      const max = Math.max(1, ...filtered.map(agent => agent.value))
+      // Mark estimates per row only when they are mixed; when all are estimated the footer says so once.
+      const mixed = usage.estimated > 0 && usage.estimated < new Set(usage.agents.map(agent => agent.rowId)).size
+      const share = value => percent(usage.total ? value / usage.total : 0)
+      const hotAgent = hot === undefined ? undefined : tiles.find(tile => tile.id === hot) ?? usage.agents.find(agent => agent.id === hot)
+      const hover = id => ({ onMouseEnter: () => setHot(id), onMouseLeave: () => setHot(undefined), onFocus: () => setHot(id), onBlur: () => setHot(undefined) })
       const open = agent => (agent.address && openChild ? () => openChild(agent.address) : undefined)
       return h('section', { className: 'sah-usage' },
         h('div', { className: 'sah-usage-hero' },
@@ -2584,15 +2608,23 @@ button.sah-usage-tile{cursor:pointer}
           if (!rect) return null
           const color = colorOf.get(tile.routeKey) ?? '#8c8c94'
           const roomy = rect.px.w >= 72 && rect.px.h >= 40
+          const numbered = !roomy && tile.id !== 'rest' && rect.px.w >= 22 && rect.px.h >= 18
           const radius = Math.max(2, Math.min(8, Math.min(rect.px.w, rect.px.h) / 4))
           const label = `${tile.name} · ${overviewCount(tile.value)}${tile.routeKey ? ` · ${nameOf.get(tile.routeKey)}` : ''}`
           const action = open(tile)
           return h(action ? 'button' : 'div', { key: tile.id, type: action ? 'button' : undefined, className: 'sah-usage-tile', title: label, 'aria-label': label, onClick: action,
+            'data-hot': hot === tile.id ? '' : undefined, 'data-dim': hot !== undefined && hot !== tile.id ? '' : undefined, ...hover(tile.id),
             style: { left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%`, '--c': color } },
-            h('span', { className: 'sah-usage-tile-inner', 'data-rest': tile.id === 'rest' ? '' : undefined, style: { borderRadius: radius, ...(roomy ? {} : { padding: 0 }) } },
-              roomy ? h('strong', null, tile.name) : null,
-              roomy ? h('small', null, `${overviewCount(tile.value)}${tile.estimated ? ' ≈' : ''}`) : null))
+            h('span', { className: 'sah-usage-tile-inner', 'data-rest': tile.id === 'rest' ? '' : undefined, style: { borderRadius: radius, '--name-lines': rect.px.h >= 56 ? 2 : 1, ...(roomy ? {} : { padding: 0 }) } },
+              roomy ? h('strong', null, tile.id === 'rest' ? tile.name : `${rank.get(tile.id)} ${tile.name}`) : null,
+              roomy ? h('small', null, `${overviewCount(tile.value)} · ${share(tile.value)}`) : null,
+              numbered ? h('b', null, rank.get(tile.id)) : null))
         })),
+        h('p', { className: 'sah-usage-caption', 'aria-live': 'polite' }, hotAgent
+          ? h(React.Fragment, null, h('i', { style: { background: colorOf.get(hotAgent.routeKey) ?? '#8c8c94' } }),
+            h('span', null, hotAgent.id === 'rest' ? hotAgent.name : `${rank.get(hotAgent.id)}. ${hotAgent.name}`),
+            h('b', null, `${overviewCount(hotAgent.value)} · ${share(hotAgent.value)}`))
+          : h('span', { className: 'sah-overview-muted' }, t('overview.usageHover'))),
         h('div', { className: 'sah-usage-legend' }, ...usage.routes.map(item => h('span', { key: item.key, title: `${item.provider} / ${item.model}` },
           h('i', { style: { background: colorOf.get(item.key) } }),
           h('span', null, nameOf.get(item.key)),
@@ -2605,16 +2637,19 @@ button.sah-usage-tile{cursor:pointer}
             ...[{ key: 'all' }, ...usage.routes].map(item => h('button', { type: 'button', key: item.key, 'aria-pressed': filter === item.key, onClick: () => setFilter(item.key) },
               item.key === 'all' ? t('overview.all') : h(React.Fragment, null, h('i', { style: { background: colorOf.get(item.key) } }),
                 h('span', { title: nameOf.get(item.key) }, modelIdTail(item.model)))))) : null),
-        h('ul', { className: 'sah-usage-list' }, ...listed.map(agent => {
+        h('ol', { className: 'sah-usage-list' }, ...listed.map(agent => {
           const action = open(agent)
-          return h('li', { key: agent.id },
-            h(action ? 'button' : 'div', { type: action ? 'button' : undefined, onClick: action, title: action ? t('overview.open') : undefined },
+          return h('li', { key: agent.id, 'data-hot': hot === agent.id || (hot === 'rest' && !tiles.some(tile => tile.id === agent.id)) ? '' : undefined },
+            h(action ? 'button' : 'div', { type: action ? 'button' : undefined, onClick: action, title: action ? `${agent.name} · ${t('overview.open')}` : agent.name, ...hover(agent.id) },
+              h('small', null, rank.get(agent.id)),
               h('i', { style: { background: colorOf.get(agent.routeKey) } }),
-              h('span', null, agent.name),
-              agent.estimated ? h('em', { title: t('overview.usageApprox') }, '≈') : null,
+              h('span', null, agent.name, mixed && agent.estimated ? h('em', { title: t('overview.usageApprox') }, '≈') : null),
               h('span', { className: 'sah-usage-track' }, h('span', { style: { width: `${Math.max(2, agent.value / max * 100)}%`, background: colorOf.get(agent.routeKey) } })),
-              h('b', null, overviewCount(agent.value))))
+              h('b', null, overviewCount(agent.value)),
+              h('small', null, share(agent.value))))
         })),
+        filtered.length > USAGE_LIST_TOP ? h('button', { type: 'button', className: 'sah-usage-more', onClick: () => setExpanded(value => !value) },
+          t(expanded ? 'overview.usageLess' : 'overview.usageAll', { count: filtered.length })) : null,
         h('div', { className: 'sah-overview-foot' },
           usage.estimated ? h('p', null, t('overview.usageEstimated', { count: usage.estimated })) : null,
           usage.missing ? h('p', null, t('overview.usageMissing', { count: usage.missing })) : null,

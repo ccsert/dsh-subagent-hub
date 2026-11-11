@@ -16,15 +16,20 @@ The Hero is project artwork. It does not depict a working product screen. The se
 
 | Asset | Dimensions | Source |
 |---|---|---|
-| [Models and roles](settings.webp) | 960 × 680 | Actual configuration component, demo data; cropped to its model and role sections |
-| [Full settings](settings-full.webp) | 960 × 1783 | Same actual component with an expanded role |
-| [Role editor](role-editor.webp) | 960 × 634 | Expanded role section |
-| [Model badge](model-badge.webp) | 976 × 222 | Actual header contribution and the installed official conversation header CSS; the chip shows a demo catalog name, the panel the recorded ids |
-| [Narrow model badge](model-badge-narrow.webp) | 304 × 242 | The same component in a 320px viewport, where the chip label collapses and the panel carries the evidence |
-| [Agent overview](overview.webp) | 920 × 1226 | Actual overview monitor (members tab) at 2× with synthetic native session stores, a synthetic `subagentHubActivity` digest and the installed dark-theme token values |
-| [Usage by route](usage.webp) | 920 × 1642 | Same component on its usage tab with 45 synthetic agents on three demo routes, including running (bright edge, pulse) and interrupted (red hatch) agents |
+| [Role settings](settings.webp) | 560 × 665 | Current configuration component at desktop settings content width; three demo roles and the configuration assistant entry |
+| [Advanced role settings](settings-full.webp) | 560 × 995 | The same component with advanced fields expanded |
+| [Role editor](role-editor.webp) | 560 × 665 | Review role expanded; other roles collapsed |
+| [Model routes](models.webp) | 560 × 711 | Current Models tab with two demo routes and reasoning effort |
+| [General settings](general.webp) | 560 × 628 | Current concurrency, overview and managed-settings controls |
+| [Model badge](model-badge.webp) | 976 × 222 | Actual header contribution and installed official header CSS, with demo request/catalog data |
+| [Narrow model badge](model-badge-narrow.webp) | 304 × 242 | Historical narrow-layout capture of the same component; no new mobile acceptance is implied |
+| [Native agent sidebar](overview-sidebar.webp) | 1280 × 900 | Isolated DSH Web profile with native sidebar and scripted model responses |
+| [Native usage sidebar](usage-sidebar.webp) | 1280 × 900 | The same isolated native sidebar, with one demo child |
+| [Usage filters](usage-filters.webp) | 460 × 1145 | Current component with 50 synthetic members in a simulated sidebar container; not actual model usage |
+| [Combined usage filters](usage-filtered.webp) | 460 × 1145 | Same component after clicking the finished-state and one model legend to hide their entries |
+| [Native shared task board](task-board-sidebar.webp) | 1440 × 1000 | Isolated DSH Web profile; tasks created and persisted by native Team services, with scripted model replies |
 
-Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
+The settings and usage-filter assets were refreshed for 0.13.0 on 2026-11-11. Native sidebar captures were retained after checking the current component and interaction contract. Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
 
 ## Market tile icon
 

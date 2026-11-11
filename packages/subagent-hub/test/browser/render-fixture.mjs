@@ -10,7 +10,7 @@ const react = readFileSync(resolve(dirname(require.resolve('react/package.json')
 const reactDOM = readFileSync(resolve(dirname(require.resolve('react-dom/package.json')), 'umd/react-dom.development.js'), 'utf8')
 const safeScript = source => source.replace(/<\/script/gi, '<\\/script')
 const html = `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>子代理中枢 · 交互验收</title>
-<style>body{margin:0;padding:24px;background:#151516;color:#e6e6e6;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}main{max-width:960px;margin:auto}h1{font-size:20px;margin:0 0 8px}#fixture-note{font-size:12px;color:#a6a6ab;margin:0 0 20px}@media(max-width:480px){body{padding:12px}}</style>
+<style>body{margin:0;padding:24px;background:#151516;color:#e6e6e6;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif}main{max-width:560px;margin:auto}h1{font-size:20px;margin:0 0 8px}#fixture-note{font-size:12px;color:#a6a6ab;margin:0 0 20px}@media(max-width:480px){body{padding:12px}}</style>
 <main><h1>子代理中枢</h1><p id="fixture-note">交互验收数据 · 保存仅写入本页内存，不修改实际配置</p><div id="root"></div></main>
 <script>${safeScript(react)}</script><script>${safeScript(reactDOM)}</script>
 <script>window.__ModuleLoader__={load(entry){window.clientEntry=entry}}</script><script>${safeScript(client)}</script>
@@ -24,13 +24,17 @@ ui.apply({effect(fn){fn()},inject(){},locale,configForms:{whileServed(){}},slots
 const initial={showAgentOverview:false,manageOfficialSettings:true,maxConcurrent:4,routes:[
  {id:'flash',provider:'deepseek-official',model:'deepseek-flash',tags:['fast','cheap'],note:'DeepSeek Flash'},
  {id:'minimax',provider:'magpie',model:'minimax-cn/MiniMax-M3.1-Flash',reasoningEffort:'max',tags:['reasoning','vision','免费'],note:'MiniMax M3.1 Flash'}
-],agents:[{id:'reviewer',description:'审查代码改动，只报告问题，不修改文件',instructions:'逐个阅读改动，报告问题位置、原因和建议。',routes:['minimax']}]}
+],agents:[
+ {id:'builder',name:'功能开发',description:'实现明确范围内的功能，并运行相关测试',instructions:'只修改任务范围内的文件。遵循现有代码结构，完成后报告改动与验证结果。',routes:['flash','minimax']},
+ {id:'reviewer',name:'代码审查',description:'审查代码改动，只报告问题，不修改文件',instructions:'逐个阅读改动，报告问题位置、原因和建议。',routes:['minimax']},
+ {id:'researcher',name:'资料调研',description:'查阅资料与代码，整理证据和可执行建议',instructions:'保持只读，区分事实与推断，注明证据来源。',routes:['flash']}
+]}
 // Deterministic states for screenshots: ?managed=0 unmanages the official settings, and
 // ?allow=provider/model,... pins the allowlist a new Session would capture.
 const fixtureParams=new URLSearchParams(location.search)
 const pinnedAllowlist=(fixtureParams.get('allow')??'').split(',').filter(Boolean).map(pair=>{const [provider,...rest]=pair.split('/');return {provider,model:rest.join('/')}})
 if(fixtureParams.get('managed')==='0')initial.manageOfficialSettings=false
-window.qa={saves:[],failSave:false,throwSave:false,initial,clipboard:'',syncMode:'ready',syncReads:0,
+window.qa={saves:[],sessions:[],failSave:false,throwSave:false,initial,clipboard:'',syncMode:'ready',syncReads:0,
  officialAllowlist:pinnedAllowlist.length===0?undefined:{enabled:true,allowedModels:pinnedAllowlist}}
 let snapshot={status:'ready',writable:true,revision:1,value:initial}
 const listeners=new Set()
@@ -46,6 +50,7 @@ const groups=[{id:'deepseek-official',name:'DeepSeek',models:[{id:'deepseek-flas
 {id:'magpie',name:'Magpie',models:[{id:'minimax-cn/MiniMax-M3.1-Flash',name:'MiniMax M3.1 Flash',reasoning:{efforts:[{id:'high',name:'High'},{id:'max',name:'Max'}]}}]},
 {id:'zcode',name:'ZCode',models:[{id:'GLM-5.3-Flash',name:'GLM 5.3 Flash',reasoning:{efforts:[{id:'max',name:'Max'}]}}]}]
 const ctx = {
+  uiWorkspace: { startSession(address, options) { qa.sessions.push({ address, options }) } },
   configForms: {
     get(ns) {
       if (ns === 'subagent-hub') return scope
@@ -63,12 +68,14 @@ const ctx = {
       if (qa.syncMode === 'error') throw new Error('模拟读取失败')
       return { ok: true, value: { presets: [
         { id: 'standard', name: '标准' }, { id: 'cordis', name: 'Cordis' },
+        { id: 'hub-configurator', name: 'Hub 配置助手' },
         ...(qa.syncMode === 'pending' ? [] : snapshot.value.agents.map(agent => ({ id: 'hub-agent-' + agent.id })))
       ] } }
     } }
   }
 }
 qa.value=()=>snapshot.value
+qa.externalUpdate=value=>{snapshot={...snapshot,revision:snapshot.revision+1,value:{...snapshot.value,...value}};for(const fn of listeners)fn()}
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(React.StrictMode,null,React.createElement(ui.SectionPage,{ctx,t})))
 </script></html>`
 mkdirSync(dirname(output), { recursive: true })

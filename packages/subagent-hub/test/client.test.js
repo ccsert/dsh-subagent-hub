@@ -176,7 +176,7 @@ test('summary shows counts and the managed state', () => {
   assert.match(html, /summary\.managedOn/)
 })
 
-test('the page renders general settings, route rows as dropdowns, agent summaries, and a save bar', () => {
+test('settings separate roles, models and general, with the selected role ready to edit', () => {
   const { ConfigPage } = loadClient()
   const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
   const ctx = {
@@ -187,17 +187,19 @@ test('the page renders general settings, route rows as dropdowns, agent summarie
   }
   const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx }))
   for (const needle of [
-    'sah-intro', 'general.title', 'concurrency.limit', 'official.switch', 'routes.title', 'sah-route-card',
+    'workspace.title', 'general.title', 'concurrency.limit', 'official.switch', 'routes.title', 'sah-route-card',
     'value="flash"', 'value="pro"', 'value="high"', 'value="Flash"',
-    'agents.title', 'hub-agent-reviewer', 'Reviews diffs', 'preview.title', 'save', 'discard',
+    'workspace.roles', 'hub-agent-reviewer', 'Reviews diffs', 'preview.title', 'save', 'discard',
   ]) assert.ok(html.includes(needle), `missing ${needle}`)
   // Route identity is chosen from dropdowns; the concurrency cap is a stepper; the switch is a switch.
   assert.match(html, /<select[^>]*class="sah-select"/)
   assert.match(html, /class="sah-stepper"/)
   assert.match(html, /role="switch" aria-checked="true"/)
   assert.ok(html.includes('routes.loading'), 'catalog loading notice missing')
-  // Existing named agents start collapsed: the summary shows, the editor does not.
-  assert.ok(!html.includes('Report only.'), 'collapsed agent should not render its editor')
+  assert.ok(html.includes('Report only.'), 'the selected role has an editable instruction field')
+  assert.match(html, /role="tab" aria-selected="true"[^>]*aria-controls="sah-page-roles"/)
+  assert.match(html, /id="sah-page-models"[^>]*hidden=""/)
+  assert.ok(html.includes('assistant.open'))
 })
 
 test('provider and model are one select, grouped per provider', () => {
@@ -351,7 +353,7 @@ test('the save bar offers the shortcut, and the preview can be copied', () => {
   assert.ok(html.includes('footer.shortcut'), 'the save shortcut is advertised')
   assert.ok(html.includes('preview.copy'), 'the preview can be copied')
   // The page root takes the keyboard, so the shortcut never leaks into the shell.
-  assert.match(html, /<div class="sah"[^>]*tabindex="-1"/)
+  assert.match(html, /<div class="sah sah-workspace"[^>]*tabindex="-1"/)
 })
 
 test('every translated string exists in both dictionaries', () => {
@@ -506,6 +508,7 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
       whileServed: (namespaces, register) => { calls.served = namespaces; return register(new Set(namespaces)) },
       get: () => formMock(),
     },
+    sidebarRightTabs: { register: definition => { calls.sidebar = definition; return () => {} } },
     slots: {
       inject: (owner, fn) => { calls.owner = owner; return fn() },
       register: (options, body) => { calls.slots.push({ options, body }); return () => {} },
@@ -514,15 +517,16 @@ test('apply registers the dictionary, the row page, and a Settings section', () 
   apply(ctx)
   assert.deepEqual(plain(calls.locale), ['subagentHub', ['en', 'zh']])
   assert.deepEqual(plain(calls.served), ['subagent-hub'])
-  assert.deepEqual(plain(calls.services), ['sessions', 'uiWorkspace'])
-  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['conversation.session.header.actions', 'conversation.session.header.utilities', 'plugins.row.config', 'settings.section'])
+  assert.deepEqual(plain(calls.services), ['sessions', 'uiWorkspace', 'sidebarRight', 'sidebarRightTabs'])
+  assert.deepEqual(plain(calls.slots.map(slot => slot.options.name)).sort(), ['conversation.session.header.actions', 'conversation.session.header.utilities', 'plugins.row.config', 'settings.section', 'sidebar.right.pane.tab'])
+  assert.equal(calls.sidebar.kind, 'subagent-hub-overview')
   const row = calls.slots.find(slot => slot.options.name === 'plugins.row.config')
   assert.deepEqual(plain(row.options), { name: 'plugins.row.config', key: 'dsh-subagent-hub#subagent-hub', locale: 'subagentHub' })
   const section = calls.slots.find(slot => slot.options.name === 'settings.section')
   assert.equal(section.options.id, 'subagent-hub')
   assert.equal(section.options.order, 30)
   assert.equal(section.options.label(), 'nav')
-  assert.match(renderToStaticMarkup(section.body({ close() {} })), /sah-intro/)
+  assert.match(renderToStaticMarkup(section.body({ close() {} })), /sah-workspace-header/)
 })
 
 // ── session allowlist diagnostics ────────────────────────────────────────────────────────────

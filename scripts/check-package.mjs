@@ -13,7 +13,7 @@ const [report] = JSON.parse(result.stdout)
 assert.equal(report.name, pkg.name)
 assert.equal(report.version, pkg.version)
 const paths = new Set(report.files.map(file => file.path))
-for (const path of ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'icon.svg', 'lib/index.js', 'lib/client.js', 'locale/en.json', 'locale/zh.json']) {
+for (const path of ['package.json', 'README.md', 'LICENSE', 'cordis.patch.yml', 'icon.svg', 'lib/index.js', 'lib/client.js', 'lib/configuration.js', 'lib/configuration-assistant.js', 'lib/team-routing.js', 'lib/team-routing-state.js', 'locale/en.json', 'locale/zh.json']) {
   assert.ok(paths.has(path), `archive is missing ${path}`)
 }
 for (const path of paths) {

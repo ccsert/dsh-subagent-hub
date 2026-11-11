@@ -25,11 +25,41 @@ window.__ModuleLoader__.load({
     const NS = 'subagentHub'
     const ROW_CONFIG_KEY = 'dsh-subagent-hub#subagent-hub'
     const ENTRY_ID = 'subagent-hub'
+    const CONFIGURATION_PRESET_ID = 'hub-configurator'
     /** Bound read-only confirmation; a network request may never settle. */
     const SYNC_TIMEOUT_MS = 15000
     const SYNC_POLL_MS = 1500
 
     const zh = {
+      "workspace.title": "子代理中枢",
+      "workspace.lead": "Lead 使用当前会话模型，不受角色配置限制",
+      "workspace.roles": "角色",
+      "workspace.renameRole": "编辑角色名称",
+      "workspace.purpose": "用途",
+      "workspace.models": "模型",
+      "workspace.general": "常规",
+      "workspace.navigation": "配置分区",
+      "workspace.roleSearch": "搜索角色",
+      "workspace.noResults": "没有匹配的角色",
+      "workspace.clearSearch": "清除搜索",
+      "workspace.rolePurpose": "将任务交给合适的子智能体",
+      "workspace.advanced": "高级设置",
+      "workspace.advancedHint": "角色标识、基础预设与能力标签",
+      "workspace.roleName": "角色名称",
+      "workspace.roleNameHint": "方便识别的名称，可使用中文",
+      "workspace.roleId": "角色标识",
+      "workspace.selectRole": "选择或创建一个角色开始配置",
+      "workspace.roleList": "委派角色",
+      "workspace.templates": "从模板创建",
+      "workspace.addRole": "添加角色",
+      "assistant.open": "配置助手",
+      "assistant.hint": "通过对话创建角色、调整模型与设置",
+      "assistant.dirty": "请先保存或撤销当前修改，再打开配置助手",
+      "assistant.unavailable": "配置助手暂不可用。请重启 Harness 后，在新会话的模式列表中选择「Hub 配置助手」。",
+      "assistant.starter": "请读取当前 Hub 配置，帮助我设计子智能体角色并调整模型与设置。先说明当前配置和可改进的地方。",
+      "assistant.starting": "正在打开…",
+      "workspace.showPreview": "查看主智能体看到的目录",
+
       'modelBadge.label': '模型',
       'modelBadge.summary': '模型：{provider} · {model}',
       'modelBadge.summaryModel': '模型：{model}',
@@ -107,7 +137,7 @@ window.__ModuleLoader__.load({
       'agents.hint': '每个具名 agent 会注册为官方预设 hub-agent-<名称>，主 agent 通过 agent_preset 选择它。',
       'agents.add': '新增具名 agent',
       'agents.none': '还没有具名 agent。',
-      'agents.routesLabel': '允许使用的模型',
+      'agents.routesLabel': '可用模型',
       'agents.routesHint': '不选 = 可用任意已配置模型；选了之后，越界的模型会在派发前被拒绝。',
       'agents.anyModel': '任意模型',
       'agents.noRoutes': '先在上方添加模型路由。',
@@ -130,7 +160,7 @@ window.__ModuleLoader__.load({
       'preview.copied': '已复制',
       'preview.copyFailed': '复制失败，请展开目录后手动选择并复制。',
       'save.refused': '保存未应用，修改仍保留。请重试；如仍失败，请按 ⌘⇧R 重启 Harness 后再保存。',
-      'save.conflict': '配置已在其他页面更新，已同步最新版本，修改仍保留。再次保存会用当前内容覆盖。',
+      'save.conflict': '配置已在其他页面或配置助手中更新。当前修改已保留；请先撤销并读取最新配置，再重新应用修改。',
       'overview.restartHint': 'Harness 尚未加载此设置。请按 ⌘⇧R 重启 Harness 后再开启；其他设置可正常保存。',
       'common.removeTag': '删除标签 {tag}',
       'common.readOnly': '此配置当前只读。',
@@ -170,6 +200,35 @@ window.__ModuleLoader__.load({
       'template.blank.instructions': '',
     }
     const en = {
+      "workspace.title": "Subagent Hub",
+      "workspace.lead": "The Lead uses the current conversation model, independently of role settings",
+      "workspace.roles": "Roles",
+      "workspace.renameRole": "Edit role name",
+      "workspace.purpose": "Purpose",
+      "workspace.models": "Models",
+      "workspace.general": "General",
+      "workspace.navigation": "Configuration sections",
+      "workspace.roleSearch": "Search roles",
+      "workspace.noResults": "No matching roles",
+      "workspace.clearSearch": "Clear search",
+      "workspace.rolePurpose": "Delegate work to the right subagent",
+      "workspace.advanced": "Advanced settings",
+      "workspace.advancedHint": "Role ID, base preset and capability tags",
+      "workspace.roleName": "Role name",
+      "workspace.roleNameHint": "A readable name, in any language",
+      "workspace.roleId": "Role ID",
+      "workspace.selectRole": "Select or create a role to configure it",
+      "workspace.roleList": "Delegation roles",
+      "workspace.templates": "Create from a template",
+      "workspace.addRole": "Add role",
+      "assistant.open": "Configuration assistant",
+      "assistant.hint": "Design roles and adjust models and settings through conversation",
+      "assistant.dirty": "Save or discard your edits before opening the assistant",
+      "assistant.unavailable": "The configuration assistant is unavailable. Restart Harness, then select “Hub 配置助手” in a new conversation’s mode list.",
+      "assistant.starter": "Read my Hub configuration and help me design subagent roles and adjust models and settings. Start with the current configuration and opportunities to improve it.",
+      "assistant.starting": "Opening…",
+      "workspace.showPreview": "Preview the main agent’s selection catalog",
+
       'modelBadge.label': 'Model',
       'modelBadge.summary': 'Model: {provider} · {model}',
       'modelBadge.summaryModel': 'Model: {model}',
@@ -270,7 +329,7 @@ window.__ModuleLoader__.load({
       'preview.copied': 'Copied',
       'preview.copyFailed': 'Copy failed. Expand the preview and select the text to copy it.',
       'save.refused': 'The save was not applied; your edits are kept. Try again, and if it still fails, restart Harness with ⌘⇧R and save.',
-      'save.conflict': 'Configuration changed in another page. The latest version is loaded and your edits are kept; saving again overwrites it with this page.',
+      'save.conflict': 'Configuration changed in another editor or the assistant. Your edits are kept; discard to load the latest configuration before reapplying them.',
       'overview.restartHint': 'Harness has not loaded this setting yet. Restart Harness with ⌘⇧R to turn it on; other settings save normally.',
       'common.removeTag': 'Remove tag {tag}',
       'common.readOnly': 'This configuration is read-only.',
@@ -313,7 +372,7 @@ window.__ModuleLoader__.load({
     // ── pure helpers ────────────────────────────────────────────────────────────────────────────
 
     const hasRouteContent = route => Boolean(route.id || route.provider || route.model || route.reasoningEffort || route.note || route.tags.length > 0)
-    const hasAgentContent = agent => Boolean(agent.id || agent.description || agent.instructions || agent.routes.length > 0 || agent.needs.length > 0 || agent.basePreset !== 'standard')
+    const hasAgentContent = agent => Boolean(agent.name || agent.id || agent.description || agent.instructions || agent.routes.length > 0 || agent.needs.length > 0 || agent.basePreset !== 'standard')
     const routeKey = (provider, model) => `${provider}\0${model}`
 
     /** Separator between the provider and the model inside one merged model value. */
@@ -523,6 +582,7 @@ window.__ModuleLoader__.load({
         })),
         agents: agents.map(agent => ({
           id: String(agent?.id ?? ''),
+          name: String(agent?.name ?? ''),
           description: String(agent?.description ?? ''),
           instructions: String(agent?.instructions ?? ''),
           routes: Array.isArray(agent?.routes) ? agent.routes.map(String) : [],
@@ -550,6 +610,7 @@ window.__ModuleLoader__.load({
         .filter(agent => agent.id && agent.description)
         .map(agent => ({
           id: agent.id,
+          ...(agent.name ? { name: agent.name } : {}),
           description: agent.description,
           instructions: agent.instructions,
           ...(agent.routes.length > 0 ? { routes: agent.routes } : {}),
@@ -1027,6 +1088,60 @@ window.__ModuleLoader__.load({
 @media (forced-colors:active){.sah-toggle,.sah-chipbtn[aria-pressed="true"],.sah-pick button[aria-pressed="true"]{border:2px solid Highlight}.sah *:focus-visible{outline:2px solid Highlight;box-shadow:none}}
 @media (max-width:480px){.sah-panel-head{flex-wrap:wrap}.sah-agent-toggle{gap:8px}.sah-avatar{display:none}.sah-preview-head{flex-wrap:wrap}.sah-footer-left{flex-basis:100%}.sah-footer{gap:8px}.sah-btn{padding-inline:10px}.sah-route-main,.sah-route-main-solo{grid-template-columns:20px minmax(0,1fr)}.sah-order{min-width:0}.sah-concurrency{max-width:100%}.sah-setting-control{max-width:100%}}
 @media (max-width:760px){.sah-route-main,.sah-route-main-solo{grid-template-columns:28px minmax(0,1fr)}.sah-route-main .sah-field{grid-column:2}.sah-route-main .sah-row-actions{grid-column:1/-1;justify-content:flex-end;margin-top:0}.sah-route-meta,.sah-grid-2{grid-template-columns:1fr;padding-left:0}.sah-agent-badges{display:none}.sah-setting{flex-direction:column;align-items:flex-start;gap:8px}.sah-footer{flex-wrap:wrap}.sah-footer-keys{display:none}.sah-concurrency{flex-wrap:wrap}}
+.sah-workspace{max-width:960px;width:100%;gap:0;font-size:14px}
+.sah-workspace-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 14px}
+.sah-workspace-header h2{font-size:18px;line-height:26px;font-weight:600;margin:0;min-width:0}
+.sah-workspace-tabs{display:flex;gap:22px;border-bottom:1px solid var(--sah-border);margin-bottom:20px}
+.sah-workspace-tabs button{border:0;border-bottom:3px solid transparent;padding:10px 4px;background:transparent;color:var(--sah-sub);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.sah-workspace-tabs button[aria-selected="true"]{color:var(--sah-text);border-bottom-color:var(--sah-accent)}
+.sah-workspace-tabs button:focus-visible,.sah-role-toggle:focus-visible,.sah-role-advanced summary:focus-visible,.sah-role-templates summary:focus-visible{outline:2px solid var(--sah-accent);outline-offset:2px}
+.sah-tab-panel{min-width:0}
+.sah-tab-panel[hidden]{display:none}
+.sah-workspace .sah-panel{border:0;border-radius:0;background:transparent}
+.sah-workspace .sah-panel-head{padding:0 0 14px}
+.sah-workspace .sah-panel-body{padding:0 0 20px}
+.sah-role-list-head{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:12px}
+.sah-role-list-head h3{font-size:14px;margin:0;font-weight:600}
+.sah-role-list-head>.sah-linkbtn{display:inline-flex;align-items:center;gap:6px}
+.sah-role-accordions{display:flex;flex-direction:column;gap:10px}
+.sah-role-accordion{min-width:0;border:1px solid var(--sah-border);border-radius:8px;overflow:hidden;background:var(--sah-panel)}
+.sah-role-accordion-head{display:flex;align-items:center;gap:4px;padding-right:8px;min-height:46px}
+.sah-role-toggle{display:flex;align-items:center;gap:10px;flex:1;min-width:0;min-height:46px;padding:10px 12px;border:0;background:transparent;color:var(--sah-text);font:inherit;font-size:13px;text-align:left;cursor:pointer}
+.sah-role-toggle:hover{background:var(--sah-hover)}
+.sah-role-toggle strong{font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:45%}
+.sah-role-caret{display:inline-flex;flex:none;color:var(--sah-sub);transition:transform .15s}
+.sah-role-caret-open{transform:rotate(90deg)}
+.sah-role-summary{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--sah-mute);font-size:12px}
+.sah-role-models{display:flex;gap:4px;margin-left:auto;max-width:42%;min-width:0;overflow:hidden}
+.sah-role-models .sah-chip{font-size:11px;min-height:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;line-height:20px}
+.sah-role-accordion-body{padding:8px 16px 0}
+.sah-role-editor{display:flex;flex-direction:column;gap:16px;min-width:0}
+.sah-role-editor>.sah-field,.sah-role-rename>.sah-field{display:grid;grid-template-columns:84px minmax(0,1fr);gap:6px 12px;align-items:start}
+.sah-role-editor>.sah-field>.sah-label,.sah-role-rename>.sah-field>.sah-label{grid-column:1;grid-row:1;padding-top:7px;font-size:13px;line-height:18px}
+.sah-role-editor>.sah-field>:not(.sah-label),.sah-role-rename>.sah-field>:not(.sah-label){grid-column:2}
+.sah-role-editor .sah-input{min-height:32px}
+.sah-role-editor .sah-textarea{font-size:13px;min-height:84px;line-height:20px}
+.sah-role-editor .sah-pick{gap:6px}
+.sah-role-editor .sah-pick button{min-height:28px;border-radius:18px;padding:3px 10px;font-size:12px}
+.sah-role-rename{margin-bottom:16px}
+.sah-role-rename-trigger{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:28px;min-height:28px;padding:4px;border:0;border-radius:6px;background:transparent;color:var(--sah-mute);font:inherit;font-size:12px;cursor:pointer}
+.sah-role-rename-trigger:hover:not(:disabled){background:var(--sah-hover);color:var(--sah-text)}
+.sah-role-rename-trigger:disabled{opacity:.4;cursor:default}
+.sah-role-rename-trigger:focus-visible{outline:2px solid var(--sah-accent);outline-offset:2px}
+.sah-role-advanced{border-top:1px solid var(--sah-border);padding:12px 0;margin-top:2px}
+.sah-role-advanced summary,.sah-role-templates summary{cursor:pointer;font-size:12px;color:var(--sah-sub)}
+.sah-role-advanced summary span{margin-left:12px;color:var(--sah-mute);font-size:11px}
+.sah-role-advanced-fields{display:grid;gap:14px;padding-top:16px}
+.sah-role-remove{justify-self:start;color:var(--sah-danger)}
+.sah-role-templates{margin-top:14px}
+.sah-role-templates .sah-templates{padding-top:10px}
+.sah-role-templates .sah-templates-label{display:none}
+.sah-role-empty{padding:24px 12px;text-align:center;color:var(--sah-mute);font-size:13px}
+.sah-workspace .sah-footer{margin-top:20px;border:0;border-top:1px solid var(--sah-border);border-radius:0;padding:14px 0;background:var(--dsw-alias-bg-layer-2,var(--sah-panel));backdrop-filter:none}
+.sah-workspace .sah-footer-keys{display:none}
+.sah-workspace .sah-btn-primary{background:var(--sah-accent);color:var(--dsw-alias-label-on-color,#fff)}
+@media(max-width:480px){.sah-role-advanced summary span{display:none}.sah-role-models{max-width:36%}.sah-role-summary{display:none}.sah-role-editor>.sah-field,.sah-role-rename>.sah-field{grid-template-columns:72px minmax(0,1fr);column-gap:8px}.sah-role-accordion-body{padding-inline:12px}}
+
 `
 
     const style = () => h('style', { key: 'css' }, CSS)
@@ -1334,24 +1449,90 @@ window.__ModuleLoader__.load({
               h(TagInput, { t, tags: agent.needs, disabled, placeholder: t('route.tagPlaceholder'), suggestions: known, onChange: needs => set({ needs }) })))) : null)
     }
 
+    function roleName(agent, t) {
+      if (agent.name) return agent.name
+      const template = AGENT_TEMPLATES.find(template => template.id && template.id === agent.id)
+      return template ? t(template.label) : agent.id || t('agent.unnamed')
+    }
+
+    /** One role's compact inline fields. Technical settings stay collapsed. */
+    function AgentEditor({ agent, index, routes, presets, known, problems, disabled, t, forceAdvanced, onChange, onRemove }) {
+      const set = patch => onChange({ ...agent, ...patch })
+      const usable = routes.filter(route => route.id && route.provider && route.model)
+      const error = field => problems[`agent:${index}:${field}`] ? t(problems[`agent:${index}:${field}`]) : undefined
+      const options = presets.map(preset => ({ value: preset.id, label: preset.name || preset.id }))
+      if (!options.some(option => option.value === agent.basePreset)) options.unshift({ value: agent.basePreset, label: `${agent.basePreset} (${t('route.missing')})` })
+      return h('div', { className: 'sah-role-editor' },
+        h(Field, { label: t('workspace.purpose'), error: error('description') }, h(TextInput, { value: agent.description, disabled, onChange: description => set({ description }) })),
+        h(Field, { label: t('agents.routesLabel'), error: error('routes') },
+          usable.length ? h('div', { className: 'sah-pick', title: t('agents.routesHint') }, usable.map(route => h('button', { key: route.id, type: 'button', disabled, title: `${route.provider}/${route.model}`, 'aria-pressed': agent.routes.includes(route.id),
+            onClick: () => set({ routes: agent.routes.includes(route.id) ? agent.routes.filter(id => id !== route.id) : [...agent.routes, route.id] }),
+          }, route.note || route.id))) : h('span', { className: 'sah-field-hint' }, t('agents.noRoutes'))),
+        h(Field, { label: t('agent.instructions') }, h('textarea', { className: 'sah-textarea', rows: 3, value: agent.instructions, disabled, onChange: event => set({ instructions: event.target.value }) })),
+        h('details', { className: 'sah-role-advanced', open: forceAdvanced || undefined },
+          h('summary', null, t('workspace.advanced'), h('span', null, t('workspace.advancedHint'))),
+          h('div', { className: 'sah-role-advanced-fields' },
+            h(Field, { label: t('workspace.roleId'), hint: t('agent.idHint'), error: error('id') }, h(TextInput, { value: agent.id, disabled, onChange: id => set({ id: id.trim().toLowerCase() }) })),
+            h(Field, { label: t('agents.basePreset'), hint: t('agents.basePresetHint') }, h(Select, { value: agent.basePreset, disabled, options, onChange: basePreset => set({ basePreset }) })),
+            h(Field, { label: t('agents.needs') }, h(TagInput, { t, tags: agent.needs, disabled, suggestions: known, onChange: needs => set({ needs }) })),
+            h('code', { className: 'sah-code' }, `hub-agent-${agent.id}`),
+            h('button', { type: 'button', className: 'sah-linkbtn sah-role-remove', disabled, onClick: onRemove }, t('agent.remove')))))
+    }
+
+    /** A single-column accordion. The title is editable in place without a permanent extra row. */
+    function RoleAccordion({ open, onToggle, ...props }) {
+      const { agent, index, routes, problems, disabled, t, onChange } = props
+      const panelId = React.useId()
+      const [renaming, setRenaming] = React.useState(agent._fresh === true)
+      const nameRef = React.useRef(null)
+      const originalName = React.useRef(agent.name)
+      React.useEffect(() => {
+        if (open && renaming) { nameRef.current?.focus(); nameRef.current?.select() }
+      }, [open, renaming])
+      const bad = Object.keys(problems).some(key => key.startsWith(`agent:${index}:`))
+      const labels = agent.routes.map(id => routes.find(route => route.id === id)?.note || id)
+      return h('article', { className: 'sah-role-accordion', 'data-open': open ? 'true' : undefined },
+        h('div', { className: 'sah-role-accordion-head' },
+          h('button', { type: 'button', className: 'sah-role-toggle', 'aria-expanded': open, 'aria-controls': open ? panelId : undefined, onClick: () => { setRenaming(false); onToggle() } },
+            h('span', { className: `sah-role-caret${open ? ' sah-role-caret-open' : ''}` }, glyph('IconChevronRightOutlineRegular', '›')),
+            h('strong', null, roleName(agent, t)),
+            !open ? h('span', { className: 'sah-role-summary' }, agent.description || t('agent.noDescription')) : null,
+            bad ? h('span', { className: 'sah-flag', title: t('invalid.fields') }) : null,
+            h('span', { className: 'sah-role-models' }, h(Chip, { tag: labels[0] || t('agents.anyModel') }), labels.length > 1 ? h(Chip, { tag: `+${labels.length - 1}` }) : null)),
+          open ? h('button', { type: 'button', className: 'sah-role-rename-trigger', title: t('workspace.renameRole'), 'aria-label': t('workspace.renameRole'), disabled, onClick: () => { originalName.current = agent.name; setRenaming(true) } }, glyph('IconEditOutlineRegular', '✎')) : null),
+        open ? h('div', { id: panelId, className: 'sah-role-accordion-body' },
+          renaming ? h('div', { className: 'sah-role-rename' }, h(Field, { label: t('workspace.roleName') },
+            h('input', { ref: nameRef, type: 'text', className: 'sah-input', value: agent.name || '', placeholder: roleName(agent, t), disabled,
+              onChange: event => onChange({ ...agent, name: event.target.value }), onBlur: () => setRenaming(false),
+              onKeyDown: event => {
+                if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); onChange({ ...agent, name: originalName.current }); setRenaming(false) }
+                if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); setRenaming(false) }
+              },
+            }))) : null,
+          h(AgentEditor, props)) : null)
+    }
+
     // ── page ─────────────────────────────────────────────────────────────────────────────────────
 
     /** Settings-section page sharing the row form; the namespace is served only with a profile. */
-    function SectionPage({ ctx, t }) {
+    function SectionPage({ ctx, t, close }) {
       const form = React.useMemo(() => ctx.configForms.get(ENTRY_ID), [ctx])
       const [snapshot, setSnapshot] = React.useState(() => form.getSnapshot())
       React.useEffect(() => form.subscribe(() => setSnapshot(form.getSnapshot())), [form])
       const view = snapshot.status === 'unavailable'
         ? undefined
         : { state: snapshot, mutate: (ops, revision) => form.mutate(ops, revision) }
-      return h(ConfigPage, { view: 'page', form: view, t, ctx })
+      return h(ConfigPage, { view: 'page', form: view, t, ctx, close })
     }
 
     /** The page itself: general settings, model routes, named agents, preview, save bar. */
-    function ConfigPage({ view = 'page', form, t, ctx = {} }) {
+    function ConfigPage({ view = 'page', form, t, ctx = {}, close }) {
       const value = form?.state?.value ?? {}
       const initial = React.useMemo(() => editorDraftsOf(value), [])
       const [draft, setDraft] = React.useState(initial)
+      const [activeTab, setActiveTab] = React.useState('roles')
+      const [selectedRole, setSelectedRole] = React.useState(initial.agents[0]?._key)
+      const [assistantBusy, setAssistantBusy] = React.useState(false)
       const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [] })
       // The official allowlist a new Session would capture. Read-only here: the page only
       // reports a preset that could never run, it never rewrites another plugin's setting.
@@ -1376,6 +1557,7 @@ window.__ModuleLoader__.load({
       // The schema-resolved section lists every field the running Host knows, defaults included.
       const overviewSupported = Object.prototype.hasOwnProperty.call(value, 'showAgentOverview')
       const latestRevision = React.useRef(form?.state?.revision)
+      const baselineRevision = React.useRef(form?.state?.revision)
       latestRevision.current = form?.state?.revision
       const disposed = React.useRef(false)
       React.useEffect(() => {
@@ -1405,7 +1587,20 @@ window.__ModuleLoader__.load({
         hydrated.current = true
         setDraft(editorDraftsOf(form.state.value))
         setBaseline(draftsOf(form.state.value))
+        baselineRevision.current = form.state.revision
       }, [form?.state?.status, form?.state?.revision])
+
+      // Both editors share one revision. Dirty drafts retain the revision they were based on.
+      React.useEffect(() => {
+        if (form?.state?.status !== 'ready' || saving.current || baselineRevision.current === form.state.revision) return
+        if (!sameDraft(draft, baseline)) { setStatus({ kind: 'error', text: t('save.conflict') }); return }
+        baselineRevision.current = form.state.revision
+        const next = editorDraftsOf(form.state.value)
+        const selectedId = draft.agents.find(agent => agent._key === selectedRole)?.id
+        setDraft(next)
+        setBaseline(draftsOf(form.state.value))
+        setSelectedRole(next.agents.find(agent => agent.id === selectedId)?._key)
+      }, [form?.state?.revision, form?.state?.status])
 
       const loadCatalog = React.useCallback(async () => {
         setCatalog(current => ({ ...current, status: 'loading' }))
@@ -1427,7 +1622,7 @@ window.__ModuleLoader__.load({
         try {
           ctx.remote.agentPresets.list().then((response) => {
             if (response.ok === false) return
-            const list = (response.value?.presets ?? []).filter(preset => preset.broken === undefined && !String(preset.id).startsWith('hub-agent-'))
+            const list = (response.value?.presets ?? []).filter(preset => preset.broken === undefined && preset.id !== CONFIGURATION_PRESET_ID && !String(preset.id).startsWith('hub-agent-'))
             setPresets(list.length > 0 ? list : [{ id: 'standard', name: 'standard' }])
           }).catch(() => {})
         } catch {
@@ -1507,6 +1702,7 @@ window.__ModuleLoader__.load({
       const removeAgent = index => {
         const item = draft.agents[index]
         if (item === undefined) return
+        if (selectedRole === item._key) setSelectedRole(undefined)
         setUndo({ kind: 'agent', index, item })
         setDraft(current => ({ ...current, agents: current.agents.filter((_, at) => at !== index) }))
       }
@@ -1514,26 +1710,26 @@ window.__ModuleLoader__.load({
       const addAgent = template => {
         const source = template ?? { id: '', description: '', instructions: '' }
         const taken = new Set(draft.agents.map(agent => agent.id))
-        const id = source.id === '' ? '' : uniqueRouteId(source.id, taken)
-        setDraft(current => ({
-          ...current,
-          agents: [...current.agents, {
-            _key: rowKey(), _fresh: true,
-            id,
-            description: source.description === undefined ? '' : t(source.description),
-            instructions: source.instructions === undefined ? '' : t(source.instructions),
-            routes: [],
-            needs: [],
-            basePreset: 'standard',
-          }],
-        }))
+        const id = uniqueRouteId(source.id || 'role', taken)
+        const role = {
+          _key: rowKey(), _fresh: true, id,
+          name: source.label ? t(source.label) : '',
+          description: source.description === undefined ? '' : t(source.description),
+          instructions: source.instructions === undefined ? '' : t(source.instructions),
+          routes: [], needs: [], basePreset: 'standard',
+        }
+        setDraft(current => ({ ...current, agents: [...current.agents, role] }))
+        setSelectedRole(role._key)
+        setActiveTab('roles')
       }
+
       /** Put the last deleted route or agent back where it was. */
       const undoLast = () => {
         if (undo === undefined) return
         const entry = undo
         setUndo(undefined)
         setDraft(current => restoreDeletion(current, entry))
+        if (entry.kind === 'agent') { setActiveTab('roles'); setSelectedRole(entry.item._key) }
       }
 
       const save = async () => {
@@ -1541,6 +1737,9 @@ window.__ModuleLoader__.load({
         setSubmitted(true)
         if (problem !== undefined) {
           setStatus({ kind: 'error', text: t('invalid.fields') })
+          const first = Object.keys(problems)[0]
+          if (first?.startsWith('agent:')) { setActiveTab('roles'); setSelectedRole(draft.agents[Number(first.split(':')[1])]?._key) }
+          else setActiveTab(first?.startsWith('route:') ? 'models' : 'general')
           requestAnimationFrame(() => rootRef.current?.querySelector('[aria-invalid="true"]')?.focus())
           return
         }
@@ -1548,7 +1747,7 @@ window.__ModuleLoader__.load({
         setBusy(true)
         stopSync.current()
         try {
-          const revision = form.state?.revision
+          const revision = baselineRevision.current
           const applied = await form.mutate(saveOps(values, overviewSupported), revision)
           if (applied !== true) {
             // A refused write reloads Host state; a moved revision means another editor won.
@@ -1558,7 +1757,10 @@ window.__ModuleLoader__.load({
             return
           }
           setBaseline(draftsOf(values))
-          setDraft(editorDraftsOf(values))
+          baselineRevision.current = latestRevision.current
+          const nextDraft = editorDraftsOf(values)
+          setSelectedRole(nextDraft.agents.find(agent => agent.id === draft.agents.find(agent => agent._key === selectedRole)?.id)?._key)
+          setDraft(nextDraft)
           setSubmitted(false)
           // Route and preset edits only reach Sessions that start afterwards; say so once here
           // instead of letting an open Session fail against its captured allowlist.
@@ -1578,7 +1780,13 @@ window.__ModuleLoader__.load({
       }
       const discard = () => {
         stopSync.current()
-        setDraft(editorDraftsOf(baseline))
+        const latest = form?.state?.status === 'ready' ? form.state.value : baseline
+        const next = editorDraftsOf(latest)
+        setDraft(next)
+        setBaseline(draftsOf(latest))
+        baselineRevision.current = form?.state?.revision
+        const selectedId = draft.agents.find(agent => agent._key === selectedRole)?.id
+        setSelectedRole(next.agents.find(agent => agent.id === selectedId)?._key)
         setSubmitted(false)
         setStatus(undefined)
         setCopyError(false)
@@ -1633,48 +1841,49 @@ window.__ModuleLoader__.load({
             ? h(React.Fragment, null, h('span', { className: 'sah-dirty-dot' }), h('span', null, t('footer.dirty')))
             : null
 
-      return h('div', { className: 'sah', ref: rootRef, tabIndex: -1, onKeyDown },
+      const startAssistant = async () => {
+        if (dirty || assistantBusy) return
+        setAssistantBusy(true)
+        try {
+          const response = await ctx.remote?.agentPresets?.list()
+          if (response?.ok === false || !response?.value?.presets?.some(preset => preset.id === CONFIGURATION_PRESET_ID && !preset.broken)) throw new Error('mode unavailable')
+          const workspace = ctx.get?.('uiWorkspace') ?? ctx.uiWorkspace
+          if (typeof workspace?.startSession !== 'function') throw new Error('navigation unavailable')
+          workspace.startSession(undefined, { agentPreset: CONFIGURATION_PRESET_ID, prompt: t('assistant.starter'), whenDraftExists: 'keep' })
+          close?.()
+        } catch { setStatus({ kind: 'error', text: t('assistant.unavailable') }) }
+        finally { if (!disposed.current) setAssistantBusy(false) }
+      }
+      return h('div', { className: 'sah sah-workspace', ref: rootRef, tabIndex: -1, onKeyDown },
         style(),
         form === undefined ? h('p', { className: 'sah-notice sah-notice-error' }, t('unavailable'))
           : !writable ? h('p', { className: 'sah-notice' }, t('common.readOnly')) : null,
-        h('div', { className: 'sah-hero' },
-          h('p', { className: 'sah-intro' }, t('intro')),
-          h('div', { className: 'sah-summary' },
-            h('span', { className: 'sah-badge' }, t('badge.routes', { count: draft.routes.length })),
-            h('span', { className: 'sah-badge' }, t('badge.agents', { count: draft.agents.length })),
-            h('span', { className: 'sah-badge' }, maxConcurrent === 0 ? t('badge.unlimited') : t('badge.concurrency', { count: maxConcurrent })),
-            h('span', { className: `sah-badge${draft.manageOfficialSettings ? ' sah-badge-on' : ''}` },
-              h('span', { className: 'sah-badge-dot' }),
-              t('badge.managed', { state: draft.manageOfficialSettings ? t('badge.on') : t('badge.off') })))),
-        h(Panel, { icon: glyph('IconSlidersTwoOutlineRegular', null), title: t('general.title'), hint: t('general.hint') },
-          h(SettingRow, {
-            title: t('concurrency.limit'),
-            hint: maxConcurrent === 0 ? t('concurrency.unlimitedHint') : t('concurrency.hint', { count: maxConcurrent }),
-          }, h('div', { className: 'sah-concurrency' },
-            h(Stepper, { value: maxConcurrent, disabled: locked, label: t('concurrency.limit'), t, onChange: next => setDraft(current => ({ ...current, maxConcurrent: next })) }),
-            h('div', { className: 'sah-chips', role: 'group', 'aria-label': t('concurrency.quick') },
-              quickLimits.map(limit => h('button', {
-                key: String(limit),
-                type: 'button',
-                className: 'sah-chipbtn',
-                'aria-pressed': maxConcurrent === limit,
-                disabled: locked,
-                onClick: () => setDraft(current => ({ ...current, maxConcurrent: limit })),
-              }, limit === 0 ? t('concurrency.unlimited') : String(limit)))))),
-          h(SettingRow, { title: t('overview.setting'), hint: t(overviewSupported || form?.state?.status !== 'ready' ? 'overview.settingHint' : 'overview.restartHint') },
-            h(Toggle, {
-              checked: draft.showAgentOverview,
-              disabled: locked || !overviewSupported,
-              label: t('overview.setting'),
-              onChange: next => setDraft(current => ({ ...current, showAgentOverview: next })),
-            })),
-          h(SettingRow, { title: t('official.switch'), hint: t('official.hint') },
-            h(Toggle, {
-              checked: draft.manageOfficialSettings,
-              disabled: locked,
-              label: t('official.switch'),
-              onChange: next => setDraft(current => ({ ...current, manageOfficialSettings: next })),
-            }))),
+        h('header', { className: 'sah-workspace-header' },
+          h('h2', { title: t('workspace.lead') }, t('workspace.title')),
+          h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: dirty || assistantBusy || !form, title: t(dirty ? 'assistant.dirty' : 'assistant.hint'), onClick: startAssistant },
+            glyph('IconChatBubbleOutlineRegular', null), t(assistantBusy ? 'assistant.starting' : 'assistant.open'))),
+        h('div', { className: 'sah-workspace-tabs', role: 'tablist', 'aria-label': t('workspace.navigation') },
+          ['roles', 'models', 'general'].map(tab => h('button', { key: tab, type: 'button', id: `sah-tab-${tab}`, role: 'tab', 'aria-selected': activeTab === tab, 'aria-controls': `sah-page-${tab}`, tabIndex: activeTab === tab ? 0 : -1,
+            onClick: () => setActiveTab(tab), onKeyDown: event => {
+              const tabs = ['roles', 'models', 'general'], at = tabs.indexOf(tab)
+              const next = event.key === 'ArrowRight' ? tabs[(at + 1) % 3] : event.key === 'ArrowLeft' ? tabs[(at + 2) % 3] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[2] : undefined
+              if (next) { event.preventDefault(); setActiveTab(next); rootRef.current?.querySelector(`#sah-tab-${next}`)?.focus() }
+            } }, t(`workspace.${tab}`)))),
+        h('section', { className: 'sah-tab-panel', id: 'sah-page-roles', role: 'tabpanel', 'aria-labelledby': 'sah-tab-roles', hidden: activeTab !== 'roles' },
+          allowlistProblems.length ? h('div', { className: 'sah-notice sah-notice-warn', role: 'status' }, h('div', null,
+            h('strong', null, t('agents.allowlist.title')),
+            h('ul', null, allowlistProblems.map(problem => h('li', { key: problem.presetId }, t('agents.allowlist.item', { agent: problem.agentId, routes: problem.outside.join(', '), allowed: problem.allowed.join(', ') })))), t('agents.allowlist.hint'))) : null,
+          h('div', { className: 'sah-role-list-head' },
+            h('h3', null, t('workspace.roles')),
+            h('button', { type: 'button', className: 'sah-linkbtn', disabled: locked, onClick: () => addAgent() }, glyph('IconPlusOutlineRegular', '+'), t('workspace.addRole'))),
+          draft.agents.length ? h('div', { className: 'sah-role-accordions' }, draft.agents.map((agent, index) => h(RoleAccordion, {
+            key: agent._key, agent, index, routes: draft.routes, presets, known, problems, disabled: locked, t,
+            open: selectedRole === agent._key, onToggle: () => setSelectedRole(current => current === agent._key ? undefined : agent._key),
+            forceAdvanced: submitted && !!problems[`agent:${index}:id`],
+            onChange: next => updateAgent(index, next), onRemove: () => removeAgent(index),
+          }))) : h('div', { className: 'sah-role-empty' }, t('agents.none')),
+          h('details', { className: 'sah-role-templates' }, h('summary', null, t('workspace.templates')), templateRow)),
+        h('section', { className: 'sah-tab-panel', id: 'sah-page-models', role: 'tabpanel', 'aria-labelledby': 'sah-tab-models', hidden: activeTab !== 'models' },
         h(Panel, {
           icon: glyph('IconBrowseOutlineRegular', null),
           title: t('routes.title'),
@@ -1709,43 +1918,37 @@ window.__ModuleLoader__.load({
             onChange: next => updateRoute(index, next),
             onRemove: () => removeRoute(index),
             onMove: moveRoute,
-          })))),
-        h(Panel, {
-          icon: glyph('IconUsersOutlineRegular', null),
-          title: t('agents.title'),
-          hint: t('agents.hint'),
-        },
-        allowlistProblems.length === 0 ? null : h('div', { className: 'sah-notice sah-notice-warn', role: 'status' },
-          h('div', null,
-            h('strong', null, t('agents.allowlist.title')),
-            h('ul', { className: 'sah-notice-list' }, allowlistProblems.map(problem => h('li', { key: problem.presetId },
-              t('agents.allowlist.item', {
-                agent: problem.agentId,
-                routes: problem.outside.join(', '),
-                allowed: problem.allowed.join(', '),
-              })))),
-            h('span', null, t('agents.allowlist.hint')))),
-        draft.agents.length === 0
-          ? h('div', { className: 'sah-empty' },
-            h('span', null, t('agents.none')),
-            templateRow)
-          : h(React.Fragment, null,
-            templateRow,
-            h('div', { className: 'sah-list' }, draft.agents.map((agent, index) => h(AgentCard, {
-              key: agent._key,
-              agent,
-              index,
-              routes: draft.routes,
-              presets,
-              known,
-              problems,
+          }))))),
+        h('section', { className: 'sah-tab-panel', id: 'sah-page-general', role: 'tabpanel', 'aria-labelledby': 'sah-tab-general', hidden: activeTab !== 'general' },
+        h(Panel, { icon: glyph('IconSlidersTwoOutlineRegular', null), title: t('general.title'), hint: t('general.hint') },
+          h(SettingRow, {
+            title: t('concurrency.limit'),
+            hint: maxConcurrent === 0 ? t('concurrency.unlimitedHint') : t('concurrency.hint', { count: maxConcurrent }),
+          }, h('div', { className: 'sah-concurrency' },
+            h(Stepper, { value: maxConcurrent, disabled: locked, label: t('concurrency.limit'), t, onChange: next => setDraft(current => ({ ...current, maxConcurrent: next })) }),
+            h('div', { className: 'sah-chips', role: 'group', 'aria-label': t('concurrency.quick') },
+              quickLimits.map(limit => h('button', {
+                key: String(limit),
+                type: 'button',
+                className: 'sah-chipbtn',
+                'aria-pressed': maxConcurrent === limit,
+                disabled: locked,
+                onClick: () => setDraft(current => ({ ...current, maxConcurrent: limit })),
+              }, limit === 0 ? t('concurrency.unlimited') : String(limit)))))),
+          h(SettingRow, { title: t('overview.setting'), hint: t(overviewSupported || form?.state?.status !== 'ready' ? 'overview.settingHint' : 'overview.restartHint') },
+            h(Toggle, {
+              checked: draft.showAgentOverview,
+              disabled: locked || !overviewSupported,
+              label: t('overview.setting'),
+              onChange: next => setDraft(current => ({ ...current, showAgentOverview: next })),
+            })),
+          h(SettingRow, { title: t('official.switch'), hint: t('official.hint') },
+            h(Toggle, {
+              checked: draft.manageOfficialSettings,
               disabled: locked,
-              defaultOpen: agent._fresh === true,
-              forceOpen: submitted && Object.keys(problems).some(key => key.startsWith(`agent:${index}:`)),
-              t,
-              onChange: next => updateAgent(index, next),
-              onRemove: () => removeAgent(index),
-            }))))),
+              label: t('official.switch'),
+              onChange: next => setDraft(current => ({ ...current, manageOfficialSettings: next })),
+            }))),
         h('section', { className: 'sah-panel' },
           h('div', { className: 'sah-preview-head' },
             h('button', {
@@ -1766,7 +1969,7 @@ window.__ModuleLoader__.load({
             preview === ''
               ? h('p', { className: 'sah-notice' }, t('preview.empty'))
               : h('pre', { className: 'sah-preview' }, preview)) : null),
-        copyError ? h('p', { className: 'sah-notice sah-notice-error', role: 'status' }, t('preview.copyFailed')) : null,
+        copyError ? h('p', { className: 'sah-notice sah-notice-error', role: 'status' }, t('preview.copyFailed')) : null),
         h('div', { className: 'sah-footer' },
           h('div', { className: 'sah-footer-left', role: 'status' }, footerText),
           undo === undefined ? null : h('span', { className: 'sah-undo' },
@@ -1954,10 +2157,13 @@ window.__ModuleLoader__.load({
     }
 
     // ── native child / Team overview ──────────────────────────────────────────
-    // A non-modal side monitor: each card answers "what was it asked, what is it doing now,
+    // An official sidebar page: each card answers "what was it asked, what is it doing now,
     // what did it last say". The Hub's own `subagentHubActivity` projection supplies the
     // activity digest; native projections supply identity, model, timing and usage.
     const OVERVIEW_SLOT = 'conversation.session.header.actions'
+    const OVERVIEW_KIND = 'subagent-hub-overview'
+    const OVERVIEW_BODY_SLOT = 'sidebar.right.pane.tab'
+    const EMPTY_VISIBILITY = new Set()
     const ACTIVITY_PROJECTION = 'subagentHubActivity'
     const LIVE_REFRESH_MS = 3000
     /** A failure or interruption older than this is history, not something to act on. */
@@ -1971,7 +2177,9 @@ window.__ModuleLoader__.load({
     const SEEN_KEY = 'subagent-hub:overview-seen:'
     Object.assign(en, {
       'overview.setting': 'Show agent overview',
-      'overview.settingHint': 'Off by default. Adds a live agent monitor to the session header after saving; the official Agent Team UI is always available.',
+      'overview.sidebarHint': 'View child agents, their activity and token usage in the sidebar.',
+      'overview.disabled': 'Enable Show agent overview in Settings → Subagent Hub to view this page.',
+      'overview.settingHint': 'Off by default. Adds a header entry that opens the overview in the official right sidebar; the native Agent Team UI is always available.',
       'overview.triggerHint': 'Agent overview · {running} running / {total} total',
       'overview.triggerAttention': '{count} need attention',
       'overview.triggerRunning': '{count} running',
@@ -2000,6 +2208,16 @@ window.__ModuleLoader__.load({
       'overview.scopes': 'Write scopes', 'overview.pending': 'Pending', 'overview.in_progress': 'In progress',
       'overview.ready': 'Ready', 'overview.blocked': 'Blocked', 'overview.noTasks': 'No shared tasks recorded.',
       'overview.noTeam': 'Team projection unavailable; Team may be disabled.',
+      'overview.boardStatus': 'Task status', 'overview.boardOwner': 'Task owner',
+      'overview.boardShown': 'Showing {shown} of {total} tasks', 'overview.boardNoMatches': 'No tasks match these filters.',
+      'overview.boardPending': 'All pending', 'overview.boardDetails': 'Write scopes',
+      'overview.boardWaiting': 'Waiting for dependencies', 'overview.boardPrerequisites': 'Prerequisites',
+      'overview.boardReadinessUnknown': 'Not ready yet. Refresh to check dependency status.',
+      'overview.boardDependency': 'Go to {id}: {subject}', 'overview.boardMissing': '{id} · unavailable',
+      'overview.boardOpenOwner': 'Open {name}’s conversation', 'overview.boardOpenError': 'Could not open this member. Refresh and try again.',
+      'overview.boardNoOwnerNavigation': 'The owner is not available in the current Team roster.',
+      'overview.boardScopeOverlap': 'Write scopes overlap with {id}', 'overview.boardSharedScope': 'Shared write scope: {scope}',
+      'overview.boardReadOnly': 'Task changes are managed by the native Team runtime.',
       'overview.healthy': 'No projection errors reported.',
       'overview.coverage': 'Hub guard rejections reconstructed from committed tool results. This is not a log of every tool failure.',
       'overview.rejections': 'Dispatch rejections', 'overview.noRejections': 'No Hub guard rejections recorded.',
@@ -2033,12 +2251,19 @@ window.__ModuleLoader__.load({
       'overview.usageList': 'By agent', 'overview.usageHover': 'Hover a tile or row to see which agent it is.',
       'overview.usageAll': 'Show all {count}', 'overview.usageLess': 'Show top 10',
       'overview.usageState.running': 'Running', 'overview.usageState.failed': 'Failed or interrupted', 'overview.usageState.done': 'Finished',
+      'overview.usageState.idle': 'Idle', 'overview.usageState.unknown': 'Unknown status',
+      'overview.usageFilterHint': 'Click a status or model to hide or show it. Percentages use total usage.',
+      'overview.usageHide': 'Hide {name}', 'overview.usageShow': 'Show {name}', 'overview.usageShowAll': 'Show all',
+      'overview.usageFiltered': 'Showing {shown} of {total} agents · {tokens} tokens · {share} of total',
+      'overview.usageNoMatches': 'No agents match these filters. Show a status or model below, or show all.',
       'overview.usageNoneYet': 'no usage yet', 'overview.usageFailedChip': 'failed',
       'overview.usageEstimated': '{count} agents (≈) are estimated from session totals under their last route; a restart refolds them per request.',
     })
     Object.assign(zh, {
       'overview.setting': '显示子智能体总览',
-      'overview.settingHint': '默认关闭。保存后在会话标题栏显示子智能体实时监控入口；官方的智能体团队界面始终可用。',
+      'overview.sidebarHint': '在侧边栏查看子智能体、执行进展与 Token 用量。',
+      'overview.disabled': '在设置 → 子代理中枢中开启“显示子智能体总览”后查看。',
+      'overview.settingHint': '默认关闭。保存后可从会话标题栏在官方右侧栏打开总览；官方的智能体团队界面始终可用。',
       'overview.triggerHint': '子智能体总览 · {running} 个运行中 / 共 {total} 个',
       'overview.triggerAttention': '{count} 个需处理',
       'overview.triggerRunning': '{count} 个运行中',
@@ -2067,6 +2292,16 @@ window.__ModuleLoader__.load({
       'overview.scopes': '写入范围', 'overview.pending': '待处理', 'overview.in_progress': '进行中',
       'overview.ready': '可开始', 'overview.blocked': '依赖阻塞', 'overview.noTasks': '尚无共享任务记录。',
       'overview.noTeam': 'Team 投影不可用，可能未启用 Team。',
+      'overview.boardStatus': '任务状态', 'overview.boardOwner': '任务负责人',
+      'overview.boardShown': '显示 {shown}/{total} 项任务', 'overview.boardNoMatches': '没有符合筛选条件的任务。',
+      'overview.boardPending': '全部待处理', 'overview.boardDetails': '写入范围',
+      'overview.boardWaiting': '等待依赖完成', 'overview.boardPrerequisites': '前置任务',
+      'overview.boardReadinessUnknown': '尚未就绪，请刷新以核对依赖状态。',
+      'overview.boardDependency': '定位 {id}：{subject}', 'overview.boardMissing': '{id} · 记录不可用',
+      'overview.boardOpenOwner': '打开 {name} 的会话', 'overview.boardOpenError': '暂时无法打开该成员，请刷新后重试。',
+      'overview.boardNoOwnerNavigation': '当前 Team 名单中没有可打开的负责人会话。',
+      'overview.boardScopeOverlap': '与 {id} 的写入范围重叠', 'overview.boardSharedScope': '共享写入范围：{scope}',
+      'overview.boardReadOnly': '任务变更由原生 Team 管理。',
       'overview.healthy': '未报告投影错误。',
       'overview.coverage': '从持久化工具结果重建的 Hub 守卫拒绝记录，不包含其他工具错误。',
       'overview.rejections': '派发拒绝', 'overview.noRejections': '尚无 Hub 守卫拒绝记录。',
@@ -2100,6 +2335,11 @@ window.__ModuleLoader__.load({
       'overview.usageList': '按子智能体', 'overview.usageHover': '悬停格子或列表行，查看对应的子智能体。',
       'overview.usageAll': '显示全部 {count} 个', 'overview.usageLess': '只看前 10 个',
       'overview.usageState.running': '运行中', 'overview.usageState.failed': '失败或中断', 'overview.usageState.done': '已结束',
+      'overview.usageState.idle': '空闲', 'overview.usageState.unknown': '状态未知',
+      'overview.usageFilterHint': '点击状态或模型标签隐藏或恢复，百分比按总用量计算。',
+      'overview.usageHide': '隐藏“{name}”', 'overview.usageShow': '显示“{name}”', 'overview.usageShowAll': '全部显示',
+      'overview.usageFiltered': '显示 {shown}/{total} 个子智能体 · {tokens} token · 占总量 {share}',
+      'overview.usageNoMatches': '当前筛选下没有子智能体。可点击下方标签恢复，或全部显示。',
       'overview.usageNoneYet': '暂无用量', 'overview.usageFailedChip': '中断',
       'overview.usageEstimated': '{count} 个子智能体（≈）按会话总量估算，计入其最后使用的路线；重启 Harness 后会按每次请求重新统计。',
     })
@@ -2118,13 +2358,11 @@ window.__ModuleLoader__.load({
 .sah-overview-dot[data-state=failed],.sah-overview-dot[data-state=interrupted]{background:var(--dsw-alias-state-error-primary,#ff8a80)}
 .sah-overview-dot[data-attention=true]{background:var(--dsw-alias-state-warning-primary,#f5c26b)}
 @keyframes sah-overview-pulse{0%,100%{opacity:1}50%{opacity:.35}}
-@keyframes sah-overview-in{from{opacity:0;transform:translateX(8px)}to{opacity:1;transform:none}}
-.sah-overview{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:440px;height:600px;padding:0;border:0;border-radius:12px;--dsw-elevation-stroke-color:var(--dsw-alias-border-l1,#ffffff1f);box-shadow:var(--dsw-elevation-prominent,0 0 0 .5px #ffffff1f,0 3px 8px #0000000a,0 0 20px #0000000d);background:var(--dsw-specific-menu,#303136f0);-webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));backdrop-filter:var(--dsw-menu-backdrop-filter,blur(40px) saturate(150%));color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:20px;overflow:hidden;z-index:50;-webkit-app-region:no-drag}
-.sah-overview{display:none}.sah-overview[data-open]{display:flex;flex-direction:column;animation:sah-overview-in .16s cubic-bezier(.2,.8,.2,1)}
+.sah-overview{display:flex;flex-direction:column;box-sizing:border-box;width:100%;height:100%;min-width:0;min-height:0;padding:0;color:var(--dsw-alias-label-primary,#eee);font-size:13px;line-height:20px;overflow:hidden}
 .sah-overview *{box-sizing:border-box}.sah-overview h2{font-size:14px;font-weight:600;margin:0}.sah-overview h3{font-size:13px;font-weight:500;margin:0}.sah-overview p{margin:0;overflow-wrap:anywhere}
 .sah-overview-head{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 4px;padding:12px 10px 10px 16px;border-bottom:.5px solid var(--dsw-alias-border-l2,#ffffff1f)}
 .sah-overview-head-actions{display:flex;gap:2px}
-.sah-overview-summary{grid-column:1/-1;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
+.sah-overview-summary{min-width:0;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
 .sah-overview-body{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:10px 10px 16px 16px;display:grid;align-content:start;gap:10px}
 .sah-overview button,.sah-overview input{font:inherit;font-size:12px;color:inherit;border-radius:6px;min-height:28px}
 .sah-overview button{display:inline-flex;align-items:center;justify-content:center;gap:4px;padding:3px 8px;border:0;background:transparent;color:var(--dsw-alias-label-secondary,#bbb);cursor:pointer;white-space:nowrap;transition:background-color .12s ease-out,color .12s ease-out,transform .1s ease-out}
@@ -2175,6 +2413,33 @@ window.__ModuleLoader__.load({
 .sah-overview-notice{padding:8px 10px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);font-size:12px}
 .sah-overview-section{display:grid;gap:6px}
 .sah-overview-task-description{white-space:pre-wrap}
+
+.sah-task-board{display:grid;gap:10px;min-width:0}
+.sah-task-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sah-task-filters label{display:grid;gap:4px;min-width:0;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-task-filters select{min-width:0;width:100%;min-height:30px;padding:4px 8px;border:.5px solid var(--dsw-alias-border-l2,#ffffff1f);border-radius:6px;background:var(--dsw-alias-bg-layer-2,#232529);color:var(--dsw-alias-label-primary,#eee);font:inherit;font-size:12px}
+.sah-task-filters select:focus-visible,.sah-task-card:focus{outline:2px solid var(--dsw-alias-state-business-primary,#9bb8ff);outline-offset:2px}
+.sah-task-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:28px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-task-summary p{min-width:0}.sah-task-summary button{flex:none}
+.sah-task-card{scroll-margin-block:12px;gap:8px}
+.sah-task-card[data-located]{box-shadow:inset 2px 0 0 var(--dsw-alias-state-business-primary,#9bb8ff),var(--dsw-elevation-stroke,0 0 0 .5px #ffffff1f)}
+.sah-task-head{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:8px}
+.sah-task-title{display:flex;align-items:baseline;gap:8px;min-width:0}.sah-task-title .sah-overview-dot{align-self:center}
+.sah-task-title h3{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.sah-task-status{font-size:11px;line-height:18px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-task-status[data-state=ready]{color:color-mix(in srgb,var(--dsw-alias-state-success-primary,#7fd1a0) 45%,var(--dsw-alias-label-primary,#eee))}
+.sah-task-status[data-state=blocked]{color:color-mix(in srgb,var(--dsw-alias-state-warning-primary,#f5c26b) 45%,var(--dsw-alias-label-primary,#eee))}
+.sah-task-owner{display:flex;align-items:center;gap:4px 6px;flex-wrap:wrap;min-width:0;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-task-owner .sah-task-owner-link{min-height:24px;padding:2px 6px;white-space:normal;overflow-wrap:anywhere;background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}
+.sah-task-id{font-size:11px;font-variant-numeric:tabular-nums}
+.sah-task-description{font-size:12px;line-height:18px;white-space:pre-wrap;color:var(--dsw-alias-label-secondary,#bbb)}
+.sah-task-dependencies{display:flex;align-items:center;gap:4px 6px;flex-wrap:wrap;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-task-dependencies .sah-task-dependency{justify-content:flex-start;min-height:24px;max-width:100%;padding:2px 6px;white-space:normal;overflow-wrap:anywhere;background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}
+.sah-task-dependency[data-completed]{color:var(--dsw-alias-label-caption,#888)}
+.sah-task-dependency[data-missing]{font-size:12px;color:var(--dsw-alias-state-warning-primary,#f5c26b)}
+.sah-task-scopes{margin:4px 0 0;padding-inline-start:16px;font-size:12px;color:var(--dsw-alias-label-secondary,#bbb);overflow-wrap:anywhere}
+.sah-task-warning{font-size:12px;line-height:18px;color:color-mix(in srgb,var(--dsw-alias-state-warning-primary,#f5c26b) 45%,var(--dsw-alias-label-primary,#eee))}
+.sah-task-board .sah-task-warning-link{display:inline;min-height:24px;padding:2px 4px;color:inherit;text-align:start;white-space:normal;overflow-wrap:anywhere;text-decoration:underline;text-underline-offset:3px}
 .sah-overview-fresh{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;color:var(--dsw-alias-state-business-primary,#9bb8ff);background:color-mix(in srgb,var(--dsw-alias-state-business-primary,#9bb8ff) 16%,transparent)}
 .sah-overview-trigger-fresh{flex:none;min-width:16px;height:16px;padding:0 4px;border-radius:999px;font-size:11px;line-height:16px;text-align:center;font-variant-numeric:tabular-nums;color:#fff;background:var(--dsw-alias-state-business-primary,#5b8cff)}
 .sah-usage{display:grid;gap:14px}
@@ -2196,13 +2461,14 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-tile-inner[data-rest] strong{color:var(--dsw-alias-label-tertiary,#999)}
 .sah-usage-tile small{font-size:11px;line-height:14px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums;white-space:nowrap}
 .sah-usage-legend{display:grid;gap:6px;font-size:12px}
-.sah-usage-legend>span{display:flex;align-items:center;gap:6px;min-width:0}
+.sah-usage-legend>button{display:grid!important;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:4px 6px;min-width:0;width:100%;text-align:start;font-size:12px!important}
 .sah-usage-legend i,.sah-usage-list i{flex:none;width:8px;height:8px;border-radius:2px}
-.sah-usage-legend>span>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-usage-legend>button>i{width:10px;height:10px;background:var(--c);box-shadow:inset 0 0 0 1px var(--c)}
+.sah-usage-model{min-width:0;overflow-wrap:anywhere;white-space:normal}
+.sah-usage-tags{grid-column:2/-1;grid-row:2;display:flex;flex-wrap:wrap;gap:4px;min-width:0}
 .sah-usage-legend em,.sah-usage-list em{flex:none;font-style:normal;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
-.sah-usage-legend b{margin-inline-start:auto;flex:none;font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
+.sah-usage-legend b{grid-column:3;grid-row:1;white-space:nowrap;font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
 .sah-usage-list-head{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding-top:10px;border-top:.5px solid var(--dsw-alias-border-l2,#ffffff1f)}
-.sah-usage-list-head .sah-overview-filters{width:100%}
 .sah-usage-list-head .sah-overview-filters button{display:inline-flex;align-items:center;gap:6px;max-width:150px;min-width:0}
 .sah-usage-list-head .sah-overview-filters button span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sah-usage-list-head .sah-overview-filters i{flex:none;width:8px;height:8px;border-radius:2px}
@@ -2226,13 +2492,26 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-tile[data-status=running] .sah-usage-tile-inner::after{content:'';position:absolute;top:5px;right:5px;width:6px;height:6px;border-radius:50%;background:var(--c);animation:sah-overview-pulse 1.6s ease-in-out infinite}
 .sah-usage-tile[data-status=failed] .sah-usage-tile-inner{--c:var(--dsw-alias-state-error-primary,#ff8a80);background:repeating-linear-gradient(135deg,color-mix(in srgb,var(--c) 18%,transparent) 0 5px,color-mix(in srgb,var(--c) 10%,transparent) 5px 10px);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--c) 60%,transparent)}
 .sah-usage-tile[data-status=failed] .sah-usage-tile-inner strong,.sah-usage-tile[data-status=failed] .sah-usage-tile-inner b{color:var(--c)}
-.sah-usage-states{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);margin-top:-6px}
-.sah-usage-states span{display:inline-flex;align-items:center;gap:6px}
+.sah-usage-states{display:flex;flex-wrap:wrap;gap:4px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);margin-top:-6px}
+.sah-usage-states button{display:inline-flex;align-items:center;gap:6px;font-size:12px!important}
+.sah-usage-states button,.sah-usage-legend>button{min-height:30px!important;padding:4px 6px!important;border-radius:6px;border:1px solid transparent!important}
+.sah-usage-states button[aria-pressed=false],.sah-usage-legend>button[aria-pressed=false]{color:var(--dsw-alias-label-caption,#888)!important}
+.sah-usage-states button[aria-pressed=false]>i,.sah-usage-legend>button[aria-pressed=false]>i{background:transparent!important;box-shadow:inset 0 0 0 1px var(--c,var(--dsw-alias-label-caption,#888))!important}
+.sah-usage-states button[aria-pressed=false] b,.sah-usage-legend>button[aria-pressed=false] b{color:inherit}
+.sah-usage-legend>button[aria-pressed=false] .sah-usage-tags{opacity:.55}
+.sah-usage-filter-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-filter-summary button{flex:none}
+.sah-usage-map-empty{height:200px;display:grid;place-items:center;text-align:center;padding:20px;font-size:12px;color:var(--dsw-alias-label-tertiary,#999);border:1px dashed var(--dsw-alias-border-l2,#ffffff1f);border-radius:8px}
+.sah-usage button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#9bb8ff);outline-offset:2px}
 .sah-usage-states b{font-weight:400;color:var(--dsw-alias-label-secondary,#ccc);font-variant-numeric:tabular-nums}
 .sah-usage-states i{width:10px;height:10px;border-radius:3px}
+.sah-usage-states [data-status=running]{--c:#8fa8ff}
+.sah-usage-states [data-status=failed]{--c:#ff8a80}
 .sah-usage-states [data-status=running] i{background:#8fa8ff4d;box-shadow:inset 0 0 0 1.5px #8fa8ff}
 .sah-usage-states [data-status=failed] i{background:repeating-linear-gradient(135deg,#ff8a804d 0 2px,#ff8a801a 2px 4px);box-shadow:inset 0 0 0 1px #ff8a80}
 .sah-usage-states [data-status=done] i{background:#ffffff0d;box-shadow:inset 0 0 0 1px #ffffff2e}
+.sah-usage-states [data-status=idle] i{border:1px solid var(--dsw-alias-label-tertiary,#999)}
+.sah-usage-states [data-status=unknown] i{border:1px dashed var(--dsw-alias-label-tertiary,#999)}
 .sah-usage-list u{display:inline-block;width:6px;height:6px;margin-inline-end:6px;border-radius:50%;vertical-align:middle;background:var(--dsw-alias-state-business-primary,#9bb8ff);animation:sah-overview-pulse 1.6s ease-in-out infinite;text-decoration:none}
 .sah-usage-list li[data-status=done]>* span:nth-of-type(1){color:var(--dsw-alias-label-secondary,#bbb)}
 .sah-usage-list li[data-status=running]>* span:nth-of-type(1){font-weight:500}
@@ -2244,7 +2523,7 @@ button.sah-usage-tile{cursor:pointer}
 .sah-usage-list b{font-weight:400;text-align:end;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-secondary,#ccc)}
 .sah-overview-tag{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
 .sah-overview-foot{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);display:grid;gap:2px}
-@media(prefers-reduced-motion:reduce){.sah-overview[data-open],.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
+@media(prefers-reduced-motion:reduce){.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
 `
 
     function overviewDuration(timing, running, now) {
@@ -2419,11 +2698,17 @@ button.sah-usage-tile{cursor:pointer}
         agents: agents.filter(agent => agent.value > 0 || agent.status === 'running').sort((a, b) => b.value - a.value),
         routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
     }
-    /** Three visual states for usage tiles: live, failed (failed or interrupted), and finished. */
+    /** An idle continuable member or an unknown status must never imply task completion. */
     function usageStatus(row) {
       if (row.status === 'running' || row.status === 'provisioning') return 'running'
       if (row.status === 'failed' || row.status === 'interrupted') return 'failed'
-      return 'done'
+      if (row.status === 'completed') return 'done'
+      if (row.status === 'inactive') return 'idle'
+      return 'unknown'
+    }
+    /** Status and model exclusions apply together to both the map and the list. */
+    function usageVisible(agents, { hiddenStatuses = [], hiddenRoutes = [] } = {}) {
+      return agents.filter(agent => !hiddenStatuses.includes(agent.status) && !hiddenRoutes.includes(agent.routeKey))
     }
     /**
      * The agents that get their own treemap tile: every running one, then the largest others,
@@ -2558,20 +2843,112 @@ button.sah-usage-tile{cursor:pointer}
             activity?.task ? h(React.Fragment, null, h('dt', null, t('overview.task')), h('dd', { className: 'sah-overview-task-description' }, activity.task.text)) : null),
           row.readState === 'migration-required' ? h('p', null, t('overview.migration')) : null))
     }
-    function OverviewTasks({ tasks, teamAvailable, t }) {
+    function taskBoardState(task) {
+      if (task.status !== 'pending') return task.status
+      return task.ready === true ? 'ready' : task.ready === false ? 'blocked' : 'pending'
+    }
+    function taskBoardOwnerKey(task) {
+      return typeof task.ownerName === 'string' && task.ownerName !== '' ? `owner:${task.ownerName}` : 'unassigned'
+    }
+    function taskBoardFilter(tasks, { status = 'all', owner = 'all' } = {}) {
+      return tasks.filter(task => task.status !== 'deleted'
+        && (status === 'all' || (status === 'pending' ? task.status === 'pending' : taskBoardState(task) === status))
+        && (owner === 'all' || taskBoardOwnerKey(task) === owner))
+    }
+    /** Team task views name owners; only an exact, unique authoritative roster match is navigable. */
+    function taskBoardOwner(task, rows = []) {
+      if (taskBoardOwnerKey(task) === 'unassigned') return undefined
+      const matches = rows.filter(row => row.kind === 'team' && row.name === task.ownerName)
+      return matches.length === 1 && matches[0].address ? matches[0] : undefined
+    }
+    function taskBoardDependencies(task, tasks) {
+      const byId = new Map(tasks.map(item => [String(item.id), item]))
+      return [...new Set(task.blockedBy ?? [])].map(id => ({ id: String(id), task: byId.get(String(id)) }))
+    }
+    function OverviewTasks({ tasks, teamAvailable, t, rows = [], openChild }) {
+      const [filters, setFilters] = React.useState({ status: 'all', owner: 'all' })
+      const [focus, setFocus] = React.useState(undefined)
+      const [opening, setOpening] = React.useState(undefined)
+      const [error, setError] = React.useState(undefined)
+      const cards = React.useRef(new Map())
+      const nextFocus = React.useRef(0)
+      const idPrefix = React.useId()
+      React.useEffect(() => {
+        if (focus === undefined) return
+        const card = cards.current.get(focus.id)
+        card?.scrollIntoView?.({ block: 'nearest' })
+        card?.focus({ preventScroll: true })
+      }, [focus])
       if (!teamAvailable) return h('p', { role: 'status' }, t('overview.noTeam'))
-      if (!tasks.length) return h('p', null, t('overview.noTasks'))
-      return h('ul', { className: 'sah-overview-list' }, ...tasks.map(task => h('li', { key: task.id, className: 'sah-overview-card' },
-        h('div', { className: 'sah-overview-card-head' },
-          h('span', { className: 'sah-overview-dot', 'data-state': task.status === 'completed' ? 'completed' : task.status === 'in_progress' ? 'running' : 'inactive', 'aria-hidden': true }),
-          h('h3', null, task.subject),
-          h('span', { className: 'sah-overview-state' }, [t(`overview.${task.status}`), task.status === 'pending' ? t(task.ready ? 'overview.ready' : 'overview.blocked') : undefined].filter(Boolean).join(' · '))),
-        h('p', { className: 'sah-overview-model' }, `${task.id} · ${t('overview.owner')}: ${task.ownerName ?? t('overview.unowned')}`),
-        h('details', null, h('summary', null, t('overview.details')),
-          h('p', { className: 'sah-overview-task-description', style: { marginTop: 6 } }, task.description),
-          h('dl', { className: 'sah-overview-evidence' }, h('dt', null, t('overview.dependencies')), h('dd', null, task.blockedBy?.join(', ') || '—'),
-            h('dt', null, t('overview.scopes')), h('dd', null, task.writeScopes?.join('\n') || '—'))),
-        ...(task.writeScopeWarnings ?? []).map((warning, index) => h('p', { key: index, className: 'sah-overview-error' }, warning)))))
+      const all = taskBoardFilter(tasks)
+      if (!all.length) return h('p', null, t('overview.noTasks'))
+      const visible = taskBoardFilter(all, filters)
+      // Keep an emptied selection visible after live reassignment instead of displaying “All” for a still-active filter.
+      const ownerKeys = [...new Set([...all.map(taskBoardOwnerKey), ...(filters.owner === 'all' ? [] : [filters.owner])])]
+      const isFiltered = filters.status !== 'all' || filters.owner !== 'all'
+      const labelOfState = state => t(`overview.${state}`)
+      const reset = () => { setFilters({ status: 'all', owner: 'all' }); setFocus(undefined) }
+      const locate = id => {
+        setFilters({ status: 'all', owner: 'all' })
+        setFocus({ id: String(id), request: ++nextFocus.current })
+      }
+      const navigate = async owner => {
+        setOpening(owner.id)
+        setError(undefined)
+        try { await openChild(owner.address) }
+        catch { setError(t('overview.boardOpenError')) }
+        finally { setOpening(undefined) }
+      }
+      return h('section', { className: 'sah-task-board', 'aria-label': t('overview.tasks') },
+        h('div', { className: 'sah-task-filters' },
+          h('label', null, t('overview.boardStatus'), h('select', { value: filters.status, onChange: event => { setFilters(old => ({ ...old, status: event.target.value })); setFocus(undefined) } },
+            ...['all', 'pending', 'ready', 'blocked', 'in_progress', 'completed'].map(status => h('option', { key: status, value: status },
+              `${status === 'all' ? t('overview.all') : status === 'pending' ? t('overview.boardPending') : labelOfState(status)} (${taskBoardFilter(all, { status }).length})`)))),
+          h('label', null, t('overview.boardOwner'), h('select', { value: filters.owner, onChange: event => { setFilters(old => ({ ...old, owner: event.target.value })); setFocus(undefined) } },
+            h('option', { value: 'all' }, t('overview.all')),
+            ...ownerKeys.map(key => h('option', { key, value: key }, `${key === 'unassigned' ? t('overview.unowned') : key.slice('owner:'.length)} (${taskBoardFilter(all, { owner: key }).length})`))))),
+        h('div', { className: 'sah-task-summary' },
+          h('p', { role: 'status' }, t('overview.boardShown', { shown: visible.length, total: all.length })),
+          isFiltered ? h('button', { type: 'button', onClick: reset }, t('overview.reset')) : null),
+        error ? h('p', { role: 'alert', className: 'sah-overview-error' }, error) : null,
+        visible.length ? h('ul', { className: 'sah-overview-list' }, ...visible.map(task => {
+          const state = taskBoardState(task)
+          const owner = taskBoardOwner(task, rows)
+          const dependencies = taskBoardDependencies(task, all)
+          const unresolved = dependencies.filter(item => item.task?.status !== 'completed')
+          const shownDependencies = state === 'blocked' && unresolved.length ? unresolved : dependencies
+          const scopeWarnings = task.writeScopeWarnings ?? []
+          return h('li', { key: task.id, id: `${idPrefix}-${task.id}`, className: 'sah-overview-card sah-task-card', tabIndex: -1,
+            ref: node => { if (node) cards.current.set(String(task.id), node); else cards.current.delete(String(task.id)) },
+            'data-task-id': task.id, 'data-located': focus?.id === String(task.id) ? '' : undefined },
+            h('div', { className: 'sah-task-head' },
+              h('div', { className: 'sah-task-title' }, h('span', { className: 'sah-overview-dot', 'data-state': state === 'completed' ? 'completed' : state === 'in_progress' ? 'running' : 'inactive', 'aria-hidden': true }), h('h3', null, task.subject)),
+              h('span', { className: 'sah-task-status', 'data-state': state }, labelOfState(state))),
+            h('div', { className: 'sah-task-owner' }, h('span', { className: 'sah-task-id' }, task.id), h('span', { 'aria-hidden': true }, '·'), h('span', null, `${t('overview.owner')}：`),
+              owner && openChild ? h('button', { type: 'button', className: 'sah-task-owner-link', disabled: opening === owner.id,
+                title: t('overview.boardOpenOwner', { name: task.ownerName }), onClick: () => navigate(owner) }, task.ownerName)
+                : h('span', { title: task.ownerName ? t('overview.boardNoOwnerNavigation') : undefined }, task.ownerName || t('overview.unowned'))),
+            task.description ? h('p', { className: 'sah-task-description' }, task.description) : null,
+            shownDependencies.length ? h('div', { className: 'sah-task-dependencies' },
+              h('span', null, t(state === 'blocked' && unresolved.length ? 'overview.boardWaiting' : 'overview.boardPrerequisites')),
+              ...shownDependencies.map(dependency => dependency.task
+                ? h('button', { type: 'button', key: dependency.id, className: 'sah-task-dependency', 'data-completed': dependency.task.status === 'completed' ? '' : undefined,
+                  'aria-controls': `${idPrefix}-${dependency.id}`, title: t('overview.boardDependency', { id: dependency.id, subject: dependency.task.subject }),
+                  onClick: () => locate(dependency.id) }, dependency.task.subject || dependency.id)
+                : h('span', { key: dependency.id, className: 'sah-task-dependency', 'data-missing': '' }, t('overview.boardMissing', { id: dependency.id })))) : null,
+            state === 'blocked' && !unresolved.length ? h('p', { className: 'sah-task-warning' }, t('overview.boardReadinessUnknown')) : null,
+            ...(scopeWarnings.map((warning, index) => {
+              const overlap = /^write scopes overlap with (.+)$/.exec(warning)
+              const shared = /^Shared write scope: (.+)$/.exec(warning)
+              const text = overlap ? t('overview.boardScopeOverlap', { id: overlap[1] }) : shared ? t('overview.boardSharedScope', { scope: shared[1] }) : warning
+              const target = overlap && all.find(item => String(item.id) === overlap[1])
+              return h('p', { key: index, className: 'sah-task-warning' }, target
+                ? h('button', { type: 'button', className: 'sah-task-warning-link', onClick: () => locate(target.id) }, text) : text)
+            })),
+            task.writeScopes?.length ? h('details', null, h('summary', null, `${t('overview.boardDetails')} (${task.writeScopes.length})`),
+              h('ul', { className: 'sah-task-scopes' }, ...task.writeScopes.map((scope, index) => h('li', { key: index }, scope)))) : null)
+        })) : h('p', { className: 'sah-overview-muted', role: 'status' }, t('overview.boardNoMatches')),
+        h('p', { className: 'sah-overview-muted', style: { fontSize: 11 } }, t('overview.boardReadOnly')))
     }
     const FILTERS_FROM = 5
     /** Route colors, in route order; tuned for the dark menu surface. */
@@ -2618,17 +2995,27 @@ button.sah-usage-tile{cursor:pointer}
       if (row.length) place(row)
       return out.map(rect => ({ left: rect.x / w * 100, top: rect.y / h * 100, width: rect.w / w * 100, height: rect.h / h * 100, px: rect }))
     }
-    function OverviewUsage({ usage, groups = [], t, openChild }) {
-      const [filter, setFilter] = React.useState('all')
+    function OverviewUsage({ usage, groups = [], t, openChild, filters, onFiltersChange }) {
+      const [localFilters, setLocalFilters] = React.useState({ hiddenStatuses: [], hiddenRoutes: [] })
+      const activeFilters = filters ?? localFilters
+      const setFilters = onFiltersChange ?? setLocalFilters
       const [hot, setHot] = React.useState(undefined)
       const [expanded, setExpanded] = React.useState(false)
       if (!usage.routes.length) return h('p', { className: 'sah-overview-muted' }, t('overview.usageEmpty'))
+      const filtered = usageVisible(usage.agents, activeFilters)
+      const visibleTotal = filtered.reduce((sum, agent) => sum + agent.value, 0)
+      const isFiltered = activeFilters.hiddenStatuses.length > 0 || activeFilters.hiddenRoutes.length > 0
+      const toggle = (field, value) => {
+        setFilters(old => ({ ...old, [field]: old[field].includes(value) ? old[field].filter(item => item !== value) : [...old[field], value] }))
+        setHot(undefined)
+      }
+      const reset = () => { setFilters({ hiddenStatuses: [], hiddenRoutes: [] }); setHot(undefined) }
       const percent = value => `${value >= 0.995 || value === 0 ? Math.round(value * 100) : value < 0.01 ? '<1' : Math.round(value * 100)}%`
       const colorOf = new Map(usage.routes.map((item, index) => [item.key, USAGE_COLORS[index % USAGE_COLORS.length]]))
       const nameOf = new Map(usage.routes.map(item => [item.key, routeLabel(groups, item).value]))
       const rate = overviewCacheRate(usage)
       // The biggest agents get their own tile; the long tail shares one so labels stay legible.
-      const { tiles: own, rest: tail } = usageTiles(usage.agents)
+      const { tiles: own, rest: tail } = usageTiles(filtered)
       const restValue = tail.reduce((sum, item) => sum + item.value, 0)
       // Squarified layout wants descending areas, so the shared tile takes its place by size.
       const tiles = [...own, ...(tail.length && restValue > 0 ? [{ id: 'rest', name: t('overview.usageRest', { count: tail.length }), value: restValue, area: restValue }] : [])]
@@ -2637,14 +3024,13 @@ button.sah-usage-tile{cursor:pointer}
       const statusCount = status => new Set(usage.agents.filter(agent => agent.status === status).map(agent => agent.rowId)).size
       // One rank per agent, shared by tiles and rows, so a small unlabeled tile can be found below.
       const rank = new Map(usage.agents.map((agent, index) => [agent.id, index + 1]))
-      const filtered = usage.agents.filter(agent => filter === 'all' || agent.routeKey === filter)
       // Collapsed, the list keeps the top 10 plus every running agent, in rank order.
       const listed = expanded ? filtered : filtered.filter((agent, index) => index < USAGE_LIST_TOP || agent.status === 'running')
       const max = Math.max(1, ...filtered.map(agent => agent.value))
       // Mark estimates per row only when they are mixed; when all are estimated the footer says so once.
       const mixed = usage.estimated > 0 && usage.estimated < new Set(usage.agents.map(agent => agent.rowId)).size
       const share = value => percent(usage.total ? value / usage.total : 0)
-      const hotAgent = hot === undefined ? undefined : tiles.find(tile => tile.id === hot) ?? usage.agents.find(agent => agent.id === hot)
+      const hotAgent = hot === undefined ? undefined : tiles.find(tile => tile.id === hot) ?? filtered.find(agent => agent.id === hot)
       const hover = id => ({ onMouseEnter: () => setHot(id), onMouseLeave: () => setHot(undefined), onFocus: () => setHot(id), onBlur: () => setHot(undefined) })
       const open = agent => (agent.address && openChild ? () => openChild(agent.address) : undefined)
       return h('section', { className: 'sah-usage' },
@@ -2660,7 +3046,8 @@ button.sah-usage-tile{cursor:pointer}
             h('p', { className: 'sah-usage-mid' }, rate === undefined ? '—' : percent(rate)),
             h('span', { className: 'sah-overview-bar sah-usage-cache-bar', role: 'img', 'aria-label': rate === undefined ? '—' : percent(rate) },
               h('span', { style: { width: `${Math.round((rate ?? 0) * 100)}%` } })))),
-        h('div', { className: 'sah-usage-map', role: 'img', 'aria-label': t('overview.usageMap') }, ...tiles.map((tile, index) => {
+        filtered.length === 0 ? h('div', { className: 'sah-usage-map-empty', role: 'status' }, t('overview.usageNoMatches'))
+          : h('div', { className: 'sah-usage-map', role: 'group', 'aria-label': t('overview.usageMap') }, ...tiles.map((tile, index) => {
           const rect = rects[index]
           if (!rect) return null
           const color = colorOf.get(tile.routeKey) ?? '#8c8c94'
@@ -2683,20 +3070,33 @@ button.sah-usage-tile{cursor:pointer}
             h('span', null, hotAgent.id === 'rest' ? hotAgent.name : `${rank.get(hotAgent.id)}. ${hotAgent.name}`),
             h('b', null, `${overviewCount(hotAgent.value)} · ${share(hotAgent.value)}`))
           : h('span', { className: 'sah-overview-muted' }, t('overview.usageHover'))),
-        h('div', { className: 'sah-usage-states' }, ...['running', 'failed', 'done'].map(status => h('span', { key: status, 'data-status': status },
-          h('i', { 'aria-hidden': true }), t(`overview.usageState.${status}`), h('b', null, statusCount(status))))),
-        h('div', { className: 'sah-usage-legend' }, ...usage.routes.map(item => h('span', { key: item.key, title: `${item.provider} / ${item.model}` },
-          h('i', { style: { background: colorOf.get(item.key) } }),
-          h('span', null, nameOf.get(item.key)),
-          ...(item.tags ?? []).slice(0, 3).map(tag => h('em', { key: tag }, tag)),
-          item.routeId === undefined ? h('em', null, t('overview.usageUnrouted')) : null,
-          h('b', null, `${overviewCount(item.total)} · ${percent(item.share)}`)))),
-        h('div', { className: 'sah-usage-list-head' },
-          h('h3', null, t('overview.usageList')),
-          usage.routes.length > 1 ? h('div', { className: 'sah-overview-filters', role: 'group', 'aria-label': t('overview.usageList') },
-            ...[{ key: 'all' }, ...usage.routes].map(item => h('button', { type: 'button', key: item.key, 'aria-pressed': filter === item.key, onClick: () => setFilter(item.key) },
-              item.key === 'all' ? t('overview.all') : h(React.Fragment, null, h('i', { style: { background: colorOf.get(item.key) } }),
-                h('span', { title: nameOf.get(item.key) }, modelIdTail(item.model)))))) : null),
+        h('p', { className: 'sah-overview-muted', style: { fontSize: 12 } }, t('overview.usageFilterHint')),
+        h('div', { className: 'sah-usage-states', role: 'group', 'aria-label': t('overview.state') },
+          ...['running', 'failed', 'done', 'idle', 'unknown'].filter(status => statusCount(status) > 0 || activeFilters.hiddenStatuses.includes(status)).map(status => {
+            const visible = !activeFilters.hiddenStatuses.includes(status)
+            const name = t(`overview.usageState.${status}`)
+            return h('button', { type: 'button', key: status, 'data-status': status, 'aria-pressed': visible,
+              title: t(visible ? 'overview.usageHide' : 'overview.usageShow', { name }), onClick: () => toggle('hiddenStatuses', status) },
+            h('i', { 'aria-hidden': true }), name, h('b', null, statusCount(status)))
+          })),
+        h('div', { className: 'sah-usage-legend', role: 'group', 'aria-label': t('overview.model') }, ...usage.routes.map(item => {
+          const visible = !activeFilters.hiddenRoutes.includes(item.key)
+          return h('button', { type: 'button', key: item.key, 'aria-pressed': visible,
+          title: `${item.provider} / ${item.model} · ${t(visible ? 'overview.usageHide' : 'overview.usageShow', { name: nameOf.get(item.key) })}`,
+          onClick: () => toggle('hiddenRoutes', item.key) },
+          h('i', { 'aria-hidden': true, style: { '--c': colorOf.get(item.key) } }),
+          h('span', { className: 'sah-usage-model' }, nameOf.get(item.key)),
+          (item.tags?.length || item.routeId === undefined) ? h('span', { className: 'sah-usage-tags' },
+            ...(item.tags ?? []).slice(0, 3).map(tag => h('em', { key: tag }, tag)),
+            item.routeId === undefined ? h('em', null, t('overview.usageUnrouted')) : null) : null,
+          h('b', null, `${overviewCount(item.total)} · ${percent(item.share)}`))
+        })),
+        isFiltered ? h('div', { className: 'sah-usage-filter-summary' },
+          h('p', { role: 'status' }, t('overview.usageFiltered', { shown: new Set(filtered.map(agent => agent.rowId)).size,
+            total: new Set(usage.agents.map(agent => agent.rowId)).size,
+            tokens: overviewCount(visibleTotal), share: share(visibleTotal) })),
+          h('button', { type: 'button', onClick: reset }, t('overview.usageShowAll'))) : null,
+        h('div', { className: 'sah-usage-list-head' }, h('h3', null, t('overview.usageList'))),
         h('ol', { className: 'sah-usage-list' }, ...listed.map(agent => {
           const action = open(agent)
           return h('li', { key: agent.id, 'data-status': agent.status, 'data-hot': hot === agent.id || (hot === 'rest' && !tiles.some(tile => tile.id === agent.id)) ? '' : undefined },
@@ -2720,6 +3120,7 @@ button.sah-usage-tile{cursor:pointer}
     function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now(), fresh = new Set(), routes = [] }) {
       const [tab, setTab] = React.useState('members')
       const [filters, setFilters] = React.useState({ search: '', status: 'all' })
+      const [usageFilters, setUsageFilters] = React.useState({ hiddenStatuses: [], hiddenRoutes: [] })
       const rows = overviewFilter(data.rows, filters, groups, fresh)
       const usage = overviewUsage(data.rows, routes)
       const issues = [...data.issues, ...errors]
@@ -2744,8 +3145,8 @@ button.sah-usage-tile{cursor:pointer}
           !data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable')) : null,
           rows.length ? h('ul', { className: 'sah-overview-list' }, ...rows.map(row => h(OverviewMember, { key: row.id, row, currentId, openChild, t, groups, now, fresh: fresh.has(row.id) })))
             : data.rows.length || data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.rows.length ? 'overview.noMatches' : 'overview.empty')) : null)
-          : shown === 'usage' ? h(OverviewUsage, { usage, groups, t, openChild })
-          : shown === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, t })
+          : shown === 'usage' ? h(OverviewUsage, { usage, groups, t, openChild, filters: usageFilters, onFiltersChange: setUsageFilters })
+          : shown === 'tasks' ? h(OverviewTasks, { tasks: data.tasks, teamAvailable: data.teamAvailable, rows: data.rows, openChild, t })
             : h('section', { className: 'sah-overview-section' }, h('h3', null, t('overview.diagnostics')),
               issues.length ? h('ul', null, ...issues.map((issue, index) => h('li', { key: index }, h('code', null, issue.id), ': ', issue.message))) : h('p', { className: 'sah-overview-muted' }, t('overview.healthy')),
               h('h3', null, t('overview.rejections')),
@@ -2763,35 +3164,33 @@ button.sah-usage-tile{cursor:pointer}
                 data.teamAvailable ? h('p', null, t('overview.inactiveNote')) : null,
                 h('p', null, t('overview.coverage')))))
     }
-    /**
-     * The session header is a size container with clipped overflow, so an in-place fixed panel
-     * would be positioned and cut off by it. A manual popover lives in the top layer instead,
-     * without making the panel modal or light-dismissed.
-     */
-    function showOverview(panel) {
-      if (!panel) return
-      try { if (typeof panel.showPopover === 'function' && !panel.matches(':popover-open')) panel.showPopover() } catch {}
-    }
-    function hideOverview(panel) {
-      if (!panel) return
-      try { if (typeof panel.hidePopover === 'function' && panel.matches(':popover-open')) panel.hidePopover() } catch {}
-    }
-    /** Pin the non-modal monitor under its trigger at the window's right edge, zoom-safe. */
-    function placeOverview(panel, anchor) {
-      const win = panel.ownerDocument.defaultView
-      const rect = anchor.getBoundingClientRect()
-      panel.style.left = '0px'
-      panel.style.top = '0px'
-      const origin = panel.getBoundingClientRect()
-      const scaleX = origin.width / panel.offsetWidth || 1
-      const scaleY = origin.height / panel.offsetHeight || 1
-      const margin = win.innerWidth <= 520 ? 8 : 12
-      const width = Math.min(460, win.innerWidth - margin * 2)
-      const top = Math.min(Math.max(margin, rect.bottom + 6), win.innerHeight - 240)
-      panel.style.width = `${width / scaleX}px`
-      panel.style.height = `${Math.max(240, win.innerHeight - top - margin) / scaleY}px`
-      panel.style.left = `${(win.innerWidth - width - margin - origin.left) / scaleX}px`
-      panel.style.top = `${(top - origin.top) / scaleY}px`
+    /** Derived visibility only: the official useTabInfo hook owns every tab's lifetime. */
+    function createOverviewVisibility() {
+      const views = new Map()
+      const listeners = new Set()
+      let snapshot = new Set()
+      const publish = () => {
+        const next = new Set(views.keys())
+        if (next.size === snapshot.size && [...next].every(id => snapshot.has(id))) return
+        snapshot = next
+        for (const listener of listeners) listener()
+      }
+      return {
+        getSnapshot: () => snapshot,
+        subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener) },
+        enter(rootId) {
+          const token = Symbol()
+          const entries = views.get(rootId) ?? new Set()
+          entries.add(token)
+          views.set(rootId, entries)
+          publish()
+          return () => {
+            entries.delete(token)
+            if (entries.size === 0 && views.get(rootId) === entries) views.delete(rootId)
+            publish()
+          }
+        },
+      }
     }
     /** Per-conversation "seen up to" time; the first visit starts now so old history is not news. */
     function readSeen(rootId) {
@@ -2805,20 +3204,18 @@ button.sah-usage-tile{cursor:pointer}
       try { globalThis.localStorage?.setItem(SEEN_KEY + rootId, String(time)) } catch {}
       return time
     }
-    function AgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t, routes = [] }) {
+    function useAgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t, routes = [], visibility, tab }) {
       const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
       const state = useSessions(value => value)
       const statuses = useSessionStatus(value => value)
       const catalog = useSnapshot(names, NO_CATALOG)
-      const [open, setOpen] = React.useState(false)
+      const shown = useSnapshot(visibility, EMPTY_VISIBILITY)
+      const open = tab === undefined ? shown.has(rootId) : tab.visible
       const [now, setNow] = React.useState(Date.now)
       const [busy, setBusy] = React.useState(false)
       const [errors, setErrors] = React.useState([])
-      const dialog = React.useRef(null)
-      const trigger = React.useRef(null)
       const generation = React.useRef(0)
       const data = overviewData(rootId, state, statuses, now)
-      const titleId = React.useId()
       // "New" = a report or finished turn after the last time the panel was looked at. Status
       // pushes arrive while closed even when digests are stale, so a running → stopped transition
       // observed meanwhile also counts.
@@ -2835,8 +3232,16 @@ button.sah-usage-tile{cursor:pointer}
       }, [runningNow.join('\n'), open])
       const fresh = open ? highlight : overviewFresh(data.rows, seen, settled)
       const markSeen = React.useCallback(() => { setSeen(writeSeen(rootId, Date.now())); setSettled(new Set()) }, [rootId])
-      const close = React.useCallback(() => { hideOverview(dialog.current); setOpen(false); markSeen(); trigger.current?.focus() }, [markSeen])
-      const openPanel = () => { setHighlight(overviewFresh(data.rows, seen, settled)); markSeen(); setOpen(true) }
+      React.useEffect(() => {
+        if (tab?.visible) return visibility?.enter(rootId)
+      }, [visibility, rootId, tab?.id, tab?.visible])
+      React.useEffect(() => {
+        if (!open) return
+        setHighlight(overviewFresh(data.rows, seen, settled))
+        setNow(Date.now())
+        markSeen()
+        return markSeen
+      }, [open, markSeen])
       const refresh = React.useCallback(async () => {
         const run = ++generation.current
         const cancelled = () => generation.current !== run
@@ -2849,47 +3254,38 @@ button.sah-usage-tile{cursor:pointer}
         if (!cancelled()) { setErrors(failures); setBusy(false) }
       }, [sessions, rootId])
       React.useEffect(() => {
-        if (!open) return
-        const panel = dialog.current
-        showOverview(panel)
-        const place = () => { if (panel && trigger.current) placeOverview(panel, trigger.current) }
-        place()
-        const win = panel?.ownerDocument.defaultView
-        win?.addEventListener('resize', place)
-        setNow(Date.now())
-        panel?.querySelector('[data-overview-close]')?.focus()
+        if (tab === undefined || !open) return
         refresh()
-        return () => { generation.current++; win?.removeEventListener('resize', place); hideOverview(panel) }
-      }, [open, refresh])
-      React.useEffect(() => { setOpen(false); setErrors([]); setBusy(false) }, [sessionId])
+        return () => { generation.current++ }
+      }, [open, refresh, tab?.id])
       // Closed: keep the trigger honest about stalls and new results at a gentler pace.
       const backgroundIds = data.rows.filter(row => row.status === 'running').map(row => row.id).join('\n')
       React.useEffect(() => {
-        if (open || backgroundIds === '') return
+        if (tab !== undefined || open || backgroundIds === '') return
         let stopped = false
         const timer = setInterval(() => {
           setNow(Date.now())
           if (!stopped) refreshOverview(sessions, undefined, backgroundIds.split('\n'), () => stopped).catch(() => {})
         }, BACKGROUND_REFRESH_MS)
         return () => { stopped = true; clearInterval(timer) }
-      }, [open, backgroundIds, sessions])
+      }, [open, tab?.id, backgroundIds, sessions])
       // Live while open: tick elapsed times every second, re-read running agents every few.
       const runningIds = data.rows.filter(row => row.status === 'running' || row.status === 'provisioning').map(row => row.id).join('\n')
       React.useEffect(() => {
-        if (!open || runningIds === '') return
+        if (tab === undefined || !open || runningIds === '') return
         const tick = setInterval(() => setNow(Date.now()), 1000)
         let stopped = false
         const poll = setInterval(() => {
           if (!stopped) refreshOverview(sessions, rootId, runningIds.split('\n'), () => stopped).catch(() => {})
         }, LIVE_REFRESH_MS)
         return () => { stopped = true; clearInterval(tick); clearInterval(poll) }
-      }, [open, runningIds, sessions, rootId])
+      }, [open, tab?.id, runningIds, sessions, rootId])
       // Names come from the same Host catalog the configuration page reads, once per runtime.
       React.useEffect(() => {
-        if (open) loadModelNames(names, remote)
-      }, [open, names, remote])
+        if (tab !== undefined && open) loadModelNames(names, remote)
+      }, [open, tab?.id, names, remote])
       const openChild = async address => {
-        try { await openSession(address); close() }
+        try { await openSession(address) }
         catch (error) { setErrors(old => [...old, { id: address.childSessionId, message: String(error?.message ?? error) }]) }
       }
       const live = data.running > 0
@@ -2898,10 +3294,17 @@ button.sah-usage-tile{cursor:pointer}
       const hint = t('overview.triggerHint', { running: data.running, total: data.rows.length })
         + (data.attention ? ` · ${t('overview.triggerAttention', { count: data.attention })}` : '')
         + (!open && fresh.size ? ` · ${t('overview.triggerFresh', { count: fresh.size })}` : '')
+      return { rootId, data, catalog, now, busy, errors, fresh, refresh, openChild, live, usageTotal, hint, open }
+    }
+
+    /** A small header entry; navigation and layout belong to the official sidebar. */
+    function AgentOverview(props) {
+      const { t, openOverview } = props
+      const { data, fresh, live, hint, open } = useAgentOverview(props)
       return h(React.Fragment, null, h('style', null, OVERVIEW_CSS),
-        h('button', { type: 'button', ref: trigger, className: 'sah-overview-trigger', 'aria-haspopup': 'dialog', 'aria-expanded': open,
+        h('button', { type: 'button', className: 'sah-overview-trigger', 'aria-expanded': open,
           'data-live': live ? 'true' : undefined, 'data-attention': data.attention ? 'true' : undefined,
-          'aria-label': hint, title: hint, onClick: () => (open ? close() : openPanel()) },
+          'aria-label': hint, title: `${hint} · ${t('overview.sidebarHint')}`, onClick: openOverview },
           live || data.attention
             ? h('span', { className: 'sah-overview-dot', 'data-state': live ? 'running' : 'inactive', 'data-attention': data.attention ? 'true' : undefined, 'aria-hidden': true })
             : h('span', { className: 'sah-overview-trigger-icon', 'aria-hidden': true }, glyph('IconBrowseOutlineRegular',
@@ -2910,19 +3313,27 @@ button.sah-usage-tile{cursor:pointer}
                 h('rect', { x: 3, y: 14, width: 7, height: 7, rx: 1.5 }), h('rect', { x: 14, y: 14, width: 7, height: 7, rx: 1.5 })))),
           h('span', { className: 'sah-overview-trigger-label' }, t('overview.title')),
           data.rows.length ? h('span', { className: 'sah-overview-trigger-count', 'aria-hidden': true }, `${data.running}/${data.rows.length}`) : null,
-          !open && fresh.size ? h('span', { className: 'sah-overview-trigger-fresh', 'aria-hidden': true }, fresh.size) : null),
-        h('div', { ref: dialog, className: 'sah-overview', role: 'dialog', 'aria-modal': false, 'aria-labelledby': titleId, popover: 'manual', 'data-open': open ? '' : undefined,
-          onKeyDown: event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close() } },
-        },
-          h('div', { className: 'sah-overview-head' }, h('h2', { id: titleId }, t('overview.title')),
-            h('div', { className: 'sah-overview-head-actions' },
-              h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh')),
-              h('button', { type: 'button', onClick: close, 'data-overview-close': '' }, t('overview.close'))),
-            h('p', { className: 'sah-overview-summary', role: 'status' }, data.running || data.attention
-              ? t('overview.summary', { running: data.running, attention: data.attention, total: data.rows.length })
-              : t('overview.summaryQuiet', { total: data.rows.length }),
-              usageTotal ? ` · ${t('overview.tokens')} ${overviewCount(usageTotal)}` : '')),
-          open ? h(OverviewContent, { key: rootId, data, currentId: sessionId, openChild, t, errors, groups: catalog.groups, now, fresh, routes }) : null))
+          !open && fresh.size ? h('span', { className: 'sah-overview-trigger-fresh', 'aria-hidden': true }, fresh.size) : null))
+    }
+
+    /** Body of the native tab: no window geometry, popover or duplicate close controls. */
+    function OverviewPanel(props) {
+      const { t } = props
+      const { rootId, data, catalog, now, busy, errors, fresh, refresh, openChild, usageTotal } = useAgentOverview(props)
+      return h('section', { className: 'sah-overview', 'aria-label': t('overview.title') },
+        h('style', null, OVERVIEW_CSS),
+        h('div', { className: 'sah-overview-head' },
+          h('p', { className: 'sah-overview-summary', role: 'status' }, data.running || data.attention
+            ? t('overview.summary', { running: data.running, attention: data.attention, total: data.rows.length })
+            : t('overview.summaryQuiet', { total: data.rows.length }),
+            usageTotal ? ` · ${t('overview.tokens')} ${overviewCount(usageTotal)}` : ''),
+          h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh'))),
+        h(OverviewContent, { key: rootId, data, currentId: props.sessionId, openChild, t, errors, groups: catalog.groups, now, fresh, routes: props.routes }))
+    }
+
+    function OverviewSidebar(props) {
+      const { tab } = props.useTabInfo()
+      return h(OverviewGate, { ...props, tab })
     }
     function OverviewGate({ overviewForm, ...props }) {
       const [snapshot, setSnapshot] = React.useState(() => overviewForm?.getSnapshot())
@@ -2933,13 +3344,26 @@ button.sah-usage-tile{cursor:pointer}
         return dispose
       }, [overviewForm])
       return snapshot?.status === 'ready' && snapshot.value?.showAgentOverview === true
-        ? h(AgentOverview, { ...props, routes: Array.isArray(snapshot.value.routes) ? snapshot.value.routes : [] }) : null
+        ? h(props.tab === undefined ? AgentOverview : OverviewPanel, { ...props, routes: Array.isArray(snapshot.value.routes) ? snapshot.value.routes : [] })
+        : props.tab === undefined ? null : h('p', { style: { padding: 16 }, role: 'status' }, props.t('overview.disabled'))
     }
     function registerOverview(ctx, t, names = createModelNames()) {
-      ctx.inject(['sessions', 'uiWorkspace'], scope => scope.slots.inject(OVERVIEW_SLOT, () => scope.slots.register({
-        name: OVERVIEW_SLOT, id: 'subagent-hub-overview', order: -15, locale: NS,
-        inject: () => ({ sessions: scope.sessions, openSession: address => scope.uiWorkspace.openSession(address), overviewForm: ctx.configForms.get(ENTRY_ID), names, remote: ctx.remote }),
-      }, props => h(OverviewGate, { ...props, t: props.t ?? t }))))
+      ctx.inject(['sessions', 'uiWorkspace', 'sidebarRight', 'sidebarRightTabs'], scope => {
+        const visibility = createOverviewVisibility()
+        const shared = () => ({ sessions: scope.sessions, openSession: address => scope.uiWorkspace.openSession(address),
+          overviewForm: ctx.configForms.get(ENTRY_ID), names, remote: ctx.remote, visibility })
+        scope.effect(() => scope.sidebarRightTabs.register({
+          id: OVERVIEW_KIND, kind: OVERVIEW_KIND, title: () => t('overview.title'),
+          guide: [{ id: 'overview', order: 40, title: () => t('overview.title'), description: () => t('overview.sidebarHint') }],
+        }))
+        scope.effect(() => scope.slots.inject(OVERVIEW_BODY_SLOT, () => scope.slots.register({
+          name: OVERVIEW_BODY_SLOT, key: OVERVIEW_KIND, locale: NS, inject: shared,
+        }, props => h(OverviewSidebar, { ...props, t: props.t ?? t }))))
+        scope.effect(() => scope.slots.inject(OVERVIEW_SLOT, () => scope.slots.register({
+          name: OVERVIEW_SLOT, id: 'subagent-hub-overview', order: -15, locale: NS,
+          inject: sessionId => ({ ...shared(), openOverview: () => scope.sidebarRight.openTabIn(sessionId, OVERVIEW_KIND) }),
+        }, props => h(OverviewGate, { ...props, t: props.t ?? t }))))
+      })
     }
 
     function apply(ctx) {
@@ -2969,9 +3393,9 @@ button.sah-usage-tile{cursor:pointer}
       inject: ['slots', 'locale', 'configForms', 'remote', 'remote.session', 'remote.agentPresets'],
       apply,
       // Pure helpers, exported for tests only.
-      AgentOverview, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, overviewData, overviewFilter,
-      overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT,
-      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, usageTiles, usageStatus, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, placeOverview, showOverview, hideOverview, ACTIVITY_PROJECTION,
+      AgentOverview, OverviewPanel, OverviewSidebar, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, taskBoardState, taskBoardOwnerKey, taskBoardFilter, taskBoardOwner, taskBoardDependencies, overviewData, overviewFilter,
+      overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT, OVERVIEW_KIND, OVERVIEW_BODY_SLOT, createOverviewVisibility,
+      overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, usageTiles, usageStatus, usageVisible, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
       modelBadgeData,
@@ -2981,7 +3405,7 @@ button.sah-usage-tile{cursor:pointer}
       ConfigPage,
       SectionPage,
       RouteCard,
-      AgentCard,
+      AgentCard, AgentEditor, RoleAccordion, roleName, CONFIGURATION_PRESET_ID,
       providerChoices,
       modelChoices,
       effortChoices,

@@ -6,6 +6,7 @@ import { allowedModels } from './router.js'
 export const OWN_PRESET_PREFIX = 'hub-agent-'
 export const PRESET_PLUGIN = '@deepseek-ai/dsh-agent-preset'
 export const SUBAGENT_TOOL_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
+export const TEAM_TOOL_PACKAGE = '@deepseek-ai/dsh-experimental-tool-agent-team'
 export const MODEL_SETTINGS_ID = 'subagent-model-selection-settings'
 /** Declared package of that row; a deployment may rename the id, the name stays put. */
 export const MODEL_SETTINGS_NAME = '@deepseek-ai/dsh-tool-subagent/model-selection-settings'
@@ -43,6 +44,23 @@ export function mergePresetAllowlist(existing, ids) {
   const merged = [...foreign]
   for (const id of ids) if (!merged.includes(id)) merged.push(id)
   return merged
+}
+
+/** Only a public configuration schema can authorize writing a Team role allowlist. */
+export function teamRoleEntryIds(entries, descriptors) {
+  const supported = new Set((descriptors ?? []).filter(descriptor => {
+    const schema = descriptor?.schema
+    const root = schema?.refs?.[schema.uid] ?? schema
+    return root?.type === 'object' && Object.hasOwn(root.dict ?? {}, 'allowedAgentPresets')
+  }).map(descriptor => descriptor.ns))
+  return entries.filter(entry => entry.options.name === TEAM_TOOL_PACKAGE && supported.has(entry.options.id))
+    .map(entry => entry.options.id)
+}
+
+/** Preserve foreign roles and fields; an empty Team list disables explicit preset selection. */
+export function teamRoleConfig(config, presetIds) {
+  const allowedAgentPresets = mergePresetAllowlist(config?.allowedAgentPresets, presetIds)
+  return sameStrings(config?.allowedAgentPresets, allowedAgentPresets) ? config : { ...config, allowedAgentPresets }
 }
 
 /**

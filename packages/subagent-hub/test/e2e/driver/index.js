@@ -8,11 +8,17 @@ import { load } from 'js-yaml'
 import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
 import { createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import { runTeamChecks } from './team.js'
+import { executeTool } from './execute.js'
+import { runConfigurationChecks } from './configuration.js'
+import { runRoutedTeamChecks } from './team-routing.js'
 
 export const name = 'hub-e2e-driver'
 export const inject = [
   'agents', 'agentPresets', 'tools', 'agentDefaultModel', 'subagentModelSelection',
   'systemPrompt', 'configEditor', 'subagentHub', 'settings', 'sessionProjections',
+  'subagents',
+  'llm',
+  'sessions',
 ]
 
 const TOOL_PACKAGE = '@deepseek-ai/dsh-tool-subagent'
@@ -45,14 +51,22 @@ export function apply(ctx, config) {
   const report = { checks: {} }
   const requests = new Map()
   const children = new Map()
+  const requestRecords = [], streamRecords = []
   const flush = () => writeFileSync(config.out, JSON.stringify(report, null, 2))
 
   // A child whose prompt carries HOLD stays open, so the report can observe the
   // per-session concurrency limit while one child is still running.
   let release
   const held = new Promise((resolve) => { release = resolve })
+  let releaseWake
+  const waking = new Promise(resolve => { releaseWake = resolve })
   ctx.on('llm/stream', (options) => {
+    if (config.routedTeam) streamRecords.push({ provider: options.provider, model: options.model,
+      roleMarker: JSON.stringify(options.messages ?? []).includes('HUB-TEAM-ROLE-MARKER') })
     const text = (options?.messages ?? []).map(message => textOf(message)).join('\n')
+    if (text.includes('HUB-E2E-REWAKE')) {
+      return (async function* () { await waking; yield* scripted('woken child done') })()
+    }
     if (text.includes('HUB-E2E-HOLD')) {
       return (async function* () {
         await held
@@ -66,6 +80,13 @@ export function apply(ctx, config) {
 
   ctx.on('agent/request', async function (payload, next) {
     const resolved = await next()
+    if (config.routedTeam) {
+      const assembly = await ctx.systemPrompt.assemble({ scope: payload.agent, agent: payload.agent })
+      const toolSet = await ctx.tools.resolve({ agent: payload.agent, modelSelection: payload.agent.model.current(), signal: payload.signal })
+      try { requestRecords.push({ id: payload.agent.id, provider: resolved.provider, model: resolved.model, reasoningEffort: resolved.reasoningEffort, turn: payload.turn, step: payload.step,
+        context: assembly.contexts.map(section => section.text).join('\n'), routedToolVisible: ctx.tools.schemas(payload.agent, toolSet).some(tool => tool.name === 'hub_spawn_teammate') }) }
+      finally { toolSet.dispose() }
+    }
     requests.set(payload.agent.id, `${resolved.provider}/${resolved.model}`)
     return resolved
   })
@@ -73,6 +94,7 @@ export function apply(ctx, config) {
     if (agent.session.header.parentSession === undefined) return
     const assembly = await ctx.systemPrompt.assemble({ scope: agent })
     children.set(agent.id, {
+      agent,
       session: agent.session,
       preset: agent.session.header.agentPreset,
       prompt: assembly.sections.map(section => section.text).join('\n'),
@@ -96,6 +118,12 @@ export function apply(ctx, config) {
       report.presets = (await ctx.agentPresets.list()).map(preset => preset.id)
       report.parentModel = ctx.agentDefaultModel.currentSelection()
       report.modelSelection = ctx.subagentModelSelection.current()
+      if (config.routedTeam) {
+        await runRoutedTeamChecks(ctx, config, report, { waitFor, requestRecords, streamRecords, children })
+        report.done = true
+        flush()
+        return
+      }
       if (config.team) {
         await runTeamChecks(ctx, config, report, { requests, children, waitFor })
         report.done = true
@@ -190,8 +218,8 @@ export function apply(ctx, config) {
         notice: ctx.subagentHub.sessionContextText(root),
       }
 
-      const callerFor = agent => async (args) => {
-        const result = await ctx.tools.execute({
+      const callerFor = agent => async (args, { waitForIdle = true } = {}) => {
+        const result = await executeTool(ctx, {
           callId: `call-${randomUUID()}`,
           name: 'subagent',
           arguments: { description: 'e2e', prompt: 'HUB-E2E-CHILD work', ...args },
@@ -212,6 +240,9 @@ export function apply(ctx, config) {
         const id = result.value.subagentId
         await waitFor(() => children.get(id))
         const request = await waitFor(() => requests.get(id))
+        // Accepted continuable dispatch returns before its first turn settles. Wait on the
+        // Agent-owned quiescence promise, not a guessed delay or the residency end event.
+        if (waitForIdle) await ctx.agents.get(id)?.whenIdle()
         const session = children.get(id)?.session
         const model = session === undefined ? undefined : await waitFor(() => {
           const value = ctx.sessionProjections.snapshot(session, ['modelSelection']).values.modelSelection
@@ -247,10 +278,27 @@ export function apply(ctx, config) {
 
       // Concurrency: hold one child open, then a second delegation must be refused.
       report.stage = 'concurrency'; flush()
-      const heldChild = await call({ provider: 'deepseek-official', model: 'deepseek-flash', prompt: 'HUB-E2E-HOLD wait' })
+      const heldChild = await call({ provider: 'deepseek-official', model: 'deepseek-flash', prompt: 'HUB-E2E-HOLD wait' }, { waitForIdle: false })
       const blocked = await call({ provider: 'deepseek-official', model: 'deepseek-flash' })
       report.checks.concurrency = { held: heldChild, blocked }
       report.releaseHold()
+      await ctx.agents.get(heldChild.id)?.whenIdle()
+      report.checks.concurrency.afterSettle = ctx.subagentHub.runningChildren(root)
+      const catalog = ctx.sessionProjections.snapshot(root.session, ['subagentCatalog']).values.subagentCatalog
+      if (catalog?.some(child => child.id === heldChild.id && child.mode === 'continuable')) {
+        await ctx.subagents.sendMessage(root, heldChild.id, [{ type: 'text', text: 'HUB-E2E-REWAKE hold this follow-up turn' }], {
+          signal: new AbortController().signal,
+        })
+        const running = await waitFor(() => ctx.agents.get(heldChild.id)?.status === 'running' ? true : undefined)
+        report.checks.concurrency.wake = {
+          running: running === true,
+          counted: ctx.subagentHub.runningChildren(root),
+          blocked: await call({ provider: 'deepseek-official', model: 'deepseek-flash' }),
+        }
+        releaseWake()
+        await ctx.agents.get(heldChild.id)?.whenIdle()
+        report.checks.concurrency.wake.afterSettle = ctx.subagentHub.runningChildren(root)
+      }
 
       // Live edit through the same Host settings service the page form uses: add a named agent,
       // wait for the plugin's reconciliation, then verify presets, allowlists, schema, and persona.
@@ -283,6 +331,8 @@ export function apply(ctx, config) {
         }
       }
 
+      await runConfigurationChecks(ctx, config, report)
+      report.configuration.standardTools = ctx.tools.schemas(root).map(tool => tool.name)
       report.profilePatch = readFileSync(config.profilePatch, 'utf8')
     } catch (error) {
       report.fatal = String(error?.stack ?? error)

@@ -48,7 +48,9 @@ check('the official spawn row exposes the allowlist; the fork row is untouched',
   const spawn = report.standardRows.find(row => row.provider === 'spawn')
   const fork = report.standardRows.find(row => row.provider === 'fork')
   assert.deepEqual(spawn.allow, ['hub-agent-reviewer'])
-  assert.equal(spawn.models, true)
+  // Older SDKs put this switch on the spawn row. Newer executor-based SDKs read the
+  // globally verified model-selection settings instead and omit the old row field.
+  assert.ok(spawn.models === undefined || spawn.models === true)
   assert.equal(fork.allow, undefined)
   assert.equal(fork.models, undefined)
 })
@@ -142,6 +144,18 @@ check('concurrency: a second delegation is refused while one child is still runn
   assert.match(concurrency.blocked.message, /^subagent-hub:/)
   assert.match(concurrency.blocked.message, /子 agent 正在运行（上限 1）/)
 })
+check('concurrency: an idle resident releases its slot and a woken turn occupies it again', () => {
+  assert.equal(checks.concurrency?.afterSettle, 0)
+  const wake = checks.concurrency?.wake
+  // One-shot-only SDKs cannot wake a terminal child; the runtime driver probes the
+  // authoritative catalog mode before exercising continuable message delivery.
+  if (wake === undefined) return
+  assert.equal(wake.running, true)
+  assert.equal(wake.counted, 1)
+  assert.equal(wake.blocked.isError, true)
+  assert.match(wake.blocked.message, /上限 1/)
+  assert.equal(wake.afterSettle, 0)
+})
 
 check('settings: saved official configuration can leave the syncing state', () => {
   assert.equal(report.syncObservation?.presetNamespace, 'unavailable')
@@ -172,6 +186,32 @@ check('settings: an agent added live is usable through agent_preset with its ins
   assert.equal(report.checks.live.scribe.isError, false)
   assert.equal(report.checks.live.scribe.preset, 'hub-agent-scribe')
   assert.ok(report.checks.live.scribe.prompt.includes('HUB-SCRIBE-MARKER'))
+})
+
+check('the native Hub configuration mode is registered without changing the Lead model', () => {
+  assert.equal(report.configuration.registered, true)
+  assert.equal(report.configuration.model.provider, report.parentModel.provider)
+  assert.equal(report.configuration.model.model, report.parentModel.model)
+  assert.ok(report.configuration.read.catalogGroups > 0)
+})
+check('configuration tools are scoped to their mode and have no shell or generic file writer', () => {
+  assert.ok(report.configuration.schema.includes('hub_configuration_read'))
+  assert.ok(report.configuration.schema.includes('hub_configuration_update'))
+  assert.ok(!report.configuration.schema.some(name => /bash|write_file|subagent/.test(name)))
+  assert.ok(!report.configuration.standardTools.includes('hub_configuration_update'))
+})
+check('role design previews leave the persistent Hub configuration unchanged', () => {
+  assert.equal(report.configuration.preview.saved, false)
+  assert.equal(report.configuration.previewUnchanged, true)
+})
+check('mode saves register a named role with its readable name', () => {
+  assert.equal(report.configuration.saved.saved, true)
+  assert.deepEqual(report.configuration.registeredRole, { id: 'hub-agent-configured-builder', name: '功能开发' })
+})
+check('stale assistant edits are refused and the test restores the previous role list', () => {
+  assert.equal(report.configuration.stale.isError, true)
+  assert.match(report.configuration.stale.reason, /SETTINGS_CONFLICT/)
+  assert.equal(report.configuration.restored, true)
 })
 
 console.log(results.join('\n'))

@@ -33,10 +33,17 @@ for (const path of documents) {
 for (const path of ['README.md', 'README.en.md', 'packages/subagent-hub/README.md']) {
   if (!readFileSync(resolve(root, path), 'utf8').includes(pkg.version)) problems.push(`${path}: missing package version ${pkg.version}`)
 }
-for (const path of ['hero.webp', 'settings.webp', 'role-editor.webp', 'model-badge.webp', 'model-badge-narrow.webp']) {
+for (const path of ['hero.webp', 'settings.webp', 'role-editor.webp', 'models.webp', 'general.webp', 'model-badge.webp', 'model-badge-narrow.webp', 'overview-sidebar.webp', 'usage-filters.webp', 'usage-filtered.webp', 'task-board-sidebar.webp']) {
   const absolute = resolve(root, 'docs/assets', path)
   if (!existsSync(absolute) || statSync(absolute).size === 0) problems.push(`missing image: ${path}`)
   else if (statSync(absolute).size > 300_000) problems.push(`README asset exceeds 300 KB: ${path}`)
+}
+const screenshots = JSON.parse(readFileSync(resolve(root, 'packages/subagent-hub/screenshots.json'), 'utf8'))
+assert.ok(Array.isArray(screenshots) && screenshots.length > 0, 'storefront screenshots must be a nonempty list')
+for (const url of screenshots) {
+  const prefix = `https://raw.githubusercontent.com/ccsert/dsh-subagent-hub/v${pkg.version}/`
+  if (!url.startsWith(prefix)) problems.push(`storefront screenshot must pin v${pkg.version}: ${url}`)
+  else if (!existsSync(resolve(root, url.slice(prefix.length)))) problems.push(`missing storefront screenshot: ${url}`)
 }
 assert.equal(readFileSync(resolve(root, 'LICENSE'), 'utf8'), readFileSync(resolve(root, 'packages/subagent-hub/LICENSE'), 'utf8'), 'packaged MIT license must match the root')
 if (problems.length) throw new Error(problems.join('\n'))

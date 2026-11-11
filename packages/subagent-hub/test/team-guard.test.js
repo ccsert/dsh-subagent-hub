@@ -129,6 +129,25 @@ test('a genuinely model-capable Team schema checks the explicit route instead of
   assert.equal(denied.result.kind, 'deny')
 })
 
+test('a role-capable Team enforces the named role route while a legacy Team ignores unsupported roles', async () => {
+  const other = { id: 'other', provider: 'other', model: 'other', tags: [] }
+  const agents = [{ id: 'builder', description: 'Build', routes: ['minimax'] }]
+  const values = { ...args, context: 'fresh', agent_preset: 'hub-agent-builder', provider: other.provider, model: other.model }
+  const capable = service({ routes: [minimax, other], agents, tools: {
+    spawn_teammate: { parameters: { properties: { provider: {}, model: {}, agent_preset: {} } } },
+  } })
+  const denied = await execute(capable, { arguments: values })
+  assert.equal(denied.result.kind, 'deny')
+  assert.match(denied.result.reason, /named agent "builder"/)
+  assert.equal(denied.proceeded, false)
+  const allowed = await execute(capable, { arguments: { ...values, provider: minimax.provider, model: minimax.model } })
+  assert.equal(allowed.result.kind, 'allow')
+  const legacy = await execute(service({ routes: [minimax], agents }), {
+    arguments: { ...args, agent_preset: 'hub-agent-builder' }, agent: allowedParent,
+  })
+  assert.equal(legacy.result.kind, 'allow')
+})
+
 test('independent creation tools cannot inherit an out-of-list model either', async () => {
   for (const name of ['subagent', 'subagent_fork']) {
     const { result, proceeded } = await execute(service(), { name, arguments: { description: 'Use MiniMax', prompt: 'Implement the server' } })

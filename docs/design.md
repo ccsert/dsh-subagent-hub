@@ -1,7 +1,7 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.12.1（用量页按状态区分并始终显示运行中的子智能体；路线推理强度生效、白名单报错无歧义、子智能体总览改为实时监控与按路线用量），单元测试 249 项 + 真实运行时 e2e 33 项；另有浏览器交互验收。
-> 目标运行时：`@deepseek-ai/dsh` 0.2.1-rc.2（DSH Desktop 0.12.1）。
+> 状态：0.13.0（跨模型 Team、配置助手、原生右侧栏、用量与任务板交互），285 项单测 + 97 项隔离 SDK 运行时断言；另通过 19 项真实 Qoder 流程检查。
+> 目标运行时：`@deepseek-ai/dsh` 0.2.2-rc.1；Desktop 安装件与 HMR 尚未单独验收。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
 ## 1. 方向
@@ -22,16 +22,16 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 
 ## 2. 原则
 
-**不注册任何派发工具，不派生任何 `<base>+hub` 预设。** 派发、子 agent 生命周期、模型实际调用全部由官方运行时执行；本插件只做三件事：注册具名 agent 预设、提供选择信息、守住模型路由约束。界面通过官方槽位提供配置和只读运行信息。
+**保留官方派发与生命周期，不派生 `<base>+hub` 预设。** 独立任务继续使用官方工具；0.13.0 新增 `hub_spawn_teammate` 作为原生 Team 的公开扩展入口，通过原生子代理后端创建并在首次输入前绑定模型，消息、任务、继续运行和实际模型调用仍由宿主管理。可选的 `hub-configurator` 是专用配置模式，不改变默认主会话预设。界面通过官方设置与侧栏槽位提供。
 
 ## 3. 已定决策
 
 | # | 问题 | 决策 |
 |---|---|---|
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
-| D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；插件不写 `agentOptions`、不选模型、不做回退 |
-| D3 | 用什么工具派发 | **官方工具**。不注册 `delegate`，不替换、不隐藏官方 `subagent` / `subagent_fork` |
-| D4 | 界面放哪 | 沿用官方派发、会话与设置基础设施，不恢复 v1 独立路由侧栏。Plugins 配置卡片和设置入口共用表单；0.10.0 起标题栏补只读模型标识；当前开发版按用户明确授权，在官方标题栏 actions 插槽新增只读子智能体总览，统一成员、任务、运行证据和拒绝诊断，详见 [总览契约](overview-design.md) |
+| D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；独立任务沿用官方选择；Hub Team 入口通过公开 `agent.model.select()` 显式绑定已校验路线，不写 `agentOptions`、不做回退 |
+| D3 | 用什么工具派发 | 独立任务使用**官方工具**；Team 跨模型入口使用薄封装 `hub_spawn_teammate`，复用原生生命周期。不恢复 `delegate`，不替换或隐藏原生工具 |
+| D4 | 界面放哪 | 沿用官方派发、会话与设置基础设施，不恢复 v1 独立路由侧栏。Plugins 配置卡片和设置入口共用表单；0.10.0 起标题栏补只读模型标识；0.13.0 从官方标题栏 actions 打开原生右侧栏中的只读子智能体总览，统一成员、任务、运行证据和拒绝诊断，详见 [总览契约](overview-design.md) |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
 
@@ -43,7 +43,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 
 1. `agentPresets.readDocument(basePreset)`（默认 `standard`）取出该预设的 plugin 行；
 2. `deriveAgentPreset()`：递归删掉所有官方委派工具行（具名 agent 的子会话不再委派），把 `instructions` 追加到 `@deepseek-ai/dsh-persona` 的 `prefix`；
-3. `agentPresets.register({ id: 'hub-agent-<id>', name: 'Hub agent · <id>', description, order: 10000, plugins })`。
+3. `agentPresets.register({ id: 'hub-agent-<id>', name: agent.name || 'Hub agent · <id>', description, order: 10000, plugins })`。
 
 id 稳定、不含指纹：它会被写进 profile patch 的 `allowedAgentPresets`，定义变化时必须保持同一个 id。`description` 会出现在官方工具 `agent_preset` 参数的枚举说明里（官方实现读取预设声明）。
 
@@ -249,3 +249,7 @@ e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预
 | `dsh-subagent-library` / `@aiwayds/dsh-subagent-registry` | v2 不再提供 `delegate`，工具名不再冲突；它们仍是独立的派发插件 |
 | `dsh-better-sidebar` | 互补：它展示子 agent 树与活动，不做选择信息 |
 | 官方 `dsh-client-ui-subagent` | 使用它做界面；v2 不重复实现 |
+
+## 0.13.0 扩展契约
+
+跨模型 Team 的精确成员绑定、角色范围、持久化与兼容边界见 [Team 模型路由](team-model-routing.md)。可选配置助手及与设置页共用的版本检查写入见[配置助手与角色设置](configuration-assistant.md)。两项都不修改 DSH 源码。

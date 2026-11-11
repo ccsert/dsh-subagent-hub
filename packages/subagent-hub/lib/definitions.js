@@ -11,15 +11,16 @@ const ID = /^[a-z][a-z0-9-]{0,47}$/
  */
 export function normalizeDefinition(raw, source) {
   if (raw === null || typeof raw !== 'object') throw new Error(`${source}: definition must be a mapping`)
-  const { id, description, instructions = '', routes, needs, basePreset = 'standard' } = raw
+  const { id, name, description, instructions = '', routes, needs, basePreset = 'standard' } = raw
   if (typeof id !== 'string' || !ID.test(id)) throw new Error(`${source}: id must match ${ID}`)
   if (typeof description !== 'string' || description.trim() === '') throw new Error(`${source}: "${id}" needs a description`)
   if (typeof instructions !== 'string') throw new Error(`${source}: "${id}" instructions must be a string`)
+  if (name !== undefined && typeof name !== 'string') throw new Error(`${source}: "${id}" name must be a string`)
   if (typeof basePreset !== 'string' || basePreset === '') throw new Error(`${source}: "${id}" basePreset must be a preset id`)
   const list = (value, field) => {
     if (value === undefined) return undefined
     if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) throw new Error(`${source}: "${id}" ${field} must be a list of strings`)
     return [...new Set(value)]
   }
-  return { id, description: description.trim(), instructions, routes: list(routes, 'routes'), needs: list(needs, 'needs'), basePreset, source }
+  return { id, ...(name?.trim() ? { name: name.trim() } : {}), description: description.trim(), instructions, routes: list(routes, 'routes'), needs: list(needs, 'needs'), basePreset, source }
 }

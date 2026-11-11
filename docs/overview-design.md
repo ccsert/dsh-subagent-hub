@@ -1,6 +1,6 @@
 # 子智能体总览契约
 
-状态：0.11.0 起提供，默认关闭。入口位于 Desktop 官方 `conversation.session.header.actions` 插槽；不替代官方会话、派发工具或任务服务。
+状态：0.11.0 起提供，0.13.0 迁入官方右侧栏，默认关闭。入口位于 Desktop 官方 `conversation.session.header.actions` 插槽；不替代官方会话、派发工具或任务服务。
 
 ## 数据与状态
 
@@ -22,11 +22,11 @@
 
 打开面板或点击刷新时先读取父投影，再从最新目录发现子会话并刷新，最多四个并行读取。关闭后停止安排新的读取；已发出的只读请求可以完成。刷新不 retain 或迁移会话，不触发模型请求。实时更新依赖原生会话列表/状态订阅，刷新补齐持久化投影。
 
-使用原生 modal dialog、可见表单标签、键盘焦点与 Esc 关闭，关闭后将焦点归还入口。中英文文案及浅/深色原生语义色可用。
+通过 `sidebarRightTabs` 注册页签类型，通过 `sidebar.right.pane.tab` 提供 keyed body；由 `sidebarRight.openTabIn(sessionId, kind)` 打开。收起、关闭、尺寸和会话归属交给宿主；组件读取 `useTabInfo().tab.visible`，隐藏时停止高频刷新。可见表单标签、键盘操作、中英文文案及浅/深色原生语义色保留。
 
 ## 持久拒绝历史
 
-`subagentHubDispatch` 是原生 session projection，从已提交 `tool/call` 与 `tool/result` 回放，不依赖浏览器临时数组。结构化 `error.reason` 以 `subagent-hub:` 开头时可识别；当前 SDK 的前置守卫未附结构化 info，因此也识别三个派发工具失败结果中的原生单块 `Error: subagent-hub: ...` 文本。其他工具、成功输出和普通用户消息不会被此文本回退识别。
+`subagentHubDispatch` 是原生 session projection，从已提交 `tool/call` 与 `tool/result` 回放，不依赖浏览器临时数组。结构化 `error.reason` 以 `subagent-hub:` 开头时可识别；当前 SDK 的前置守卫未附结构化 info，因此也识别原生派发工具及 `hub_spawn_teammate` 失败结果中的原生单块 `Error: subagent-hub: ...` 文本。其他工具、成功输出和普通用户消息不会被此文本回退识别。
 
 保留最近 64 条识别到的拒绝及回放计数；关联待完成调用最多 128 条，不保留工具参数、提示词或成功输出。记录包含时间、事件 seq、调用 id、工具名和原因。投影不可用与没有已识别记录分别呈现。替换既有 surface 的结果不算新派发。
 
@@ -36,4 +36,6 @@
 
 单元测试覆盖成员合并、状态/模型/时间/用量证据、缺失与陈旧数据、筛选、刷新并发和取消、SSR 转义、拒绝历史边界。原生集成通过已安装 Desktop 的真实 list-slot registry 验证入口注册，并在隔离 SDK profile 中将真实 Hub 守卫结果按原生循环格式提交，再读取真实 projection registry 验证回放。
 
-浏览器 fixture 使用实际 React 组件和模拟原生 store，覆盖 StrictMode 重开、搜索/筛选、任务板/诊断、Esc/焦点恢复、导航成功和失败、刷新失败与恢复、中英文、空目录、390px 窄窗口和 CSS 200% 缩放。截图位于本地 `output/playwright/`。浏览器与原生插槽验证不等同于操作当前 Desktop 窗口；本次没有直接控制该窗口进行点击验收。当前模型无法读取截图像素，布局结论限于 DOM 尺寸及交互断言。
+当前浏览器 fixture 使用实际 React 组件、模拟原生 store 与侧栏容器，覆盖筛选、隐藏页签停止刷新、任务导航、空目录、错误恢复和用量组合排除。0.13.0 发布前重新检查桌面设置组件、助手入口、保存冲突和用量色块交互，并直接查看截图像素；截图与来源见[界面预览](screenshots.md)。早期 modal/Esc、窄屏和缩放验收是当时的历史记录，不作为新版侧栏或移动端验收。
+
+当前完整回归为 285 项单测、97 项隔离 SDK 运行时断言及安装 SDK 插槽回归。另有隔离 DSH Web profile 中的原生侧栏浏览器验收。以上不等于已经在用户当前 Desktop 窗口重载，Desktop 实际安装件和 HMR 仍待验收。

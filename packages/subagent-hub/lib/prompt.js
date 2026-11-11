@@ -1,5 +1,5 @@
 // Model-facing catalog section: which named agent to use for what, and which model carries
-// which capability tags. v2 only informs the official delegation tool; it never dispatches.
+// which capability tags, including the optional plugin-owned native Team routing entry.
 
 import { sessionPolicyNotice } from './policy.js'
 import { allowedModels, routeLabel, routeSummary } from './router.js'
@@ -9,7 +9,7 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
  * @typedef {import('./guard.js').GuardAgent & { description: string, needs?: string[] }} PromptAgent
  * @typedef {{ routes: Map<string, Route>, agents: PromptAgent[], tags: string[], problems: string[] }} PromptCatalog
  * @typedef {{ name: string, agentPreset: boolean, model: boolean }} DelegationInputs
- * @typedef {{ agentPreset: boolean, model: boolean, independent?: DelegationInputs[], team?: { model: boolean } }} PromptParameters
+ * @typedef {{ agentPreset: boolean, model: boolean, independent?: DelegationInputs[], team?: { model: boolean, agentPreset?: boolean, effort?: boolean, hubRouting?: boolean } }} PromptParameters
  */
 
 /**
@@ -26,19 +26,33 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
   if (agents.length === 0 && routes.size === 0) return ''
   const lines = ['## Choosing a subagent']
   if (params.team !== undefined && params.independent?.length === 0) {
-    lines.push('This session exposes Agent Teams without an independent subagent creation tool. The named-agent catalog is informational here; use only the inputs present on the visible tool.')
+    lines.push(params.team.hubRouting
+      ? 'This session exposes native Agent Teams and the Hub explicit-route creation entry. Use `hub_spawn_teammate` for an independently selected member model.'
+      : params.team.agentPreset
+      ? 'This session exposes Agent Teams without an independent subagent creation tool. Choose a named role with `spawn_teammate.agent_preset`; the teammate name is its identity, not its role preset.'
+      : 'This session exposes Agent Teams without an independent subagent creation tool. The named-agent catalog is informational here; use only the inputs present on the visible tool.')
   } else {
     lines.push(guidance(params))
   }
   if (params.team !== undefined) {
+    if (params.team.hubRouting) {
+      lines.push('For a durable Team member on a chosen Hub model, call `hub_spawn_teammate` with `name`, `description`, `prompt`, and `route` (the exact Hub route ID listed below). `context=fresh` starts without Lead history; `context=fork` copies completed history; both use the selected route. The Lead keeps its own model.')
+      lines.push('Optionally pass `role` as an exact Hub role ID to apply its instruction snapshot and route limits. A member name never implies a role. This entry keeps the native inherited tool composition; roles with a custom basePreset are unsupported. Do not claim it applied a separate Agent Preset.')
+      lines.push('Use the returned `target` with native send_message and shared task ownership. Initial-message acceptance is not task completion. The member model is pinned and restored from persisted selection; later configuration changes do not silently retarget existing members.')
+      lines.push('The native roster may display the model from inherited creation options rather than later durable model selections. The Hub creation result reports the selected route; actual request records in the Hub overview are the evidence of the model used. Do not infer an actual request from the native roster model label alone.')
+    }
     if (params.team.model) {
       lines.push('`spawn_teammate` exposes model selection in this composition; choose provider and model from the configured child routes.')
     } else {
-      lines.push('`spawn_teammate` has no `provider`, `model`, or `agent_preset` input in this runtime. Both `context=fresh` and `context=fork` inherit the Lead model; context selects history, not a different model. The Hub rejects a teammate whose inherited model is outside the configured child routes.')
+      lines.push(params.team.agentPreset
+        ? '`spawn_teammate` has no `provider` or `model` input in this runtime. Both `context=fresh` and `context=fork` inherit the Lead model; context selects history, not a different model. The Hub rejects a teammate whose inherited model is outside the configured child routes.'
+        : '`spawn_teammate` has no `provider`, `model`, or `agent_preset` input in this runtime. Both `context=fresh` and `context=fork` inherit the Lead model; context selects history, not a different model. The Hub rejects a teammate whose inherited model is outside the configured child routes.')
       const alternatives = (params.independent ?? []).filter(tool => tool.model).map(tool => `\`${tool.name}\``)
       if (alternatives.length > 0) lines.push(`For an explicit child model requirement, use ${alternatives.join(' or ')} with the provider/model inputs its schema exposes.`)
-      else lines.push('No visible independent delegation tool exposes model selection. If the inherited model cannot satisfy the requested model requirement, explain this limitation before delegating; do not start a different model and apologize afterwards.')
+      else if (!params.team.hubRouting) lines.push('No visible independent delegation tool exposes model selection. If the inherited model cannot satisfy the requested model requirement, explain this limitation before delegating; do not start a different model and apologize afterwards.')
     }
+    if (params.team.agentPreset) lines.push('With `context=fresh`, pass `agent_preset` to choose a Hub role for the teammate, and `name` only for its durable Team identity. `context=fork` keeps the inherited composition and cannot select an independent preset. A role\'s route limits apply before the member starts.')
+    else if (agents.length > 0 && params.team.model) lines.push('This Team tool has no `agent_preset` input. The named-role catalog is informational for Team creation; do not infer a role from a teammate name.')
   }
   if (agents.length > 0) {
     lines.push('', 'Named agents:')
@@ -47,7 +61,8 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
       const needs = [...new Set([...(agent.needs ?? []), ...declaredTags(routes, agent.routes)])]
       if (needs.length > 0) details.push(`tags: ${needs.join(', ')}`)
       details.push(`routes: ${describeRoutes(routes, agent.routes)}`)
-      lines.push(`- \`${agent.presetId}\` — ${agent.description} (${details.join('; ')}).`)
+      const teamRole = params.team?.hubRouting ? `; Hub Team role ID: ${JSON.stringify(agent.id)}` : ''
+      lines.push(`- \`${agent.presetId}\` — ${agent.description} (${details.join('; ')}${teamRole}).`)
     }
   }
   if (routes.size > 0) {
@@ -56,13 +71,18 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
       const tagsPart = route.tags.length > 0 ? ` — tags: ${route.tags.join(', ')}` : ''
       const notePart = route.note === undefined ? '' : `; ${route.note}`
       const effortPart = route.reasoningEffort === undefined ? '' : `; default reasoning_effort: ${JSON.stringify(route.reasoningEffort)}`
-      lines.push(`- \`${routeLabel(route)}\`${tagsPart}${effortPart}${notePart}`)
+      const teamRoute = params.team?.hubRouting ? `Hub route ID ${JSON.stringify(route.id)}: ` : ''
+      lines.push(`- ${teamRoute}\`${routeLabel(route)}\`${tagsPart}${effortPart}${notePart}`)
     }
     if ([...routes.values()].some(route => route.reasoningEffort !== undefined)) {
-      lines.push('When dispatching via `subagent` or `subagent_fork` whose schema exposes `reasoning_effort`, explicitly pass the route default in `reasoning_effort` unless the task clearly needs a different effort. Explicit values take precedence. This route effort guidance does not apply to `spawn_teammate` or `workflow`.')
+      const scope = params.team?.effort
+        ? 'The same route default applies to `spawn_teammate`, whose schema exposes `reasoning_effort`; pass it explicitly. Workflow has no such guidance.'
+        : 'This route effort guidance does not apply to `spawn_teammate` or `workflow`.'
+      lines.push(`When dispatching via \`subagent\` or \`subagent_fork\` whose schema exposes \`reasoning_effort\`, explicitly pass the route default in \`reasoning_effort\` unless the task clearly needs a different effort. Explicit values take precedence. ${scope}`)
     }
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
-    lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.')
+    lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.'
+      + (params.team?.hubRouting ? ' `hub_spawn_teammate` instead validates its explicit Hub route before creation and checks that assignment before every member step.' : ''))
     // The Session's own snapshot outranks the list above; say so before the model retries.
     const notice = layers === undefined ? '' : sessionPolicyNotice(layers)
     if (notice !== '') lines.push(notice)
@@ -73,6 +93,7 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
     if (params.team !== undefined) {
       const covered = (params.independent ?? []).filter(tool => limitTools.includes(tool.name)).map(tool => `\`${tool.name}\``)
       if (covered.length > 0) lines.push('', `The Hub per-session concurrency cap is ${limit}, enforced on ${covered.join(', ')}. Team creation follows the native Team capacity setting.`)
+      if (params.team.hubRouting) lines.push(`The same Hub running-child cap of ${limit} also applies to \`hub_spawn_teammate\`; the native Team member capacity remains a separate limit.`)
     } else {
       lines.push('', `At most ${limit} child agents may run at the same time in one Session; a delegation beyond that is refused, so wait for one to finish instead of queueing more.`)
     }

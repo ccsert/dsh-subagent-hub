@@ -21,11 +21,13 @@ import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
 import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable, routeEffortVerdict } from './guard.js'
 import { promptSection } from './prompt.js'
-import { MODEL_SETTINGS_ID, officialSettingsPlan } from './official-settings.js'
+import { MODEL_SETTINGS_ID, officialSettingsPlan, teamRoleEntryIds } from './official-settings.js'
 import { syncOfficialMirror } from './mirror.js'
 import { parseBrokenPresetRows } from './preset-migration.js'
 import { backupProfilePatch, createBaselineStore, createResolveSpec } from './sidecar.js'
 import { SESSION_POLICY_KEY, compareLayers, presetRouteProblems, routePairs, sessionPolicyNotice } from './policy.js'
+import { configurationPreset } from './configuration.js'
+import { installTeamRouting } from './team-routing.js'
 
 const PACKAGE = 'dsh-subagent-hub'
 const PRESET_WAIT_MS = 30_000
@@ -47,7 +49,7 @@ const withTimeout = (promise, ms, label) => new Promise((resolve, reject) => {
 })
 
 /** Everything that shapes a named agent's preset; presets are only re-registered when this moves. */
-const agentSignature = agents => JSON.stringify(agents.map(agent => [agent.id, agent.description, agent.basePreset, agent.instructions]))
+const agentSignature = agents => JSON.stringify(agents.map(agent => [agent.id, agent.name, agent.description, agent.basePreset, agent.instructions]))
 
 export default class SubagentHub extends Service {
   static inject = ['agentPresets', 'systemPrompt']
@@ -64,6 +66,7 @@ export default class SubagentHub extends Service {
       + 'Each route becomes one official `subagent-model-selection` allowed model.'),
     agents: z.array(z.object({
       id: z.string().required(),
+      name: z.string(),
       description: z.string().required(),
       instructions: z.string().default(''),
       routes: z.array(z.string()),
@@ -77,7 +80,7 @@ export default class SubagentHub extends Service {
     delegationTools: z.array(z.string()).default(['subagent', 'subagent_fork']).volatile()
       .description('Tool names that start a child agent. The official delegation tools are named `subagent` and `subagent_fork`.'),
     showAgentOverview: z.boolean().default(false).volatile()
-      .description('Show the optional Hub agent overview in the session header. The official Agent Team UI remains available.'),
+      .description('Show the header entry for the Hub overview in the official right sidebar. The native Agent Team UI remains available.'),
     manageOfficialSettings: z.boolean().default(false).volatile()
       .description('When true, write `allowedAgentPresets` onto the official delegation tool rows and '
         + 'mirror `routes` into the Host `subagent-model-selection` setting through configEditor. '
@@ -94,10 +97,6 @@ export default class SubagentHub extends Service {
     /** @type {Map<string, Promise<any[]>>} parsed rows per base preset */
     this.baseRows = new Map()
     this.disposers = []
-    /** @type {Map<string, Set<string>>} running child ids per parent session */
-    this.running = new Map()
-    /** @type {Map<string, string>} parent session of every running child */
-    this.parentOf = new Map()
     this.cache = { routesRaw: undefined, agentsRaw: undefined, catalog: undefined }
     this.presetSignature = undefined
     /** @type {Array<{ presetId: string, text: string }>} named agents outside the session allowlist */
@@ -138,6 +137,9 @@ export default class SubagentHub extends Service {
   }
 
   async *[Service.init]() {
+    // A separate optional mode, never the default Lead preset or a child-role allowlist entry.
+    this.disposers.push(await this.ctx.agentPresets.register(configurationPreset()))
+    this.disposers.push(installTeamRouting(this))
     for (const problem of this.catalog.problems) this.ctx.logger?.warn?.(`${PACKAGE}: ${problem}`)
     this.disposers.push(this.ctx.systemPrompt.section({
       name: PACKAGE,
@@ -160,9 +162,6 @@ export default class SubagentHub extends Service {
     // The Plugins page form writes volatile fields; the Loader commits them in place and announces
     // the changed paths on this plugin's own fiber.
     this.disposers.push(this.ctx.on('loader/volatile-update', paths => this.onVolatileUpdate(paths)))
-    // The official runtime announces every child's start and end; count them per parent.
-    this.disposers.push(this.ctx.on('subagent/start', info => this.onSubagentStart(info)))
-    this.disposers.push(this.ctx.on('subagent/end', info => this.onSubagentEnd(info)))
     // Registration and the official allowlist sync both belong to the worker: this init may run
     // inside an HMR transaction, and a config write there would be refused as nested. The
     // worker's first pass registers the named presets and syncs the official allowlists.
@@ -219,7 +218,7 @@ export default class SubagentHub extends Service {
         const { plugins } = deriveAgentPreset(await this.rowsOf(agent.basePreset), agent.instructions)
         const dispose = await this.ctx.agentPresets.register({
           id: agent.presetId,
-          name: `Hub agent · ${agent.id}`,
+          name: agent.name || `Hub agent · ${agent.id}`,
           description: agent.description,
           order: PRESET_ORDER,
           plugins,
@@ -385,6 +384,9 @@ export default class SubagentHub extends Service {
       independent,
       team: teamTool === undefined ? undefined : {
         model: Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model'),
+        agentPreset: Object.hasOwn(properties, 'agent_preset'),
+        effort: Object.hasOwn(properties, 'reasoning_effort'),
+        ...(this.teamRouting?.canCreate(scope) && tools.get('hub_spawn_teammate', scope) ? { hubRouting: true } : {}),
       },
     }
   }
@@ -428,34 +430,20 @@ export default class SubagentHub extends Service {
     return compareLayers([...this.catalog.routes.values()], this.sessionPolicy(session))
   }
 
-  /** Child agents of one Session that are still running, from the start/end ledger. */
+  /**
+   * Count direct local children executing now. Subagent start/end describe an activation's
+   * residency, which may span many idle/running turns; they cannot count execution slots.
+   * Read the owner registry at admission so HMR, message wakes and cold resume need no replay.
+   */
   runningChildren(caller) {
     const parentId = caller?.session?.header?.id ?? caller?.id
     if (parentId === undefined) return 0
-    return this.running.get(String(parentId))?.size ?? 0
-  }
-
-  /** Record a published child under its delegating parent. */
-  onSubagentStart(info) {
-    const child = this.ctx.get('agents')?.get?.(info.id)
-    const parentId = child?.session?.header?.parentSession
-    if (parentId === undefined) return
-    const key = String(parentId)
-    let set = this.running.get(key)
-    if (set === undefined) this.running.set(key, set = new Set())
-    set.add(String(info.id))
-    this.parentOf.set(String(info.id), key)
-  }
-
-  /** Drop a settled child from its parent's running set. */
-  onSubagentEnd(info) {
-    const id = String(info.id)
-    const key = this.parentOf.get(id)
-    if (key === undefined) return
-    this.parentOf.delete(id)
-    const set = this.running.get(key)
-    set?.delete(id)
-    if (set?.size === 0) this.running.delete(key)
+    const agents = this.ctx.get('agents')
+    if (typeof agents?.list !== 'function') return 0
+    return agents.list().filter(child => child !== caller && child.status === 'running'
+      && (typeof agents.isOwnedBy === 'function'
+        ? agents.isOwnedBy(child.id, caller)
+        : String(child.session?.header?.parentSession) === String(parentId))).length
   }
 
   /**
@@ -488,7 +476,8 @@ export default class SubagentHub extends Service {
         canSelectModel = modelSelectionAvailable(tool?.parameters)
         if (!canSelectModel) args = { ...args, provider: undefined, model: undefined }
       }
-      if (exec.name !== 'spawn_teammate') {
+      if (exec.name !== 'spawn_teammate'
+        || Object.hasOwn(this.ctx.get('tools')?.get(exec.name, exec.agent)?.parameters?.properties ?? {}, 'agent_preset')) {
         const reason = guardVerdict({ arguments: args, parent: exec.agent, catalog: this.catalog, canSelectModel })
         if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
       }
@@ -553,6 +542,7 @@ export default class SubagentHub extends Service {
       editor,
       routes: this.catalog.routes,
       presetIds: plan.presetIds,
+      teamRoleIds: teamRoleEntryIds(editor.entries(), this.ctx.get('settings')?.describe?.() ?? []),
       baselineStore: hasDocument ? this.baselineStore : undefined,
       brokenPresets,
       resolveSpec: createResolveSpec(this.ctx.get('profileContext'), documentPath),
@@ -569,12 +559,13 @@ export default class SubagentHub extends Service {
       broken: mirror.broken,
       presetActions: mirror.presetActions,
       modelSettings: mirror.modelSettings,
+      teamPresets: mirror.teamPresets,
       presetIds: plan.presetIds,
       models: mirror.models,
       durationMs: mirror.durationMs,
       failures: mirror.failures,
     }
-    const acted = report.presetActions.some(action => action.action !== 'none')
+    const acted = report.presetActions.some(action => action.action !== 'none') || report.teamPresets.length > 0
     if (report.presets.length > 0 || report.modelSettings !== 'unchanged' || report.failures.length > 0 || acted) {
       const detail = report.failures.length === 0
         ? ''

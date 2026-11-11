@@ -107,24 +107,58 @@ assert.match(namedHTML.match(/<summary[\s\S]*?<\/summary>/)[0], /M3\.1-Flash · 
 assert.doesNotMatch(namedHTML.match(/<summary[\s\S]*?<\/summary>/)[0], /MiniMax-M3\.1-Flash/)
 assert.match(namedHTML, /<dd>minimax<\/dd>/, 'the panel keeps the exact provider')
 assert.match(namedHTML, /<dd>MiniMax-M3\.1-Flash<\/dd>/, 'the panel keeps the exact model id')
-const overviewSlot = 'conversation.session.header.actions'
+// Native sidebar type registry and keyed body seat, using the installed SDK implementation.
+const sidebarSource = readFileSync(new URL('../../node_modules/@deepseek-ai/dsh-client-ui-sidebar-right/lib/client.js', import.meta.url), 'utf8')
+const classStart = sidebarSource.indexOf('class {', sidebarSource.indexOf('var SidebarRightTabRegistry ='))
+const classEnd = sidebarSource.indexOf('//#endregion', classStart)
+assert.ok(classStart >= 0 && classEnd > classStart, 'installed native sidebar registry is present')
+const NativeTabs = vm.runInNewContext('(' + sidebarSource.slice(classStart, classEnd).trim().replace(/;$/, '') + ')', {
+  DEFAULT_BAND: 'extension',
+  _deepseek_ai_dsh_client_store: { notifySubscribers(listeners) { for (const listener of listeners) listener() } },
+})
+const cleanup = []
+const effect = fn => { const dispose = fn(); if (typeof dispose === 'function') cleanup.push(dispose); return dispose }
+const nativeTabs = new NativeTabs({ effect })
+const overviewSlot = client.OVERVIEW_SLOT
+const bodySlot = client.OVERVIEW_BODY_SLOT
 const overviewRecord = { spec: { kind: 'list', scope: 'session' }, entries: [] }
+const bodyRecord = { spec: { kind: 'keyed', scope: 'session' }, entries: [] }
 registry.records.set(overviewSlot, overviewRecord)
+registry.records.set(bodySlot, bodyRecord)
+const opened = []
 const overviewScope = {
-  sessions: {}, uiWorkspace: { openSession() {} },
-  slots: { inject(name, callback) { assert.equal(name, overviewSlot); return callback() },
+  effect, sessions: {}, uiWorkspace: { openSession() {} }, sidebarRightTabs: nativeTabs,
+  sidebarRight: { openTabIn: (sessionId, kind) => opened.push({ sessionId, kind }) },
+  slots: { inject(name, callback) { assert.ok([overviewSlot, bodySlot].includes(name)); return callback() },
     register: (options, component) => register.call(registry, options, component) },
 }
 client.registerOverview({ configForms: { get: () => face({ status: 'ready', value: { showAgentOverview: true } }) },
   inject(_names, callback) { return callback(overviewScope) } }, t)
+assert.equal(nativeTabs.get(client.OVERVIEW_KIND).id, client.OVERVIEW_KIND)
+assert.equal(nativeTabs.guide()[0].kind, client.OVERVIEW_KIND)
 assert.equal(overviewRecord.entries.length, 1)
+assert.equal(bodyRecord.entries.length, 1)
 const overviewContribution = overviewRecord.entries[0]
 assert.equal(overviewContribution.options.id, 'subagent-hub-overview')
-const overviewHTML = renderToStaticMarkup(overviewContribution.component({
-  ...overviewContribution.inject('lead'), sessionId: 'lead',
-  useSession: selector => selector({}), useSessions: selector => selector({ byId: {}, projectionsBySession: {} }),
+const sessionProps = {
+  sessionId: 'lead', useSession: selector => selector({}),
+  useSessions: selector => selector({ byId: {}, projectionsBySession: {} }),
   useSessionStatus: selector => selector(new Map()),
-}))
+}
+const overviewProps = { ...overviewContribution.inject('lead'), ...sessionProps }
+const overviewHTML = renderToStaticMarkup(overviewContribution.component(overviewProps))
 assert.match(overviewHTML, /sah-overview-trigger/)
-assert.match(overviewHTML, /aria-haspopup="dialog"/)
-console.log(`Native slot regression passed against ${renderer.kind}: model badge and agent overview.`)
+assert.doesNotMatch(overviewHTML, /aria-haspopup="dialog"|popover=/)
+overviewProps.openOverview()
+assert.deepEqual(opened, [{ sessionId: 'lead', kind: client.OVERVIEW_KIND }], 'header opens the native tab in its owning Session')
+const body = bodyRecord.entries[0]
+assert.equal(body.options.key, nativeTabs.get(client.OVERVIEW_KIND).id, 'native type id dispatches to the body key')
+const bodyHTML = renderToStaticMarkup(body.component({
+  ...body.inject('lead'), ...sessionProps,
+  useTabInfo: () => ({ tab: { id: 'native-tab', visible: true } }),
+}))
+assert.match(bodyHTML, /<section class="sah-overview"/)
+assert.doesNotMatch(bodyHTML, /role="dialog"|popover=|data-overview-close/)
+for (const dispose of cleanup.reverse()) dispose()
+assert.equal(nativeTabs.get(client.OVERVIEW_KIND), undefined, 'unload releases native tab registration')
+console.log(`Native slot regression passed against ${renderer.kind}: model badge, header entry and native sidebar body/type.`)

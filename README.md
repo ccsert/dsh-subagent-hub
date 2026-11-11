@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.1"><img src="https://img.shields.io/badge/version-0.12.1-66c8ab" alt="Version 0.12.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.13.0"><img src="https://img.shields.io/badge/version-0.13.0-66c8ab" alt="Version 0.13.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
-  <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-249_unit_%2B_33_runtime-66c8ab" alt="249 unit tests and 33 runtime assertions verified"></a>
+  <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_SDK-0.2.2--rc.1-7087ad" alt="Tested with DSH SDK 0.2.2-rc.1"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-285_unit_%2B_97_runtime-66c8ab" alt="285 unit tests and 97 runtime assertions verified"></a>
 </p>
 
 <p align="center"><b>简体中文</b> · <a href="README.en.md">English</a></p>
@@ -16,6 +16,8 @@
 给 DeepSeek Harness 的官方子 agent 补上**角色、模型选择信息和路由边界**。主 agent 可以找到适合的审查、测试或调研角色；你可以在设置里维护允许的模型，并在子会话中查看最近请求用了哪个模型。
 
 沿用官方 `subagent` / `subagent_fork`、Agent Presets 和会话界面，安装后继续使用原来的主会话预设。
+
+**跨模型 Team：** 使用 `hub_spawn_teammate` 为成员指定 Hub 路由与可选角色，Lead 可以使用任意已配置模型。已通过真实 Qoder 两种模型互换 Lead/成员的验证；原生 Team 消息、任务板和恢复机制继续使用。角色应用指令与模型范围，工具组合仍继承原生 Team。详见 [Team 模型路由](docs/team-model-routing.md)。
 
 [安装](docs/install.md) · [下载 Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) · [配置示例](examples/subagent-hub.yml) · [变更记录](CHANGELOG.md) · [贡献指南](CONTRIBUTING.md)
 
@@ -27,29 +29,31 @@
 | **模型选择目录** | 向主 agent 提供路由、用途、能力标签和角色说明 |
 | **路由约束** | 在 `subagent`、`subagent_fork`、Team 创建时检查全局路由范围，具名角色可进一步收紧 |
 | **会话并发上限** | 限制一个父会话同时运行的子 agent 数量，与官方全局容量同时生效 |
-| **原生配置表单** | 在 **设置 → 子代理中枢** 编辑模型、角色、标签与托管开关 |
+| **原生配置表单** | 在 **设置 → 子代理中枢** 按角色、模型、常规分区配置，角色以单列折叠列表编辑 |
+| **配置助手模式** | 使用「Hub 配置助手」设计角色和调整设置，先预览再保存，界面与助手编辑同一份配置 |
+| **跨模型 Team** | 用 `hub_spawn_teammate` 为原生 Team 成员显式指定路由与角色，Lead 不绑定特定模型 |
 | **请求模型可见** | 子会话标题栏显示最近请求的供应商与模型，展开读取完整 id 与推理强度 |
 | **路线推理强度** | 每条路线可设默认 `reasoning_effort`；主 agent 漏传时 Hub 拒绝并给出精确重试写法，显式值优先 |
 | **子智能体总览**（可选） | 标题栏实时监控：每个子 agent 的任务、当前动作、计划、汇报、模型与推理强度，按路线的 Token 用量，新结果与可能卡住提醒；默认关闭 |
 
 ## 子智能体总览
 
-可选的 **子智能体总览** 默认关闭。在「设置 → 子代理中枢 → 基础设置」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。
+可选的 **子智能体总览** 默认关闭。在「设置 → 子代理中枢 → 常规」打开「显示子智能体总览」并保存，标题栏入口随即显示；关闭后仍可使用官方智能体团队界面。
 
-0.12.1 起它是一个不遮挡对话的右侧监控栏：
+总览作为官方右侧栏中的页签打开，与对话并排显示。侧栏的尺寸、收起、关闭、分屏与会话切换由 DSH 管理：
 
 - **入口即状态**：按钮显示运行数；有子 agent 等待审批、一小时内中断或失败、或疑似卡住时变黄；关闭面板期间有子 agent 完成回合或发来汇报时显示蓝色计数。
 - **卡片回答“它在干什么”**：任务、正在调用的工具与计时、审批等待、自己的计划进度、最近汇报或输出、模型与实际推理强度（含“模型默认”）；展开可见最近 12 步时间线。
-- **用量页**：按每次请求实际使用的路线统计子 agent 的 Token、请求数与缓存命中率，矩形树图按路线着色，排名与列表联动，并显示 Hub 路线标签。
+- **用量页**：按每次请求实际使用的路线统计子 agent 的 Token、请求数与缓存命中率，矩形树图按路线着色，排名与列表联动，并显示 Hub 路线标签。点击状态或模型标签可隐藏、恢复对应项目，图表和列表同步筛选，支持全部显示；总用量保持不变，另列筛选后的用量。Team 空闲成员与已结束任务分别显示。
 - **可能卡住**：运行中超过 5 分钟无任何动作，或单个工具运行超过 15 分钟时提示。
 
-活动摘要来自插件自己的会话投影 `subagentHubActivity`，从持久化历史折叠：只记录工具的描述性短字段，不存命令行或文件内容。共享任务板只在 Team 任务板有任务时显示。Team 空闲不表示任务完成，缺失用量不当作零。
+活动摘要来自插件自己的会话投影 `subagentHubActivity`，从持久化历史折叠：只记录工具的描述性短字段，不存命令行或文件内容。共享任务板只在 Team 任务板有任务时显示，支持状态与负责人组合筛选、前置或冲突任务定位，以及打开真实负责人会话；就绪、阻塞和写入冲突直接展示，任务变更仍由原生 Team 管理。Team 空闲不表示任务完成，缺失用量不当作零。
 
 诊断页从持久化工具结果重建最近 64 条 Hub 守卫拒绝，显示已记录总数；不包含其他工具错误。面板打开或点击刷新时只读刷新投影，并发最多 4 个，不启动子会话或模型请求。实现与验证范围见[总览契约](docs/overview-design.md)。
 
 ## 看看界面
 
-**模型路由与角色配置**
+**角色配置与配置助手**
 
 ![实际配置组件中的模型路由与具名角色](docs/assets/settings.webp)
 
@@ -59,29 +63,37 @@
 
 **子智能体总览**
 
-![总览监控栏：每个子智能体的任务、当前动作、计划与汇报](docs/assets/overview.webp)
+![总览监控栏：每个子智能体的任务、当前动作、计划与汇报](docs/assets/overview-sidebar.webp)
 
 **按路线的用量**
 
-![用量页：总量与缓存命中、按路线着色的矩形树图和子智能体排名](docs/assets/usage.webp)
+![用量页：总量与缓存命中、按路线着色的矩形树图和子智能体排名](docs/assets/usage-filters.webp)
+
+**共享任务板**
+
+![原生侧栏中的共享任务筛选、依赖定位与负责人导航](docs/assets/task-board-sidebar.webp)
 
 截图使用实际插件组件和演示数据，不包含用户 profile、真实会话或密钥。完整图、移动宽度预览与来源见[截图说明](docs/screenshots.md)。Hero 由 [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen) 生成。
 
 ## 快速开始
 
-已验证环境：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。先在 DSH 中配置好可以调用的模型供应商。
+已验证环境：**`@deepseek-ai/dsh` 0.2.2-rc.1**。先在 DSH 中配置好可以调用的模型供应商。
 
-1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.12.1.tgz`。
+1. 在 [Release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 下载 `dsh-subagent-hub-0.13.0.tgz`。
 2. 在目标 profile 目录安装归档：
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.12.1.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.13.0.tgz
    ```
 
 3. 向该 profile 的 `package.json` 中 `dsh.profile.bundles` **追加** `"dsh-subagent-hub"`，保留原有 bundle；重启 DSH 加载插件代码。
 4. 打开 **设置 → 子代理中枢**，添加已有供应商中的模型和角色。需要插件同步官方委派白名单时，开启 **托管官方委派配置** 并保存，再开始一个新会话。
 
 也可从仓库检出安装。profile 定位、完整步骤、升级与卸载见[安装指南](docs/install.md)。npm 包已发布为 [dsh-subagent-hub](https://www.npmjs.com/package/dsh-subagent-hub)，也可使用固定版本的 GitHub Release 归档。Team/继承路由修复需要 0.10.2 或更高版本。
+
+## 配置助手
+
+在设置页点击 **配置助手**，或在新会话模式列表中选择 **Hub 配置助手**。可以让它设计开发、审查或调研角色，选择现有模型并预览配置变化，再按你的要求保存。它与设置页共享配置，并通过版本检查防止覆盖其它编辑器的新改动。详见[配置助手与角色设置](docs/configuration-assistant.md)。
 
 ## 一个最小配置
 
@@ -128,7 +140,7 @@
 
 1. **给便宜路由打标签。** `routes` 把免费或低价模型标成 `tags: [free, fast]`，`note` 写清用途。这段目录会进入主 agent 的 system prompt，主 agent 据此选模型。
 2. **把角色限定在便宜路由上。** 具名 agent 的 `routes` 只列便宜路由。越界的模型在派发前就被拒绝，既省钱，也避免子 agent 顺手用掉贵模型。
-3. **开启托管官方委派配置，并至少配一条路由。** `manageOfficialSettings: true` 加上非空 `routes`，插件才会把 `allowedAgentPresets` 与模型允许列表同步到官方配置。官方 `subagent` 工具是否暴露 `provider`/`model` 取决于当前 DSH 自带预设里的字段（`modelSelection`/`modelDiscovery`；旧版为 `modelSelectionSettings`），插件不会替你臆造这些字段。未开启或官方工具仍不暴露时，主 agent 只能继承主会话模型，指定不了便宜路由。
+3. **开启托管官方委派配置，并至少配一条路由。** `manageOfficialSettings: true` 加上非空 `routes`，插件才会把 `allowedAgentPresets` 与模型允许列表同步到官方配置。官方 `subagent` 工具是否暴露 `provider`/`model` 取决于当前 DSH 自带预设里的字段（`modelSelection`/`modelDiscovery`；旧版为 `modelSelectionSettings`），插件不会替你臆造这些字段。未开启且没有手动维护对应白名单，或官方工具仍不暴露模型参数时，`subagent` 只能按其原生规则继承模型。Hub Team 入口另按公开能力和当前会话白名单校验。
 
 ```yaml
 - id: subagent-hub
@@ -158,7 +170,7 @@
 
 `maxConcurrent` 限制同时运行的子 agent 数量，也就是这条用法自带的并发花费闸门；它和官方全局并行容量同时生效。
 
-**关键前提：要用 `subagent`，别指望 `spawn_teammate`。** 当前运行时的 Team 成员没有 `provider`/`model`/`agent_preset` 输入，fresh 和 fork 都继承 Lead 模型——用 Team 派活等于让贵模型继续干活。能把子任务送到便宜路由的，是暴露 `provider`/`model` 的 `subagent`；用 `agent_preset` 指定具名角色走的也是这条路径。详见 [Team 模型路由](docs/team-model-routing.md)。
+**按协作方式选择工具。** 一次性独立任务使用 `subagent`；需要耐久成员、消息协作和共享任务板时，使用 `hub_spawn_teammate`，显式传 Hub 的 `route` 和可选 `role`。原生 `spawn_teammate` 继续继承 Lead 模型。详见 [Team 模型路由](docs/team-model-routing.md)。
 
 省下的是**贵模型的 token**，不是全部成本，也有不适用的时候：
 
@@ -169,7 +181,7 @@
 
 ## 几个需要知道的边界
 
-- **Team 的 context 选择历史。** 当前 `spawn_teammate` 的 fresh/fork 都继承 Lead 模型，没有模型选择输入。需要 MiniMax 等指定模型时，使用实际暴露模型参数的 `subagent`；详见 [Team 模型路由](docs/team-model-routing.md)。
+- **Team 的 context 选择历史。** `hub_spawn_teammate` 的 `fresh` / `fork` 均可指定路由；原生 `spawn_teammate` 保持继承 Lead。Hub 角色只应用指令和模型范围，不切换基础预设或工具组合。原生 Team 名单可能仍显示创建时继承模型，实际模型以成员请求记录为准。
 - **全局路由范围也检查继承。** 非空 `routes` 对三个创建入口生效，越界或无法确认时拒绝；空列表保留原生继承。已有成员和请求期改写不在创建检查范围内。
 - **标签辅助决策。** `fast`、`reasoning`、`免费` 等是你维护的标签。需要硬性限制时，把角色的 `routes` 限定到你认可的路由；标签本身不提供价格保证或自动回退。
 - **守卫在派发前检查路由。** 其他插件在后续请求阶段改写模型时，不在此守卫覆盖范围中；同时使用时请核对它们的路由行为。
@@ -192,7 +204,7 @@ bash test.sh           # 真实 DSH 运行时集成验证，使用临时 DSH_HOM
 npm run pack:check     # 检查将交付的 npm 格式归档
 ```
 
-本版本验证了 **249 项单元测试和 33 项真实运行时断言**，并通过安装包中实际 Desktop 插槽注册器的独立回归。集成测试使用脚本化模型流，不调用外部模型。CI 运行单测、文档检查和打包检查；真实运行时验证另见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
+本版本通过 **285 项单元测试、97 项隔离 SDK 运行时断言**和安装 SDK 插槽回归；这些自动回归使用脚本化模型流。另通过现有 Qoder 通道完成 **19 项真实模型流程检查**，覆盖两款模型分别担任 Lead、成员，角色指令、fresh/fork 与消息唤醒。CI 运行单测、文档和打包检查。Desktop 安装件、HMR 和长历史压缩仍待验证；范围见[配置页验收](docs/ui-acceptance.md)、[模型标识验收](docs/model-badge-acceptance.md)和 [Team 路由验证](docs/team-model-routing.md)。
 
 欢迎通过 [Issues](https://github.com/ccsert/dsh-subagent-hub/issues) 报告问题或提交 PR。架构、验证环境和发版步骤见 [CONTRIBUTING](CONTRIBUTING.md)、[设计说明](docs/design.md)和[发布指南](docs/releasing.md)。v0.3.0 的旧架构保留在对应 tag 中。
 

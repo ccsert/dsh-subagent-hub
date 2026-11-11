@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { executeTool } from './execute.js'
 
 // Native Team regression. All llm/stream traffic is intercepted by index.js.
 // The SDK's known Flash/Pro routes stand in for the allowed MiniMax / forbidden
@@ -14,7 +15,7 @@ export async function runTeamChecks(ctx, config, report, { requests, children, w
   })).agent
   const members = root => teams.listMembers(root).filter(member => member.role === 'teammate')
   const call = async (root, context, name) => {
-    const result = await ctx.tools.execute({
+    const result = await executeTool(ctx, {
       callId: `call-${randomUUID()}`,
       name: 'spawn_teammate',
       arguments: { name, description: 'Team route regression', prompt: 'HUB-TEAM-CHECK Reply once.', context },
@@ -64,7 +65,7 @@ export async function runTeamChecks(ctx, config, report, { requests, children, w
   }
   report.teamSection = (await ctx.systemPrompt.assemble({ scope: blocked })).sections.find(section => section.name === 'dsh-subagent-hub')?.text
 
-  const forkProbe = await ctx.tools.execute({
+  const forkProbe = await executeTool(ctx, {
     callId: `call-${randomUUID()}`, name: 'subagent_fork',
     arguments: { cwd: config.cwd, description: 'Independent fork route probe', prompt: 'HUB-TEAM-FORK-PROBE Reply once.' },
     agent: blocked, signal: new AbortController().signal,

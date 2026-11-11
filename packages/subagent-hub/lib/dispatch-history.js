@@ -27,7 +27,7 @@ export function dispatchFold(state, event) {
   // Native pre-execution denials omit error.info unless the guard supplied it.
   // Their durable representation is a single `Error: <reason>` text block.
   const text = message.content?.length === 1 && message.content[0].type === 'text' ? message.content[0].text : undefined
-  const nativeReason = ['subagent', 'subagent_fork', 'spawn_teammate'].includes(call?.tool)
+  const nativeReason = ['subagent', 'subagent_fork', 'spawn_teammate', 'hub_spawn_teammate'].includes(call?.tool)
     && text?.startsWith(`Error: ${GUARD_PREFIX}`) ? text.slice(7) : undefined
   const reason = event.data.error?.reason ?? nativeReason
   if (message.isError !== true || (event.surfaceOp !== undefined && event.surfaceOp !== 'append') || typeof reason !== 'string' || !reason.startsWith(GUARD_PREFIX)) {

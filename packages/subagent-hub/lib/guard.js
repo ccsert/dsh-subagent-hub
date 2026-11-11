@@ -66,7 +66,7 @@ export const CREATION_TOOLS = ['subagent', 'subagent_fork', 'spawn_teammate']
 export function routeEffortVerdict(input) {
   try {
     const { toolName, arguments: args = {}, parent, catalog, parameters } = input
-    if (!['subagent', 'subagent_fork'].includes(toolName)) return undefined
+    if (!CREATION_TOOLS.includes(toolName)) return undefined
     if (!Object.hasOwn(parameters?.properties ?? {}, 'reasoning_effort')) return undefined
     const effort = args.reasoning_effort
     if (effort !== undefined && effort !== null && effort !== '') return undefined

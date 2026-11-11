@@ -2,9 +2,9 @@
 
 插件已发布到 [npm](https://www.npmjs.com/package/dsh-subagent-hub)，也通过 [GitHub Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 提供固定归档。Team 与继承路由守卫需要 0.10.2 或更高版本。
 
-已验证：**DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
+已验证：**`@deepseek-ai/dsh` 0.2.2-rc.1**。0.13.0 要求 SDK 0.2.2-rc.1 或更新的 0.2.x 版本；Desktop 实际安装件仍需单独验收。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
 
-CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.12.1`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.13.0`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
@@ -18,10 +18,10 @@ export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/pr
 
 ## 2. 安装插件包
 
-推荐从 [v0.12.1 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.1) 的 Assets 下载 `dsh-subagent-hub-0.12.1.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.13.0 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.13.0) 的 Assets 下载 `dsh-subagent-hub-0.13.0.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.12.1.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.13.0.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：
@@ -78,7 +78,7 @@ JS
 | `maxConcurrent` | `4` | 每个父会话的子 agent 并发上限；`0` 不限，官方全局容量仍生效 |
 | `manageOfficialSettings` | `false` | 是否维护官方 allowlist |
 | `routes` | `[]` | 已在 DSH 中配置的精确 provider/model 路由及说明 |
-| `agents` | `[]` | 角色 id、description、instructions、可选 routes/needs/basePreset |
+| `agents` | `[]` | 角色 id、可选 name、description、instructions、可选 routes/needs/basePreset |
 
 列表顺序保留在目录中；标签帮助主 agent 做选择。硬性路由限制来自角色的 `routes`，不实现自动模型回退。
 
@@ -104,7 +104,9 @@ pnpm --dir "${DSH_PROFILE_DIR:?}" remove dsh-subagent-hub
 
 ## Team 与继承模型
 
-非空全局路由表会在三个创建工具上检查继承模型；角色路由在此范围上收紧。`spawn_teammate` 的 fresh/fork 都继承 Lead，当前没有模型选择参数。不要用不存在的参数或切换 context 来选 MiniMax。见 [Team 模型路由](team-model-routing.md)。
+需要指定 Team 成员模型时，使用插件的 `hub_spawn_teammate`，传入 Hub `route` 与可选 `role`，`context` 选择 fresh/fork 历史。Lead 可使用其它模型。原生 `spawn_teammate` 仍继承 Lead；不要向它添加未声明的模型参数。Hub 角色仅应用指令与模型范围，自定义 `basePreset` 不适用于 Team 入口。见 [Team 模型路由](team-model-routing.md)。
+
+在设置页点击 **配置助手**，或新会话选择 **Hub 配置助手**，即可通过对话设计角色、预览并保存配置。先保存或放弃设置页的草稿再打开助手。见[配置助手与角色设置](configuration-assistant.md)。
 
 ## 排查
 

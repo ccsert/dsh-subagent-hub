@@ -3,10 +3,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.12.1"><img src="https://img.shields.io/badge/version-0.12.1-66c8ab" alt="Version 0.12.1"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.13.0"><img src="https://img.shields.io/badge/version-0.13.0-66c8ab" alt="Version 0.13.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
-  <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_Desktop-0.12.1-7087ad" alt="Tested with DSH Desktop 0.12.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-249_unit_%2B_33_runtime-66c8ab" alt="249 unit tests and 33 runtime assertions verified"></a>
+  <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_SDK-0.2.2--rc.1-7087ad" alt="Tested with DSH SDK 0.2.2-rc.1"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-285_unit_%2B_97_runtime-66c8ab" alt="285 unit tests and 97 runtime assertions verified"></a>
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
@@ -16,6 +16,8 @@
 **Roles, model selection context, and route boundaries for official DeepSeek Harness subagents.** Give the main agent useful reviewer, tester, or research roles; manage allowed models in Settings; inspect the most recent model request from a child conversation.
 
 Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversation UI. Keep your existing main-agent preset.
+
+**Cross-model Team:** `hub_spawn_teammate` selects a Hub route and optional role for a native Team member while the Lead keeps its own configured model. Verified with two real Qoder routes in both Lead/member directions. Native messaging, tasks and continuation ownership remain unchanged. Roles apply instructions and model limits; native tool composition is inherited. See [Team model routing](docs/team-model-routing.md).
 
 [Install](docs/install.md) · [Download a release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) · [Configuration example](examples/subagent-hub.yml) · [Changelog](CHANGELOG.md) · [Contribute](CONTRIBUTING.md)
 
@@ -27,14 +29,20 @@ Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversa
 | **Model selection catalog** | Provide configured routes, capabilities, purposes, and role instructions to the main agent |
 | **Route guard** | Check the global child routes before subagent, fork, and Team creation; named roles can narrow that range further |
 | **Per-session concurrency** | Limit child agents in each parent session, alongside DSH's global capacity |
-| **Native settings form** | Edit models, roles, tags, and management options in **Settings → Subagent Hub** |
+| **Native settings form** | Edit roles in a single-column accordion, with separate Roles, Models and General tabs |
+| **Configuration assistant** | Design roles and adjust settings in the Hub 配置助手 mode; preview changes and save to the same configuration as the settings page |
+| **Cross-model Team** | Explicit Hub routes and optional roles for native Team members through `hub_spawn_teammate`; the Lead is model-independent |
 | **Request model visibility** | Read the latest provider/model from the child header; expand for full IDs and recorded reasoning effort |
 | **Route reasoning effort** | Give each route a default `reasoning_effort`; when the main agent omits it, the Hub refuses with an exact retry, and explicit values win |
 | **Agent overview** (optional) | A live header monitor: each child's task, current action, plan, report, model and effort, token use by route, and new-result and stall alerts; off by default |
 
+The overview opens in the official right sidebar; DSH owns resizing, collapse, close, docking and session switching.
+
+In the Usage tab, click status or model labels to hide or restore matching entries in both the treemap and the list. Combine exclusions or show all again; cumulative totals stay unchanged and a separate summary shows visible usage. Idle Team members are distinct from finished tasks. Usage filters survive tab switches and live refreshes while the monitor stays open. The shared task board combines status and owner filters, links to prerequisites and conflicting tasks, and opens owners only through authoritative Team membership. Task mutations remain with native Team tools.
+
 ## Screenshots
 
-**Models and named agents**
+**Roles and the configuration assistant**
 
 ![Actual configuration component with demo models and named agents](docs/assets/settings.webp)
 
@@ -44,29 +52,37 @@ Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversa
 
 **Agent overview**
 
-![Overview monitor: each agent's task, current action, plan and report](docs/assets/overview.webp)
+![Overview monitor: each agent's task, current action, plan and report](docs/assets/overview-sidebar.webp)
 
 **Usage by route**
 
-![Usage tab: total and cache hits, a route-colored treemap and ranked agents](docs/assets/usage.webp)
+![Usage tab: total and cache hits, a route-colored treemap and ranked agents](docs/assets/usage-filters.webp)
+
+**Shared task board**
+
+![Native sidebar task filters, dependencies and owner navigation](docs/assets/task-board-sidebar.webp)
 
 These are the actual plugin components rendered with demo data. They contain no user profile, private conversation, or credentials. See [screenshot provenance](docs/screenshots.md) for full-size and narrow views. The Hero was generated with [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen).
 
 ## Quick start
 
-Tested with **DSH Desktop 0.12.1 / `@deepseek-ai/dsh` 0.2.1-rc.2**. Configure a working model provider in DSH first.
+Tested with **`@deepseek-ai/dsh` 0.2.2-rc.1**. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.12.1.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.13.0.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.12.1.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.13.0.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
 4. Open **Settings → Subagent Hub**, select models already available in your DSH, and add a role. Enable **Manage the official delegation settings** if you want Hub to synchronize the official allowlists. Save, then start a new conversation.
 
 Git checkout installation, profile locations, upgrades, and removal are covered in the [installation guide](docs/install.md). The package is published as [dsh-subagent-hub](https://www.npmjs.com/package/dsh-subagent-hub); fixed GitHub release archives are also available. The Team/inheritance guard requires 0.10.2 or newer.
+
+## Configuration assistant
+
+Click **Configuration assistant** in Settings, or select **Hub 配置助手** when starting a new conversation. Ask it to design roles, choose existing models and preview configuration changes before saving. It shares the settings namespace and rejects stale revisions. See [assistant and role setup](docs/configuration-assistant.md).
 
 ## Minimal configuration
 
@@ -111,7 +127,7 @@ Three settings make this work:
 
 1. **Tag the cheap routes.** Mark free or low-cost models `tags: [free, fast]` and state their purpose in `note`. This catalog is injected into the main agent's system prompt, which is how it picks a model.
 2. **Confine roles to cheap routes.** List only cheap routes in a named agent's `routes`. An out-of-range model is refused before dispatch, which saves money and stops a child from quietly using the expensive model.
-3. **Enable managed official settings, and configure at least one route.** With `manageOfficialSettings: true` plus a non-empty `routes` list, the plugin synchronizes `allowedAgentPresets` and the model allowlist into the official configuration. Whether the official `subagent` tool exposes `provider`/`model` depends on the preset fields the installed DSH ships (`modelSelection`/`modelDiscovery`; `modelSelectionSettings` on older versions); the plugin never invents them. Without managed settings, or when the tool still exposes no model parameters, the main agent can only inherit the parent model and cannot choose a cheap route at all.
+3. **Enable managed official settings, and configure at least one route.** With `manageOfficialSettings: true` plus a non-empty `routes` list, the plugin synchronizes `allowedAgentPresets` and the model allowlist into the official configuration. Whether the official `subagent` tool exposes `provider`/`model` depends on the preset fields the installed DSH ships (`modelSelection`/`modelDiscovery`; `modelSelectionSettings` on older versions); the plugin never invents them. Without managed settings or a manually maintained allowlist, or when the native independent tool exposes no model parameters, `subagent` follows its native inheritance rules. The Hub Team entry separately checks public capabilities and the current session allowlist.
 
 ```yaml
 - id: subagent-hub
@@ -141,7 +157,7 @@ Then simply tell the main agent:
 
 `maxConcurrent` caps how many children run at once, which is the concurrency gate on what this pattern can spend; the official global parallel capacity still applies.
 
-**The one requirement: use `subagent`, not `spawn_teammate`.** Team members in this runtime have no `provider`, `model`, or `agent_preset` input; fresh and fork both inherit the Lead model, so delegating through Team keeps the expensive model working. Only a `subagent` tool that exposes `provider`/`model` can move work onto a cheap route, and `agent_preset` with a named role is the same path. See [Team model routing](docs/team-model-routing.md).
+**Choose the tool for the collaboration.** Use `subagent` for independent tasks. Use `hub_spawn_teammate` with an explicit Hub `route` and optional `role` for durable Team members, messages and the shared task board. Native `spawn_teammate` continues to inherit the Lead model.
 
 What this saves is **expensive-model tokens**, not total cost, and it does not fit every task:
 
@@ -152,7 +168,7 @@ What this saves is **expensive-model tokens**, not total cost, and it does not f
 
 ## Behavior to keep in mind
 
-- **Team context selects history.** In the supported runtime, fresh and fork both inherit the Lead model and have no model-selection input. For a specific child model, use a `subagent` tool whose actual schema exposes model selection. See [Team model routing](docs/team-model-routing.md).
+- **Team context selects history.** Both Hub `fresh` and `fork` creations accept an explicit route; native `spawn_teammate` still inherits the Lead. Hub roles apply instructions and route limits, not a different base preset or tool composition. Native roster labels can retain the inherited creation model; inspect member request records for the actual model. See [Team model routing](docs/team-model-routing.md).
 - **Global routes also guard inheritance.** A nonempty `routes` list bounds all three creation tools; out-of-list or unconfirmed models are refused. An empty list retains native inheritance. Existing members and later request rewrites are outside this creation check.
 - **Tags guide decisions.** Tags such as `fast`, `reasoning`, or `free` are maintained by you. Use a role's `routes` for a hard route boundary. Tags do not verify pricing or implement automatic fallback.
 - **The guard runs before dispatch.** Model rewrites performed by other plugins during a later child request are outside this guard. Check those plugins when combining route policies.
@@ -174,7 +190,7 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-This release is verified by **249 unit tests and 33 real-runtime assertions**. Integration uses scripted model streams and makes no external model calls. CI runs unit, documentation, and package checks. See the [settings acceptance record](docs/ui-acceptance.md) and [model badge acceptance record](docs/model-badge-acceptance.md) for scope and limitations. [Team routing verification](docs/team-model-routing.md) covers the new creation checks.
+Verified by **285 unit tests, 97 isolated-SDK runtime assertions**, and the installed-SDK slot regression, with scripted model streams. A separate real Qoder run passed **19 flow checks** with both models as Lead/member, role instructions, fresh/fork contexts and wake-up routing. CI runs unit, documentation and package checks. Desktop installation, HMR and long-history compaction remain unverified. See [settings acceptance](docs/ui-acceptance.md), [model badge acceptance](docs/model-badge-acceptance.md) and [Team routing](docs/team-model-routing.md).
 
 Issues and PRs are welcome. Read [CONTRIBUTING](CONTRIBUTING.md), the [design notes](docs/design.md), and the [release guide](docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 

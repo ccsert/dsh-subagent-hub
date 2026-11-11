@@ -13,7 +13,7 @@ const base = { toolName: 'subagent', arguments: { provider: route.provider, mode
   catalog: indexRoutes([route]), parameters }
 const verdict = changes => routeEffortVerdict({ ...base, ...changes })
 
-for (const toolName of ['subagent', 'subagent_fork']) {
+for (const toolName of ['subagent', 'subagent_fork', 'spawn_teammate']) {
   test(`${toolName} refuses omitted effort on a different route with actionable retry`, () => {
     const reason = verdict({ toolName })
     assert.ok(reason.startsWith(GUARD_PREFIX))
@@ -24,8 +24,9 @@ for (const toolName of ['subagent', 'subagent_fork']) {
     assert.match(reason, /does not block explicit values/)
   })
 }
-test('other tools including spawn_teammate and workflow ignore route effort', () => {
-  for (const toolName of ['spawn_teammate', 'workflow', 'read']) assert.equal(verdict({ toolName }), undefined)
+test('legacy Team schemas and unrelated tools ignore route effort', () => {
+  assert.equal(verdict({ toolName: 'spawn_teammate', parameters: { properties: { context: {} } } }), undefined)
+  for (const toolName of ['workflow', 'read']) assert.equal(verdict({ toolName }), undefined)
 })
 test('the current schema must expose reasoning_effort', () => {
   assert.ok(verdict({}))
@@ -70,6 +71,15 @@ test('prompt advertises the effort and scopes its instruction to schema-capable 
   assert.match(text, /default reasoning_effort: "high"/)
   assert.match(text, /explicitly pass the route default.*unless the task clearly needs a different effort/)
   assert.match(text, /does not apply to `spawn_teammate` or `workflow`/)
+})
+test('a capable Team gets role and effort guidance without claiming it on legacy schemas', () => {
+  const catalog = buildCatalog({ routes: [route], agents: [{ id: 'builder', description: 'Build', routes: ['sol'] }] })
+  const text = promptSection({ catalog, params: { independent: [], team: { model: true, agentPreset: true, effort: true } } })
+  assert.match(text, /spawn_teammate.agent_preset/)
+  assert.match(text, /context=fresh.*agent_preset/)
+  assert.match(text, /context=fork.*cannot select an independent preset/)
+  assert.match(text, /same route default applies to `spawn_teammate`/)
+  assert.doesNotMatch(text, /catalog is informational here|does not apply to `spawn_teammate`/)
 })
 test('effort denials enter dispatch history through native errors and structured reasons', () => {
   for (const tool of ['subagent', 'subagent_fork']) {

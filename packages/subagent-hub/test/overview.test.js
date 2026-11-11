@@ -120,6 +120,27 @@ test('refresh is bounded, deduplicated, cancellable, and retains individual erro
   assert.equal((await ui.refreshOverview(sessions, 'root', ['a'], () => true)).length, 0)
   assert.equal(called.length, 6)
 })
+test('native sidebar visibility tracks each session and survives overlapping retained bodies', () => {
+  const visibility = ui.createOverviewVisibility()
+  let updates = 0
+  const unsubscribe = visibility.subscribe(() => updates++)
+  const first = visibility.enter('root')
+  const second = visibility.enter('root')
+  const other = visibility.enter('other')
+  assert.deepEqual([...visibility.getSnapshot()].sort(), ['other', 'root'])
+  first()
+  assert.equal(visibility.getSnapshot().has('root'), true)
+  second()
+  assert.equal(visibility.getSnapshot().has('root'), false)
+  const reopened = visibility.enter('root')
+  second()
+  assert.equal(visibility.getSnapshot().has('root'), true, 'stale cleanup cannot hide a reopened page')
+  reopened()
+  other()
+  assert.equal(visibility.getSnapshot().size, 0)
+  assert.equal(updates, 6)
+  unsubscribe()
+})
 test('renders escaped names, meaningful labels, model plans and evidence details', () => {
   const data = ui.overviewData('root', fixture(), new Map())
   data.rows[0].name = '<script>bad</script>'
@@ -302,7 +323,9 @@ test('running agents always get their own usage tile and stay in the collapsed l
   assert.equal(rest.some(agent => agent.status === 'running'), false)
   assert.equal(ui.usageStatus({ status: 'interrupted' }), 'failed')
   assert.equal(ui.usageStatus({ status: 'provisioning' }), 'running')
-  assert.equal(ui.usageStatus({ status: 'inactive' }), 'done')
+  assert.equal(ui.usageStatus({ status: 'inactive' }), 'idle')
+  assert.equal(ui.usageStatus({ status: 'unknown' }), 'unknown')
+  assert.equal(ui.usageStatus({ status: 'completed' }), 'done')
   // A running row with no usage report yet is still listed.
   const state = fixture()
   const usage = ui.overviewUsage(ui.overviewData('root', state, new Map()).rows)
@@ -313,4 +336,40 @@ test('running agents always get their own usage tile and stay in the collapsed l
   assert.match(html, /data-status="running"/)
   assert.match(html, /运行中<b>1<\/b>/)
   assert.doesNotMatch(html, /overview\./)
+})
+test('usage exclusions combine status and provider/model without changing cumulative totals', () => {
+  const first = 'provider-a\0same-model'
+  const second = 'provider-b\0same-model'
+  const agents = [
+    { id: 'done', rowId: 'done', status: 'done', routeKey: first },
+    { id: 'idle', rowId: 'idle', status: 'idle', routeKey: first },
+    { id: 'live-a', rowId: 'live', status: 'running', routeKey: first },
+    { id: 'live-b', rowId: 'live', status: 'running', routeKey: second },
+    { id: 'pending', rowId: 'pending', status: 'running', value: 0 },
+  ]
+  const filters = { hiddenStatuses: ['done'], hiddenRoutes: [first] }
+  assert.deepEqual(plain(ui.usageVisible(agents, filters)).map(agent => agent.id), ['live-b', 'pending'])
+  assert.deepEqual(plain(ui.usageVisible(agents, { hiddenStatuses: ['done'] })).map(agent => agent.id), ['idle', 'live-a', 'live-b', 'pending'])
+  assert.deepEqual(plain(ui.usageVisible(agents)).map(agent => agent.id), agents.map(agent => agent.id))
+  assert.equal(agents.length, 5)
+})
+test('usage map and list share exclusions while controls and totals remain recoverable', () => {
+  const state = fixture()
+  const rows = ui.overviewData('root', state, new Map()).rows
+  const usage = ui.overviewUsage(rows)
+  const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
+  const render = filters => renderToStaticMarkup(React.createElement(ui.OverviewUsage, { usage, t, filters }))
+  const filtered = render({ hiddenStatuses: ['done'], hiddenRoutes: [] })
+  assert.doesNotMatch(filtered, /Review/)
+  assert.match(filtered, /Running/)
+  assert.match(filtered, /aria-pressed="false" title="显示“已结束”"/)
+  assert.match(filtered, /全部显示/)
+  assert.match(filtered, /显示 1\/2 个子智能体/)
+  assert.match(filtered, /sah-usage-big">180/)
+  const empty = render({ hiddenStatuses: ['done', 'running'], hiddenRoutes: [] })
+  assert.match(empty, /当前筛选下没有子智能体/)
+  assert.doesNotMatch(empty, /class="sah-usage-tile"/)
+  assert.match(empty, /全部显示/)
+  assert.match(empty, /sah-usage-big">180/)
+  assert.doesNotMatch(empty, /overview\./)
 })

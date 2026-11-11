@@ -8,7 +8,7 @@
 // defaults. Each step stands alone — a refused write is retried once, recorded, and the remaining
 // rows are still attempted — so one dead row cannot leave the mirror half written.
 
-import { MODEL_SETTINGS_ID, MODEL_SETTINGS_NAME, PRESET_PLUGIN, modelSettingsFor, sameAllowedModels } from './official-settings.js'
+import { MODEL_SETTINGS_ID, MODEL_SETTINGS_NAME, PRESET_PLUGIN, TEAM_TOOL_PACKAGE, modelSettingsFor, sameAllowedModels, teamRoleConfig } from './official-settings.js'
 import { planPresetSync } from './preset-migration.js'
 
 const defaultWait = ms => new Promise((resolve) => { setTimeout(resolve, ms) })
@@ -57,6 +57,7 @@ function modelRowInSync(configuration, entry, desired) {
  * @param {object} options.editor the profile config editor (`entries`/`configuration`/`edit`).
  * @param {Map<string, object>} options.routes the live route table.
  * @param {string[]} options.presetIds the registered named-agent preset ids.
+ * @param {string[]} [options.teamRoleIds] Team config-entry ids whose public schema declares role selection.
  * @param {{ get: (presetId: string) => Promise<object | undefined>, set: (presetId: string, record: object) => Promise<void> }} [options.baselineStore]
  *   Hub-owned record of what the mirror last wrote per preset; without it a preset is never
  *   rebased and only narrow repairs are applied.
@@ -69,7 +70,7 @@ function modelRowInSync(configuration, entry, desired) {
  *   before the first write that can change the profile patch.
  * @param {(message: string) => void} [options.warn] per-failure logger.
  * @param {(ms: number) => Promise<void>} [options.wait] retry delay, injectable for tests.
- * @returns {Promise<{ modelSettings: string, presets: string[], rebased: string[], pruned: string[],
+ * @returns {Promise<{ modelSettings: string, teamPresets: string[], presets: string[], rebased: string[], pruned: string[],
  *   foreign: string[], broken: Array<{ preset: string, identity: string, rows: Array<{ id?: string, name: string }> }>,
  *   presetActions: Array<{ preset: string, action: string, rebased: boolean,
  *   foreign: boolean, pruned: Array<{ id?: string, name: string }> }>,
@@ -80,6 +81,7 @@ export async function syncOfficialMirror({
   editor,
   routes,
   presetIds,
+  teamRoleIds = [],
   baselineStore,
   brokenPresets,
   resolveSpec,
@@ -91,6 +93,7 @@ export async function syncOfficialMirror({
   const exposeModels = models.length > 0
   const report = {
     modelSettings: 'unchanged',
+    teamPresets: [],
     presets: [],
     rebased: [],
     pruned: [],
@@ -219,6 +222,12 @@ export async function syncOfficialMirror({
   }
 
   // One backup per run, before the first write that could change the profile patch.
+  const teamPlans = editor.entries().filter(entry => entry.options.name === TEAM_TOOL_PACKAGE && teamRoleIds.includes(entry.options.id))
+    .filter(entry => {
+      const layers = layersOf(configuration, entry)
+      const config = { ...layers.inherited, ...layers.current }
+      return teamRoleConfig(config, presetIds) !== config
+    }).map(entry => entry.options.id)
   let backupReady = typeof backup !== 'function'
   const ensureBackup = async () => {
     if (backupReady) return true
@@ -232,7 +241,7 @@ export async function syncOfficialMirror({
     }
   }
   const mutatingPresets = presetPlans.filter(item => item.plan.action === 'write' || item.plan.action === 'prune')
-  if (modelNeedsWrite || mutatingPresets.length > 0) {
+  if (modelNeedsWrite || mutatingPresets.length > 0 || teamPlans.length > 0) {
     if (!(await ensureBackup())) {
       report.durationMs = Date.now() - startedAt
       return report
@@ -243,6 +252,18 @@ export async function syncOfficialMirror({
     const accepted = await write('model-settings', () => resolveModelSettingsEntry(editor.entries()),
       (current, inherited) => ({ ...inherited, ...current, ...desiredModels }))
     report.modelSettings = accepted === true ? 'written' : 'failed'
+  }
+
+  for (const id of teamPlans) {
+    const accepted = await write(`team roles ${id}`,
+      () => editor.entries().find(entry => entry.options.id === id && entry.options.name === TEAM_TOOL_PACKAGE),
+      (current, inherited) => {
+        const config = { ...inherited, ...current }
+        const next = teamRoleConfig(config, presetIds)
+        if (next === config) throw ALREADY_IN_SYNC
+        return next
+      })
+    if (accepted === true) report.teamPresets.push(id)
   }
 
   for (const { presetId, hasOverride, baseline, brokenRows, plan } of presetPlans) {

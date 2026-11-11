@@ -1,6 +1,6 @@
 {
   "name": "dsh-subagent-hub",
-  "version": "0.12.1",
+  "version": "0.13.0",
   "description": "Named roles, model route guards, native configuration, and request-model visibility for official DeepSeek Harness subagents.",
   "icon": "./icon.svg",
   "license": "MIT",
@@ -13,6 +13,7 @@
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./configuration-assistant": "./lib/configuration-assistant.js",
     "./package.json": "./package.json",
     "./locale/*.json": "./locale/*.json"
   },
@@ -40,12 +41,13 @@
         "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-api-session-controller",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh": ">=0.2.1-rc.2 <0.3"
+    "@deepseek-ai/dsh": ">=0.2.2-rc.1 <0.3"
   },
   "dependencies": {
     "js-yaml": "^4.1.0",

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PKG="$(cd "$HERE/../.." && pwd)"
+PKG="${HUB_PACKAGE_DIR:-$(cd "$HERE/../.." && pwd)}"
 DSH_PKG="$(cd "$(dirname "$(realpath "$(command -v dsh)")")/.." && pwd)"
 export DSH_HOME="$(mktemp -d /tmp/hub-e2e-home.XXXXXX)"
 REPORT="$DSH_HOME/report.json"
@@ -27,7 +27,7 @@ import json, os, sys
 path = sys.argv[1]
 manifest = json.load(open(path))
 bundles = manifest.setdefault('dsh', {}).setdefault('profile', {}).setdefault('bundles', [])
-if os.environ.get('HUB_TEAM_E2E') == 'true':
+if os.environ.get('HUB_TEAM_E2E') == 'true' or os.environ.get('HUB_ROUTED_TEAM_E2E') == 'true':
     bundles.append('@deepseek-ai/dsh-experimental-agent-team-profile')
 if 'dsh-subagent-hub' not in bundles:
     bundles.append('dsh-subagent-hub')
@@ -68,6 +68,9 @@ cat >"$DSH_HOME/e2e.patch.yml" <<YAML
         cwd: $CWD
         profilePatch: $DSH_HOME/profiles/web/cordis.patch.yml
         team: ${HUB_TEAM_E2E:-false}
+        routedTeam: ${HUB_ROUTED_TEAM_E2E:-false}
+        routedPhase: initial
+        statePath: $DSH_HOME/routed-state.json
 YAML
 
 env -u DEEPSEEK_API_KEY -u MAGPIE_GATEWAY_KEY \
@@ -81,7 +84,28 @@ for _ in $(seq 1 180); do
   sleep 1
 done
 [ -f "$REPORT" ] || { echo "no report"; tail -60 "$DSH_HOME/boot.log"; exit 1; }
-if [ "${HUB_TEAM_E2E:-}" = true ]; then
+if [ "${HUB_ROUTED_TEAM_E2E:-}" = true ]; then
+  node "$HERE/assert-routed-team.js" "$REPORT"
+  # A second OS process opens the same persisted Team; no runtime maps survive.
+  kill "$PID" 2>/dev/null || true
+  wait "$PID" 2>/dev/null || true
+  mv "$REPORT" "$DSH_HOME/report-initial.json"
+  python3 - "$DSH_HOME/e2e.patch.yml" <<'PYEOF'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('routedPhase: initial', 'routedPhase: recovery'))
+PYEOF
+  env -u DEEPSEEK_API_KEY -u MAGPIE_GATEWAY_KEY \
+    dsh --profile web --patch "$DSH_HOME/e2e.patch.yml" --no-open --port 0 >"$DSH_HOME/recovery.log" 2>&1 &
+  PID=$!
+  for _ in $(seq 1 180); do
+    grep -q '"done"' "$REPORT" 2>/dev/null && break
+    kill -0 "$PID" 2>/dev/null || { echo "recovery dsh exited early"; tail -40 "$DSH_HOME/recovery.log"; exit 1; }
+    sleep 1
+  done
+  node "$HERE/assert-routed-team.js" "$REPORT"
+elif [ "${HUB_TEAM_E2E:-}" = true ]; then
   node "$HERE/assert-team.js" "$REPORT"
 else
   node "$HERE/assert.js" "$REPORT"

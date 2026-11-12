@@ -38,17 +38,17 @@ HUB_PACKAGE_DIR=/absolute/path/to/unpacked/package bash packages/subagent-hub/te
 HUB_PACKAGE_DIR=/absolute/path/to/unpacked/package HUB_ROUTED_TEAM_E2E=true bash packages/subagent-hub/test/e2e/run.sh
 ```
 
-For version 0.13.0:
+For version 0.14.0:
 
 ```bash
-tar -tzf output/releases/dsh-subagent-hub-0.13.0.tgz
-shasum -a 256 output/releases/dsh-subagent-hub-0.13.0.tgz
+tar -tzf output/releases/dsh-subagent-hub-0.14.0.tgz
+shasum -a 256 output/releases/dsh-subagent-hub-0.14.0.tgz
 ```
 
 Write a standard checksum file containing the hash and archive basename so downloaders can verify it in the same directory:
 
 ```bash
-shasum -a 256 -c dsh-subagent-hub-0.13.0.tgz.sha256
+shasum -a 256 -c dsh-subagent-hub-0.14.0.tgz.sha256
 ```
 
 ## Publish on GitHub
@@ -58,12 +58,12 @@ Commit the reviewed changes, push the branch, and wait for CI. Tag that exact co
 Example for this release:
 
 ```bash
-gh release create v0.13.0 \
-  output/releases/dsh-subagent-hub-0.13.0.tgz \
-  output/releases/dsh-subagent-hub-0.13.0.tgz.sha256 \
+gh release create v0.14.0 \
+  output/releases/dsh-subagent-hub-0.14.0.tgz \
+  output/releases/dsh-subagent-hub-0.14.0.tgz.sha256 \
   docs/assets/hero.png \
   --verify-tag \
-  --title "Subagent Hub v0.13.0" \
+  --title "Subagent Hub v0.14.0" \
   --notes-file output/releases/release-notes.md
 ```
 
@@ -79,7 +79,7 @@ Use a Node.js version supported by that npm CLI (npm 12.2.1 requires Node `^22.2
 
 ```bash
 npm whoami --registry=https://registry.npmjs.org
-npx --registry=https://registry.npmjs.org --yes npm@12.2.1 --registry=https://registry.npmjs.org stage publish output/releases/dsh-subagent-hub-0.13.0.tgz
+npx --registry=https://registry.npmjs.org --yes npm@12.2.1 --registry=https://registry.npmjs.org stage publish output/releases/dsh-subagent-hub-0.14.0.tgz
 npx --registry=https://registry.npmjs.org --yes npm@12.2.1 --registry=https://registry.npmjs.org stage list          # copy the stage id
 npx --registry=https://registry.npmjs.org --yes npm@12.2.1 --registry=https://registry.npmjs.org stage approve <stage-id>
 ```

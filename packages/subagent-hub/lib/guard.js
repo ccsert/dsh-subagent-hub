@@ -65,7 +65,7 @@ export const CREATION_TOOLS = ['subagent', 'subagent_fork', 'spawn_teammate']
  */
 export function routeEffortVerdict(input) {
   try {
-    const { toolName, arguments: args = {}, parent, catalog, parameters } = input
+    const { toolName, arguments: args = {}, parent, catalog, parameters, explicitRouteEffortDefault = false } = input
     if (!CREATION_TOOLS.includes(toolName)) return undefined
     if (!Object.hasOwn(parameters?.properties ?? {}, 'reasoning_effort')) return undefined
     const effort = args.reasoning_effort
@@ -77,11 +77,18 @@ export function routeEffortVerdict(input) {
     if (route === undefined) return undefined
     const configured = [...catalog.routes.values()].find(item => item.provider === route.provider && item.model === route.model)
     if (typeof configured?.reasoningEffort !== 'string' || configured.reasoningEffort === '') return undefined
-    // The runtime inherits effort for the same route even if provider/model were explicit.
-    if (inherited?.provider === route.provider && inherited?.model === route.model
+    // rc1 preserves compatible effort for explicit same-route calls; rc2 clears it.
+    // Pure inheritance can still keep the latest parent effort on both hosts.
+    if ((!explicitRouteEffortDefault || route.source === 'inherited parent')
+      && inherited?.provider === route.provider && inherited?.model === route.model
       && inherited.reasoningEffort === configured.reasoningEffort) return undefined
     const value = JSON.stringify(configured.reasoningEffort)
-    return `${GUARD_PREFIX} No child was started. Route ${routeLabel(route)} has configured default reasoning effort ${value}. Retry the original call unchanged, adding only \`reasoning_effort: ${value}\`. If the task needs a different effort, pass it explicitly; the Hub does not block explicit values.`
+    // rc2 rejects effort-only selection. Include the effective pair when retrying inheritance.
+    if (explicitRouteEffortDefault && !modelSelectionAvailable(parameters)) return undefined
+    const retry = explicitRouteEffortDefault && route.source === 'inherited parent'
+      ? `Retry the original call, adding \`provider: ${JSON.stringify(route.provider)}\`, \`model: ${JSON.stringify(route.model)}\`, and \`reasoning_effort: ${value}\` together.`
+      : `Retry the original call unchanged, adding only \`reasoning_effort: ${value}\`.`
+    return `${GUARD_PREFIX} No child was started. Route ${routeLabel(route)} has configured default reasoning effort ${value}. ${retry} If the task needs a different effort, pass it explicitly; the Hub does not block explicit values.`
   } catch {
     return undefined
   }

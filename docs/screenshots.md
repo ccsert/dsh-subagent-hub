@@ -1,6 +1,6 @@
 # Screenshots / 界面预览
 
-0.13.0 的角色、模型、常规设置与用量筛选截图来自当前插件实际 Client 组件，以隔离演示数据渲染。设置内容区宽 560px，用量内容区宽 460px；它们是桌面组件截图。总览、原生侧栏用量与任务板截图来自隔离 DSH Web profile，使用原生右侧栏和脚本化模型回复，不调用外部模型。配置页只写入 fixture 内存，模型标识使用模拟的公开 Session face；没有使用真实用户 profile、私有对话或密钥。
+0.14.0 的角色、模型、常规设置截图来自当前插件实际 Client 组件，在 1440×1100 桌面视口下捕获 960×800 内容区；总览分析、成员监控、成员分布与任务板来自当前组件，在 580×995 模拟侧栏内容区展示六个合成成员、两层成员树与五项任务。配置只写 fixture 内存，模型用量来自合成投影，不调用外部模型。最近请求模型截图使用模拟的公开 Session face。原生侧栏用量与窄屏旧图保留历史来源，本版没有重新验收移动布局。所有素材均不含真实用户 profile、私有对话或密钥。
 
 它们展示真实组件的外观和交互。实际请求投影与派发行为由[运行时验收](model-badge-acceptance.md)另行验证。
 
@@ -34,6 +34,10 @@
 
 ## 子智能体总览
 
+![默认用量分析：角色、缓存、重试与实际请求路线](assets/overview-analysis.webp)
+
+[PNG 原图](assets/overview-analysis.png)
+
 ![总览监控栏：每个子智能体的任务、当前动作、计划与汇报](assets/overview-sidebar.webp)
 
 [PNG 原图](assets/overview-sidebar.png)
@@ -44,19 +48,19 @@
 
 [PNG 原图](assets/usage-filters.png)
 
-![点击隐藏已结束任务和一条模型路线后的组合筛选](assets/usage-filtered.webp)
+![点击隐藏空闲成员和 GPT 模型路线后的组合筛选](assets/usage-filtered.webp)
 
 [PNG 原图](assets/usage-filtered.png)。直接点击色块或整行即可隐藏和恢复，图表与列表同步；累计总量保持不变，并单列当前显示用量。没有额外勾选框。
 
-这两张图使用实际组件、模拟侧栏容器及 50 个演示成员，不代表真实模型用量。另见[原生侧栏用量截图](assets/usage-sidebar.png)。
+这两张图使用当前实际组件、模拟侧栏容器及六个演示成员，不代表真实模型用量。另见保留的[历史原生侧栏用量截图](assets/usage-sidebar.png)。
 
 ## 共享任务板
 
 ![原生侧栏中的任务状态与负责人筛选、依赖定位和成员导航](assets/task-board-sidebar.webp)
 
-[PNG 原图](assets/task-board-sidebar.png)。任务由隔离环境的原生 Team 服务创建并持久化，模型回复使用测试插件；不涉及真实用户会话。任务板当前提供只读筛选与导航，写操作保留给原生 Team。
+[PNG 原图](assets/task-board-sidebar.png)。截图展示当前组件中的五项合成任务投影；原生 Team 创建、持久化与跨进程恢复由最终归档的隔离 SDK 门禁另行验证。任务板提供只读筛选与导航，写操作保留给原生 Team。
 
-## 320px 窄屏
+## 历史窄屏素材（本版未复验）
 
 ![320px 窄屏下展开的完整模型信息](assets/model-badge-narrow.webp)
 

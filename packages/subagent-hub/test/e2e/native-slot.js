@@ -8,6 +8,9 @@ import { createRequire } from 'node:module'
 const require = createRequire(import.meta.url)
 const React = require('react')
 const { renderToStaticMarkup } = require('react-dom/server')
+// Use the selected SDK for source inspection; do not depend on mutable package symlinks.
+const sdk = process.env.DSH_SDK_DIR
+const sdkRequire = sdk ? createRequire(path.join(sdk, 'package.json')) : require
 
 function desktopRenderer(archive) {
   const rawFs = process.versions.electron ? require('original-fs') : require('node:fs')
@@ -19,11 +22,13 @@ function desktopRenderer(archive) {
     const bytes = Buffer.alloc(prefix.readUInt32LE(12))
     rawFs.readSync(fd, bytes, 0, bytes.length, 16)
     const header = JSON.parse(bytes.toString())
-    const root = header.files.node_modules.files['@deepseek-ai'].files['dsh-web-frontend'].files.dist.files.assets.files
+    const prefixPath = header.files.dsh?.files.node_modules ? 'dsh/' : ''
+    const packages = prefixPath ? header.files.dsh.files.node_modules.files : header.files.node_modules.files
+    const root = packages['@deepseek-ai'].files['dsh-web-frontend'].files.dist.files.assets.files
     const name = Object.keys(root).find(name => /^index-.*\.js$/.test(name))
     assert.ok(name, 'Desktop renderer entry is present')
     const entry = root[name]
-    const relative = `node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/${name}`
+    const relative = `${prefixPath}node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/${name}`
     if (entry.unpacked) return rawFs.readFileSync(path.join(archive + '.unpacked', relative), 'utf8')
     const data = Buffer.alloc(entry.size)
     rawFs.readSync(fd, data, 0, data.length, 8 + size + Number(entry.offset))
@@ -31,12 +36,13 @@ function desktopRenderer(archive) {
   } finally { rawFs.closeSync(fd) }
 }
 function installedRenderer() {
-  const archive = process.env.DSH_DESKTOP_ASAR ?? '/Applications/DSH Desktop.app/Contents/Resources/app.asar'
-  if (existsSync(archive)) return { source: desktopRenderer(archive), kind: 'installed DSH Desktop' }
-  const assets = new URL('../../node_modules/@deepseek-ai/dsh-web-frontend/dist/assets/', import.meta.url)
+  const archive = process.env.DSH_DESKTOP_ASAR ?? '/Applications/DeepSeek Harness.app/Contents/Resources/app.asar'
+  if ((process.env.DSH_DESKTOP_ASAR || !sdk) && existsSync(archive)) return { source: desktopRenderer(archive), kind: 'installed DSH Desktop' }
+  const manifest = sdkRequire.resolve('@deepseek-ai/dsh-web-frontend/package.json')
+  const assets = path.join(path.dirname(manifest), 'dist/assets')
   const name = readdirSync(assets).find(name => /^index-.*\.js$/.test(name))
   assert.ok(name, 'Installed SDK renderer entry is present')
-  return { source: readFileSync(new URL(name, assets), 'utf8'), kind: 'installed DSH SDK' }
+  return { source: readFileSync(path.join(assets, name), 'utf8'), kind: `DSH SDK ${sdk ?? '(default)'}` }
 }
 function actualListRegister(source) {
   const needle = source.indexOf('requires options.id')
@@ -108,14 +114,22 @@ assert.doesNotMatch(namedHTML.match(/<summary[\s\S]*?<\/summary>/)[0], /MiniMax-
 assert.match(namedHTML, /<dd>minimax<\/dd>/, 'the panel keeps the exact provider')
 assert.match(namedHTML, /<dd>MiniMax-M3\.1-Flash<\/dd>/, 'the panel keeps the exact model id')
 // Native sidebar type registry and keyed body seat, using the installed SDK implementation.
-const sidebarSource = readFileSync(new URL('../../node_modules/@deepseek-ai/dsh-client-ui-sidebar-right/lib/client.js', import.meta.url), 'utf8')
-const classStart = sidebarSource.indexOf('class {', sidebarSource.indexOf('var SidebarRightTabRegistry ='))
-const classEnd = sidebarSource.indexOf('//#endregion', classStart)
-assert.ok(classStart >= 0 && classEnd > classStart, 'installed native sidebar registry is present')
-const NativeTabs = vm.runInNewContext('(' + sidebarSource.slice(classStart, classEnd).trim().replace(/;$/, '') + ')', {
-  DEFAULT_BAND: 'extension',
-  _deepseek_ai_dsh_client_store: { notifySubscribers(listeners) { for (const listener of listeners) listener() } },
-})
+const sidebarSource = readFileSync(sdkRequire.resolve('@deepseek-ai/dsh-client-ui-sidebar-right/client'), 'utf8')
+const classMatch = /(?:var|let|const)\s+SidebarRightTabRegistry\s*=\s*class\s*\{/.exec(sidebarSource)
+assert.ok(classMatch, 'installed native sidebar registry is present')
+const classStart = sidebarSource.indexOf('class', classMatch.index)
+let NativeTabs
+for (let end = sidebarSource.indexOf('}', classStart); end >= 0 && end < classStart + 30000; end = sidebarSource.indexOf('}', end + 1)) {
+  try {
+    const script = new vm.Script('(' + sidebarSource.slice(classStart, end + 1) + ')')
+    NativeTabs = script.runInNewContext({
+      DEFAULT_BAND: 'extension',
+      _deepseek_ai_dsh_client_store: { notifySubscribers(listeners) { for (const listener of listeners) listener() } },
+    })
+    break
+  } catch (error) { if (error.name !== 'SyntaxError') throw error }
+}
+assert.ok(NativeTabs, 'native sidebar registry class parses')
 const cleanup = []
 const effect = fn => { const dispose = fn(); if (typeof dispose === 'function') cleanup.push(dispose); return dispose }
 const nativeTabs = new NativeTabs({ effect })

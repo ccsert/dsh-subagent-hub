@@ -35,6 +35,28 @@ test('guidance adapts to the parameters the official tool actually exposes', () 
   assert.match(promptSection({ catalog, params: { agentPreset: false, model: false } }), /set `manageOfficialSettings: true`/)
 })
 
+test('native named tools distinguish identity, roles and inherited fork composition', () => {
+  const text = promptSection({ catalog, params: { ...both, independent: [
+    { name: 'subagent', agentPreset: true, model: true, nameInput: true, effort: true },
+    { name: 'subagent_fork', agentPreset: false, model: true, nameInput: true, effort: true },
+  ] } })
+  assert.match(text, /name never assigns a Hub role/)
+  assert.match(text, /send_message/)
+  assert.match(text, /paths shown by `list_agents`/)
+  assert.match(text, /inactive agent is not evidence of task completion/)
+  assert.match(text, /host maxDepth and authorization limits/)
+  assert.match(text, /subagent_fork.*does not select a separate role preset/)
+  assert.doesNotMatch(text, /spawn_teammate|hub_spawn_teammate|Team capacity/)
+})
+test('native effort guidance includes valid route-paired retries', () => {
+  const text = promptSection({ catalog: buildCatalog({ routes: [{ id: 'pro', provider: 'p', model: 'm', reasoningEffort: 'high' }] }),
+    params: { model: true, independent: [{ name: 'subagent', nameInput: true, model: true, effort: true }] } })
+  assert.match(text, /explicit `provider`\/`model` selection without effort uses the model default/)
+  assert.match(text, /reasoning_effort` requires both `provider` and `model`/)
+  assert.match(text, /pass all three together/)
+  assert.doesNotMatch(text, /spawn_teammate/)
+})
+
 test('an empty catalog produces no section', () => {
   assert.equal(promptSection({ catalog: buildCatalog({ routes: [], agents: [] }), params: both }), '')
   assert.equal(promptSection({ catalog: buildCatalog({ routes: [], agents: [] }), params: { agentPreset: false, model: false } }), '')

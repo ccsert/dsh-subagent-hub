@@ -11,6 +11,7 @@ import { runTeamChecks } from './team.js'
 import { executeTool } from './execute.js'
 import { runConfigurationChecks } from './configuration.js'
 import { runRoutedTeamChecks } from './team-routing.js'
+import { runNativeRc2 } from './native-rc2.js'
 
 export const name = 'hub-e2e-driver'
 export const inject = [
@@ -80,7 +81,7 @@ export function apply(ctx, config) {
 
   ctx.on('agent/request', async function (payload, next) {
     const resolved = await next()
-    if (config.routedTeam) {
+    if (config.routedTeam || config.sdkVersion === '0.2.2-rc.2') {
       const assembly = await ctx.systemPrompt.assemble({ scope: payload.agent, agent: payload.agent })
       const toolSet = await ctx.tools.resolve({ agent: payload.agent, modelSelection: payload.agent.model.current(), signal: payload.signal })
       try { requestRecords.push({ id: payload.agent.id, provider: resolved.provider, model: resolved.model, reasoningEffort: resolved.reasoningEffort, turn: payload.turn, step: payload.step,
@@ -118,6 +119,12 @@ export function apply(ctx, config) {
       report.presets = (await ctx.agentPresets.list()).map(preset => preset.id)
       report.parentModel = ctx.agentDefaultModel.currentSelection()
       report.modelSelection = ctx.subagentModelSelection.current()
+      if (config.sdkVersion === '0.2.2-rc.2') {
+        await runNativeRc2(ctx, config, report, { waitFor, requestRecords, children })
+        report.done = true
+        flush()
+        return
+      }
       if (config.routedTeam) {
         await runRoutedTeamChecks(ctx, config, report, { waitFor, requestRecords, streamRecords, children })
         report.done = true

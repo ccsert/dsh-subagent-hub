@@ -23,9 +23,9 @@ bash test.sh
 
 The full suite requires a compatible installed DSH runtime. See [the e2e runner](packages/subagent-hub/test/e2e/run.sh) for discovery and override variables. It creates an isolated temporary `DSH_HOME`, registers the real bundle, exercises official subagent dispatch, and intercepts the model stream. No production profile or model account is used.
 
-Unit tests are suitable for CI without a DSH install. This release has 285 unit tests and 97 isolated-SDK runtime assertions; the CI workflow runs units, documentation, and package checks. Runtime assertions are a separate local gate. An additional real Qoder verification passed 19 flow checks; it is opt-in, uses existing credentials, and is not part of CI.
+Unit tests are suitable for CI without a DSH install. Development verification for 0.14.0 includes 316 unit tests and 26 Settings / 18 overview browser component checks. Earlier isolated-SDK verification covered 43+7 rc.2 and 97 rc.1 assertions and both SDK slot checks; the final release archive SDK gate is checked separately. Runtime streams are intercepted. The 19 real Qoder checks belong to the published 0.13.0 validation, not the rc.2 run. CI runs units, documentation, and package checks. See [rc.2 compatibility and verification](docs/compatibility-rc2.md) for commands and limits.
 
-The full runtime gate includes independent delegation, the opt-in native Team bundle, and a native slot-consumer regression. The latter reads the installed Desktop renderer (or SDK fallback) and checks the real list registration contract without controlling the user window. See [Team routing](docs/team-model-routing.md) for schema, inheritance, and rejected-member checks.
+The rc.1 runtime gate includes independent delegation, the opt-in native Team bundle, and a native slot-consumer regression; rc.2 uses native named delegation and its own recovery checks. The latter reads the installed Desktop renderer (or SDK fallback) and checks the real list registration contract without controlling the user window. See [Team routing](docs/team-model-routing.md) for schema, inheritance, and rejected-member checks.
 
 ## Scope and design
 

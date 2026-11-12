@@ -16,20 +16,21 @@ The Hero is project artwork. It does not depict a working product screen. The se
 
 | Asset | Dimensions | Source |
 |---|---|---|
-| [Role settings](settings.webp) | 560 × 665 | Current configuration component at desktop settings content width; three demo roles and the configuration assistant entry |
-| [Advanced role settings](settings-full.webp) | 560 × 995 | The same component with advanced fields expanded |
-| [Role editor](role-editor.webp) | 560 × 665 | Review role expanded; other roles collapsed |
-| [Model routes](models.webp) | 560 × 711 | Current Models tab with two demo routes and reasoning effort |
-| [General settings](general.webp) | 560 × 628 | Current concurrency, overview and managed-settings controls |
+| [Role settings](settings.webp) | 960 × 800 | 0.14.0 configuration component at desktop content width; three demo roles and stable tabs/footer |
+| [Advanced role settings](settings-full.webp) | 960 × 800 | The same component with advanced fields expanded and scrolled into view |
+| [Role editor](role-editor.webp) | 960 × 800 | Review role expanded; other roles collapsed |
+| [Model routes](models.webp) | 960 × 800 | Current Models tab with two demo routes; one editor expanded |
+| [General settings](general.webp) | 960 × 800 | Current concurrency, overview and managed-settings controls |
+| [Role and route analysis](overview-analysis.webp) | 580 × 995 | Actual 0.14.0 overview component in a simulated sidebar; six synthetic members across two levels |
 | [Model badge](model-badge.webp) | 976 × 222 | Actual header contribution and installed official header CSS, with demo request/catalog data |
 | [Narrow model badge](model-badge-narrow.webp) | 304 × 242 | Historical narrow-layout capture of the same component; no new mobile acceptance is implied |
-| [Native agent sidebar](overview-sidebar.webp) | 1280 × 900 | Isolated DSH Web profile with native sidebar and scripted model responses |
-| [Native usage sidebar](usage-sidebar.webp) | 1280 × 900 | The same isolated native sidebar, with one demo child |
-| [Usage filters](usage-filters.webp) | 460 × 1145 | Current component with 50 synthetic members in a simulated sidebar container; not actual model usage |
-| [Combined usage filters](usage-filtered.webp) | 460 × 1145 | Same component after clicking the finished-state and one model legend to hide their entries |
-| [Native shared task board](task-board-sidebar.webp) | 1440 × 1000 | Isolated DSH Web profile; tasks created and persisted by native Team services, with scripted model replies |
+| [Member monitor](overview-sidebar.webp) | 580 × 995 | Actual 0.14.0 component in a simulated sidebar; six synthetic members |
+| [Historical native usage sidebar](usage-sidebar.webp) | 1280 × 900 | Retained 0.13.0 isolated native-sidebar capture, with one demo child |
+| [Member distribution](usage-filters.webp) | 580 × 995 | Actual 0.14.0 distribution with six synthetic members; not actual model usage |
+| [Combined distribution filters](usage-filtered.webp) | 580 × 995 | Same component after hiding the idle state and GPT model route |
+| [Shared task board](task-board-sidebar.webp) | 580 × 995 | Actual 0.14.0 component with five synthetic task projections; native persistence is verified separately by SDK tests |
 
-The settings and usage-filter assets were refreshed for 0.13.0 on 2026-11-11. Native sidebar captures were retained after checking the current component and interaction contract. Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
+Settings, analysis, monitor, distribution and task-board assets were refreshed for 0.14.0 on 2026-11-12. Model-badge and historical native usage/sidebar assets were retained with their original provenance. Screenshots were captured with Playwright and encoded to lossless WebP. Matching PNG files are retained. The fixtures use in-memory configuration, Session faces, and a demo model catalog that only supplies display names; no user profile, private conversation, provider credential, or external model response is included. UI controls were not redrawn or fabricated.
 
 ## Market tile icon
 

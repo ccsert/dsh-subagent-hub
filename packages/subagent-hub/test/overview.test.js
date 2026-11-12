@@ -145,7 +145,7 @@ test('renders escaped names, meaningful labels, model plans and evidence details
   const data = ui.overviewData('root', fixture(), new Map())
   data.rows[0].name = '<script>bad</script>'
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t }))
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data, currentId: 'root', openChild() {}, t }))
   assert.match(html, /&lt;script&gt;/)
   assert.match(html, /模型未确认/)
   assert.match(html, /成员<span class="sah-overview-badge">3<\/span>/)
@@ -156,7 +156,7 @@ test('the last request is named by the catalog while the planned route keeps its
   const data = ui.overviewData('root', fixture(), new Map())
   const groups = [{ id: 'minimax', name: 'MiniMax', models: [{ id: 'MiniMax-M3.1-Flash', name: 'M3.1-Flash · MiniMax Code' }] }]
   const t = (key, args = {}) => (ui.overviewLocales.en[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, groups }))
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data, currentId: 'root', openChild() {}, t, groups }))
   assert.match(html, /<p class="sah-overview-model">M3\.1-Flash · MiniMax Code<\/p>/)
   assert.doesNotMatch(html, /<p class="sah-overview-model">minimax/)
   // The planned route is evidence, not a request: it keeps the exact pair.
@@ -180,7 +180,7 @@ test('cards answer what the agent was asked, is doing, plans and last said', () 
   assert.equal(ui.overviewFilter(data.rows, { status: 'attention' }).length, 1)
   assert.equal(ui.overviewFilter(data.rows, { search: 'effort issue' })[0].id, 'c')
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, now: 5000 }))
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data, currentId: 'root', openChild() {}, t, now: 5000 }))
   assert.match(html, /Investigate the effort issue/)
   assert.match(html, /<code>grep<\/code><span>reasoningEffort<\/span><span class="sah-overview-elapsed">1\.0s<\/span>/)
   assert.match(html, /1\/2 · 当前：Fix router/)
@@ -203,15 +203,15 @@ test('an adapter-defaulted effort is shown from the Hub digest, an explicit one 
   const state = fixture()
   state.projectionsBySession.a.values.subagentHubActivity = { pending: [], recent: [], tools: 0, errors: 0, retries: 0, effort: { value: 'high', defaulted: true } }
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  let html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  let html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
   assert.match(html, /MiniMax-M3\.1-Flash · 推理 high（模型默认）/)
   state.projectionsBySession.a.values.modelSelection.lastUsed = { ...route, reasoningEffort: 'max' }
-  html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
   assert.match(html, /MiniMax-M3\.1-Flash · 推理 max</)
 })
 test('the task board tab only appears when the Team board has tasks', () => {
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  const render = state => renderToStaticMarkup(React.createElement(ui.OverviewContent, { data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
+  const render = state => renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data: ui.overviewData('root', state, new Map()), currentId: 'root', openChild() {}, t }))
   const state = fixture()
   assert.doesNotMatch(render(state), /共享任务板/)
   state.projectionsBySession.root.values.agentTeam.tasks.push({ id: 't1', subject: 'S', description: 'D', status: 'pending', ready: true })
@@ -254,7 +254,7 @@ test('a running agent that is quiet or stuck in one call needs attention', () =>
   assert.equal(row.status, 'running')
   assert.equal(row.attention, true)
   const t = (key, args = {}) => (ui.overviewLocales.zh[key] ?? key).replace(/\{(\w+)\}/g, (_, name) => args[name] ?? '')
-  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { data, currentId: 'root', openChild() {}, t, now: 1000 + ui.STALL_MS }))
+  const html = renderToStaticMarkup(React.createElement(ui.OverviewContent, { initialTab: 'members', data, currentId: 'root', openChild() {}, t, now: 1000 + ui.STALL_MS }))
   assert.match(html, /已 5m 00s 没有新动作/)
 })
 test('new results are what arrived after the last look, plus agents seen to stop meanwhile', () => {

@@ -8,7 +8,7 @@ import { allowedModels, routeLabel, routeSummary } from './router.js'
  * @typedef {import('./router.js').Route} Route
  * @typedef {import('./guard.js').GuardAgent & { description: string, needs?: string[] }} PromptAgent
  * @typedef {{ routes: Map<string, Route>, agents: PromptAgent[], tags: string[], problems: string[] }} PromptCatalog
- * @typedef {{ name: string, agentPreset: boolean, model: boolean }} DelegationInputs
+ * @typedef {{ name: string, agentPreset: boolean, model: boolean, nameInput?: boolean, effort?: boolean }} DelegationInputs
  * @typedef {{ agentPreset: boolean, model: boolean, independent?: DelegationInputs[], team?: { model: boolean, agentPreset?: boolean, effort?: boolean, hubRouting?: boolean } }} PromptParameters
  */
 
@@ -25,6 +25,8 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
   const { agents, routes, tags, problems } = catalog
   if (agents.length === 0 && routes.size === 0) return ''
   const lines = ['## Choosing a subagent']
+  const namedTools = (params.independent ?? []).filter(tool => tool.nameInput)
+  const nativeNamed = namedTools.length > 0
   if (params.team !== undefined && params.independent?.length === 0) {
     lines.push(params.team.hubRouting
       ? 'This session exposes native Agent Teams and the Hub explicit-route creation entry. Use `hub_spawn_teammate` for an independently selected member model.'
@@ -33,6 +35,11 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
       : 'This session exposes Agent Teams without an independent subagent creation tool. The named-agent catalog is informational here; use only the inputs present on the visible tool.')
   } else {
     lines.push(guidance(params))
+  }
+  if (nativeNamed) {
+    lines.push(`Use the native ${namedTools.map(tool => `\`${tool.name}\``).join(' or ')} creation tool. Its \`name\` is the child's identity for messages and task ownership; a name never assigns a Hub role. Choose a role only with \`agent_preset\` on a tool whose schema exposes it.`)
+    lines.push('Native subagents can continue through `send_message`; use the returned name and the paths shown by `list_agents` for nested agents. An inactive agent is not evidence of task completion. Nested delegation keeps the base preset\'s tools and restrictions and remains subject to the host maxDepth and authorization limits.')
+    if (namedTools.some(tool => tool.name === 'subagent_fork' && !tool.agentPreset)) lines.push('`subagent_fork` inherits the completed conversation and its tool composition; its schema does not select a separate role preset. Use `subagent` with `agent_preset` when an independent role composition is required.')
   }
   if (params.team !== undefined) {
     if (params.team.hubRouting) {
@@ -77,11 +84,16 @@ export function promptSection({ catalog, params, limit = 0, limitTools = ['subag
     if ([...routes.values()].some(route => route.reasoningEffort !== undefined)) {
       const scope = params.team?.effort
         ? 'The same route default applies to `spawn_teammate`, whose schema exposes `reasoning_effort`; pass it explicitly. Workflow has no such guidance.'
+        : nativeNamed ? 'This route effort guidance does not apply to `workflow`.'
         : 'This route effort guidance does not apply to `spawn_teammate` or `workflow`.'
+      if (nativeNamed) lines.push('On this native named-subagent host, explicit `provider`/`model` selection without effort uses the model default, even for the parent route. `reasoning_effort` requires both `provider` and `model`; when correcting inherited effort, pass all three together.')
       lines.push(`When dispatching via \`subagent\` or \`subagent_fork\` whose schema exposes \`reasoning_effort\`, explicitly pass the route default in \`reasoning_effort\` unless the task clearly needs a different effort. Explicit values take precedence. ${scope}`)
     }
     if (tags.length > 0) lines.push(`Capability tags: ${tags.map(tag => `\`${tag}\``).join(', ')}.`)
-    lines.push('The configured child route list applies to `subagent`, `subagent_fork`, and `spawn_teammate`, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.'
+    const creationTools = nativeNamed
+      ? (params.independent ?? []).map(tool => `\`${tool.name}\``).join(', ')
+      : '`subagent`, `subagent_fork`, and `spawn_teammate`'
+    lines.push(`The configured child route list applies to ${creationTools}, including inherited models. If the parent model is not listed, use a tool that actually exposes provider/model to select an allowed child route.`
       + (params.team?.hubRouting ? ' `hub_spawn_teammate` instead validates its explicit Hub route before creation and checks that assignment before every member step.' : ''))
     // The Session's own snapshot outranks the list above; say so before the model retries.
     const notice = layers === undefined ? '' : sessionPolicyNotice(layers)

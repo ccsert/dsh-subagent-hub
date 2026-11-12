@@ -1,7 +1,7 @@
 # dsh-subagent-hub 设计（v2）
 
-> 状态：0.13.0（跨模型 Team、配置助手、原生右侧栏、用量与任务板交互），285 项单测 + 97 项隔离 SDK 运行时断言；另通过 19 项真实 Qoder 流程检查。
-> 目标运行时：`@deepseek-ai/dsh` 0.2.2-rc.1；Desktop 安装件与 HMR 尚未单独验收。
+> 状态：0.14.0；rc.1 与 rc.2 的验证和差异见 [rc.2 兼容与验收](compatibility-rc2.md)。
+> 以下历史设计中的 rc.1 Team 行为按该版本理解；当前 Desktop 本地试用、热加载与设置页验收记录见 [兼容性说明](compatibility-rc2.md)。
 > 旧方案（M0–M4）完整保留在 git tag **v0.3.0**，作为回滚点。
 
 ## 1. 方向
@@ -30,7 +30,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 |---|---|---|
 | D1 | 具名 agent 存在哪一层 | **只来自插件配置 `agents`**（profile patch）。官方 `allowedAgentPresets` 是启动时读取的静态列表，会话内创建、工作区扫描、外部来源都无法可靠进入这个列表；v1 的四层来源（profile / workspace / external / session）随之删除。每个定义注册为稳定 id `hub-agent-<id>` 的 Agent Preset |
 | D2 | 子 agent 的模型由谁决定 | 官方 `subagent-model-selection`。插件路由表里的每条 `{provider, model}` 就是 `allowedModels` 的一项；独立任务沿用官方选择；Hub Team 入口通过公开 `agent.model.select()` 显式绑定已校验路线，不写 `agentOptions`、不做回退 |
-| D3 | 用什么工具派发 | 独立任务使用**官方工具**；Team 跨模型入口使用薄封装 `hub_spawn_teammate`，复用原生生命周期。不恢复 `delegate`，不替换或隐藏原生工具 |
+| D3 | 用什么工具派发 | rc.2 使用**原生具名委派**；rc.1 的 Team 跨模型入口使用薄封装 `hub_spawn_teammate`，复用原生生命周期。不恢复 `delegate`，不替换或隐藏原生工具 |
 | D4 | 界面放哪 | 沿用官方派发、会话与设置基础设施，不恢复 v1 独立路由侧栏。Plugins 配置卡片和设置入口共用表单；0.10.0 起标题栏补只读模型标识；0.13.0 从官方标题栏 actions 打开原生右侧栏中的只读子智能体总览，统一成员、任务、运行证据和拒绝诊断，详见 [总览契约](overview-design.md) |
 | D5 | 是否替用户改官方配置 | 默认**不**。`manageOfficialSettings` 默认 `false`；只有显式打开时才通过 `configEditor` 写入 `allowedAgentPresets` 与模型允许列表 |
 | D6 | 路由约束怎么表达 | 官方 `allowedAgentPresets` 只能约束“可选哪些预设”，不能约束“这个预设只能用哪些模型”。用 `tools/pre-execute` 守卫在读官方工具参数、派发发生之前拒绝越界组合 |
@@ -42,7 +42,7 @@ v2 不再替代官方派发，只给官方子代理补“怎么选”的信息�
 启动时对每个 `agents` 定义：
 
 1. `agentPresets.readDocument(basePreset)`（默认 `standard`）取出该预设的 plugin 行；
-2. `deriveAgentPreset()`：递归删掉所有官方委派工具行（具名 agent 的子会话不再委派），把 `instructions` 追加到 `@deepseek-ai/dsh-persona` 的 `prefix`；
+2. `deriveAgentPreset()`：rc.1 递归去除官方委派行；rc.2 保留基础 preset 原有委派行与限制，不新增权限、深度或 allowlist。两者都把 `instructions` 追加到 `@deepseek-ai/dsh-persona` 的 `prefix`；
 3. `agentPresets.register({ id: 'hub-agent-<id>', name: agent.name || 'Hub agent · <id>', description, order: 10000, plugins })`。
 
 id 稳定、不含指纹：它会被写进 profile patch 的 `allowedAgentPresets`，定义变化时必须保持同一个 id。`description` 会出现在官方工具 `agent_preset` 参数的枚举说明里（官方实现读取预设声明）。
@@ -96,7 +96,7 @@ allowedModels = routes.map(({ provider, model }) => ({ provider, model }))
 - 设置页保存涉及路由或预设的改动后，提示“路由变更从新的顶层会话起生效”。
 - 具名预设声明的路由不在新会话将会采用的白名单内时，在**预设注册期**（`validatePresetRoutes`）写 warn 日志，并在设置页具名 agent 面板列出“哪条路由、白名单里有哪些”。托管开启时白名单由插件自己写入，因此不会不一致；托管关闭时读取用户自己的官方设置，读不到则不判断。
 
-原生新会话中，托管已启用的 `subagent` 暴露模型参数，可选择 MiniMax；当前 `subagent_fork` 与 `spawn_teammate` 不具备该能力。Team-only 会话也收到目录与这项限制。实际请求、零被拒绝成员记录与框架无关 Host 入口回归见 [Team 模型路由](team-model-routing.md)。
+rc.1 原生新会话中，托管已启用的 `subagent` 可暴露模型参数；fork 与原生 Team 的能力以会话 schema 为准。rc.2 具名工具与 effort 差异见 [兼容性说明](compatibility-rc2.md)。实际请求、零被拒绝成员记录与框架无关 Host 入口回归见 [Team 模型路由](team-model-routing.md)。
 
 全局空表保留原生继承。检查只覆盖创建工具，不重写现有成员、不拦截其后续 `send_message` 唤醒，也不覆盖其他插件的请求期模型改写。并发上限仍由 `delegationTools` 决定，未把原生 Team 容量冒充成 Hub 的独立子任务并发上限。
 
@@ -169,7 +169,7 @@ Client 通过可选的 `sessions` 注入，注册官方 session 范围的 `conve
 | `basePresets` | 只用于派生 `+hub` |
 | workspace / external / session 定义层、`define_subagent` 晋升 | 无法进入静态 `allowedAgentPresets`（见 D1） |
 
-### 4.8 典型用法：贵模型统筹，便宜模型执行（未发布）
+### 4.8 典型用法：贵模型统筹，便宜模型执行
 
 插件的价值不在“更多子 agent”，而在**把贵模型的用量压到不可替代的判断上**。主 agent 用最强（通常也最贵）的模型，负责理解需求、拆解、审查产出与最终整合；阅读、试写、跑测试这类高 token 低判断的工作交给标注为免费/低价的路由。
 
@@ -180,7 +180,7 @@ Client 通过可选的 `sessions` 注入，注册官方 session 范围的 `conve
 - **参数可用**：`manageOfficialSettings: true` 且 `routes` 非空（4.5）。此时插件把 `allowedAgentPresets` 与模型允许列表同步到官方配置；官方 `subagent` 工具是否暴露 `provider`/`model` 取决于当前 DSH 自带预设里的 `modelSelection`/`modelDiscovery`（旧版为 `modelSelectionSettings`），插件不臆造。否则主 agent 只能继承自身模型，整套分工无从落地。
 - **并行与预算**：4.5a 的每会话并发上限限制同时运行的子 agent 数量，是这条用法的成本闸门；官方全局并行容量同时生效。
 
-适用边界：Team（`spawn_teammate`）在当前运行时继承 Lead 模型，没有模型选择输入，**用 Team 派活省不了贵模型的用量**；只有暴露 `provider`/`model` 的 `subagent` 能把子任务送到便宜路由。另见 [Team 模型路由](team-model-routing.md)。
+适用边界：rc.1 原生 Team（`spawn_teammate`）继承 Lead 模型；Hub 的 rc.1 Team 入口与 rc.2 原生具名委派分别按其公开能力选择路线。另见 [Team 模型路由](team-model-routing.md)。
 
 不承诺：插件不校验价格、不估算费用、不做自动回退。标签是用户维护的语义；子 agent 仍有自身 token 与工具开销，任务拆分本身要划算；深度推理、架构决策与最终审查留在贵模型上才可能净省，否则通常以返工换回省下的量。
 
@@ -192,7 +192,7 @@ packages/subagent-hub
 ├─ lib/client.js            官方 Plugins 页的行配置卡片（路由 / 具名 agent / 托管开关）
 ├─ lib/catalog.js           配置 → 路由表 + 具名 agent + 稳定 preset id + 配置问题
 ├─ lib/definitions.js       具名 agent 定义校验
-├─ lib/presets.js           从基础预设派生具名 agent 预设（递归去委派行 + persona 追加）
+├─ lib/presets.js           从基础预设派生具名 agent 预设（按宿主能力保留或去除委派行 + persona 追加）
 ├─ lib/router.js            路由索引、标签、allowedModels 映射
 ├─ lib/guard.js             路由约束判定（纯函数），拒绝时标明层与允许列表
 ├─ lib/policy.js            两层白名单比较：会话快照、配置、预设越界诊断
@@ -218,7 +218,7 @@ v1 的 M0 spike（[`spikes/m0-runtime/README.md`](../spikes/m0-runtime/README.md
 
 ## 7. 测试与验收
 
-`bash test.sh`：249 项单元测试 + 33 项 e2e 断言（真实 `dsh`，临时 `DSH_HOME`，无模型凭据，`llm/stream` 脚本化）。
+版本验证与复现命令见 [rc.2 兼容与验收](compatibility-rc2.md)；隔离 SDK 使用临时 `DSH_HOME` 和脚本化模型流。以下断言列表记录早期 rc.1 契约。
 
 e2e 断言覆盖：具名预设注册成功；`manageOfficialSettings` 写入预设行与模型设置；路由表与 Host 设置一致；spawn 行拿到 allowlist、fork 行不动；主 agent 的官方 `subagent` schema 出现 `agent_preset` / `provider` / `model` / `reasoning_effort`；prompt 段落含目录；越界 `provider/model` 被守卫拒绝；具名 agent 通过 `agent_preset` 生效且 persona 含 instructions；省略路由时继承父路由；普通子 agent 不被具名守卫限制；client bundle 上架；配置行有可写表单；通过 Host settings 服务 live 新增具名 agent 后，预设、`allowedAgentPresets`、新会话 schema、persona 全部更新。
 

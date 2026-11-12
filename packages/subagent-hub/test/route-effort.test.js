@@ -54,6 +54,31 @@ test('inherited and explicitly selected parent routes compare latest parent effo
     assert.ok(verdict({ arguments: args, parent: { options: { ...route, reasoningEffort: undefined } } }))
   }
 })
+test('rc2 explicit same-route selection clears parent effort and requires an explicit default', () => {
+  for (const toolName of ['subagent', 'subagent_fork']) {
+    const sameParent = { options: { ...route, reasoningEffort: 'high' } }
+    const reason = verdict({ toolName, parent: sameParent, explicitRouteEffortDefault: true })
+    assert.match(reason, /adding only `reasoning_effort: "high"`/)
+    assert.equal(verdict({ toolName, parent: sameParent, arguments: {}, explicitRouteEffortDefault: true }), undefined)
+    assert.equal(verdict({ toolName, parent: sameParent, explicitRouteEffortDefault: true,
+      arguments: { ...base.arguments, reasoning_effort: 'low' } }), undefined)
+  }
+})
+test('rc2 inherited-route correction supplies provider, model and effort together', () => {
+  const reason = verdict({ arguments: {}, parent: { options: { ...route, reasoningEffort: 'low' } }, explicitRouteEffortDefault: true })
+  assert.match(reason, /provider: "magpie-responses"/)
+  assert.match(reason, /model: "codex\/gpt-6.1-sol"/)
+  assert.match(reason, /reasoning_effort: "high"` together/)
+  assert.doesNotMatch(reason, /adding only/)
+})
+test('rc2 effort advice does not invent unsupported selectors or replace native pairing validation', () => {
+  const parent = { options: { ...route, reasoningEffort: 'low' } }
+  assert.equal(verdict({ arguments: {}, parent, explicitRouteEffortDefault: true,
+    parameters: { properties: { reasoning_effort: {} } } }), undefined)
+  for (const args of [{ provider: route.provider }, { model: route.model }]) {
+    assert.equal(verdict({ arguments: args, parent, explicitRouteEffortDefault: true }), undefined)
+  }
+})
 test('model-less fork uses the inherited route despite unsupported model arguments', () => {
   assert.ok(verdict({ toolName: 'subagent_fork', parameters: { properties: { reasoning_effort: {} } },
     arguments: { provider: 'ignored', model: 'ignored' }, parent: { options: { ...route, reasoningEffort: 'low' } } }))

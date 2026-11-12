@@ -3,21 +3,23 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.13.0"><img src="https://img.shields.io/badge/version-0.13.0-66c8ab" alt="Version 0.13.0"></a>
+  <a href="https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.14.0"><img src="https://img.shields.io/badge/version-0.14.0-66c8ab" alt="Version 0.14.0"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT license"></a>
   <a href="docs/install.md"><img src="https://img.shields.io/badge/DSH_SDK-0.2.2--rc.1-7087ad" alt="Tested with DSH SDK 0.2.2-rc.1"></a>
-  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/verified-285_unit_%2B_97_runtime-66c8ab" alt="285 unit tests and 97 runtime assertions verified"></a>
+  <a href="CONTRIBUTING.md"><img src="https://img.shields.io/badge/development-316_unit-66c8ab" alt="316 development unit tests verified"></a>
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <b>English</b></p>
 
 # Subagent Hub
 
+Version 0.14.0 supports native named delegation on rc.2 and improves Settings and the agent overview. See the [rc.2 compatibility and verification notes](docs/compatibility-rc2.md).
+
 **Roles, model selection context, and route boundaries for official DeepSeek Harness subagents.** Give the main agent useful reviewer, tester, or research roles; manage allowed models in Settings; inspect the most recent model request from a child conversation.
 
 Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversation UI. Keep your existing main-agent preset.
 
-**Cross-model Team:** `hub_spawn_teammate` selects a Hub route and optional role for a native Team member while the Lead keeps its own configured model. Verified with two real Qoder routes in both Lead/member directions. Native messaging, tasks and continuation ownership remain unchanged. Roles apply instructions and model limits; native tool composition is inherited. See [Team model routing](docs/team-model-routing.md).
+**Cross-model collaboration:** rc.2 uses native `subagent` / `subagent_fork`; `name` identifies the member and `agent_preset` selects the role. rc.1 retains `hub_spawn_teammate`. The real Qoder checks are historical 0.13.0 evidence. See [Team model routing](docs/team-model-routing.md).
 
 [Install](docs/install.md) · [Download a release](https://github.com/ccsert/dsh-subagent-hub/releases/latest) · [Configuration example](examples/subagent-hub.yml) · [Changelog](CHANGELOG.md) · [Contribute](CONTRIBUTING.md)
 
@@ -29,14 +31,14 @@ Uses official `subagent` / `subagent_fork` dispatch, Agent Presets, and conversa
 | **Model selection catalog** | Provide configured routes, capabilities, purposes, and role instructions to the main agent |
 | **Route guard** | Check the global child routes before subagent, fork, and Team creation; named roles can narrow that range further |
 | **Per-session concurrency** | Limit child agents in each parent session, alongside DSH's global capacity |
-| **Native settings form** | Edit roles in a single-column accordion, with separate Roles, Models and General tabs |
+| **Native settings form** | Search, collapse, and reorder roles and models in separate Roles, Models and General tabs; filter models by provider |
 | **Configuration assistant** | Design roles and adjust settings in the Hub 配置助手 mode; preview changes and save to the same configuration as the settings page |
-| **Cross-model Team** | Explicit Hub routes and optional roles for native Team members through `hub_spawn_teammate`; the Lead is model-independent |
+| **Cross-model Team** | Native named delegation on rc.2; `hub_spawn_teammate` on rc.1 |
 | **Request model visibility** | Read the latest provider/model from the child header; expand for full IDs and recorded reasoning effort |
 | **Route reasoning effort** | Give each route a default `reasoning_effort`; when the main agent omits it, the Hub refuses with an exact retry, and explicit values win |
 | **Agent overview** (optional) | A live header monitor: each child's task, current action, plan, report, model and effort, token use by route, and new-result and stall alerts; off by default |
 
-The overview opens in the official right sidebar; DSH owns resizing, collapse, close, docking and session switching.
+The default Usage analysis groups by the public preset projection, with input/cache/output tokens, retry coverage, and actual request routes. Configuration comparisons are informational: explicit overrides or later configuration changes can explain differences. Missing usage stays unknown, estimates are labeled, and incomplete route records are disclosed. The overview opens in the official right sidebar; DSH owns resizing, collapse, close, docking and session switching.
 
 In the Usage tab, click status or model labels to hide or restore matching entries in both the treemap and the list. Combine exclusions or show all again; cumulative totals stay unchanged and a separate summary shows visible usage. Idle Team members are distinct from finished tasks. Usage filters survive tab switches and live refreshes while the monitor stays open. The shared task board combines status and owner filters, links to prerequisites and conflicting tasks, and opens owners only through authoritative Team membership. Task mutations remain with native Team tools.
 
@@ -52,6 +54,8 @@ In the Usage tab, click status or model labels to hide or restore matching entri
 
 **Agent overview**
 
+![Default usage analysis: roles, actual routes, cache and retry coverage](docs/assets/overview-analysis.webp)
+
 ![Overview monitor: each agent's task, current action, plan and report](docs/assets/overview-sidebar.webp)
 
 **Usage by route**
@@ -62,17 +66,17 @@ In the Usage tab, click status or model labels to hide or restore matching entri
 
 ![Native sidebar task filters, dependencies and owner navigation](docs/assets/task-board-sidebar.webp)
 
-These are the actual plugin components rendered with demo data. They contain no user profile, private conversation, or credentials. See [screenshot provenance](docs/screenshots.md) for full-size and narrow views. The Hero was generated with [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen).
+These are the actual plugin components rendered with demo data. They contain no user profile, private conversation, or credentials. See [screenshot provenance](docs/screenshots.md) for provenance and historical 0.13.0 views; historical narrow views do not establish mobile acceptance for this release. The Hero was generated with [dsh-image-gen](https://github.com/shanliuling/dsh-image-gen).
 
 ## Quick start
 
-Tested with **`@deepseek-ai/dsh` 0.2.2-rc.1**. Configure a working model provider in DSH first.
+Development verification used isolated **`@deepseek-ai/dsh` 0.2.2-rc.1 and 0.2.2-rc.2** SDKs; the final release archive SDK gate is checked separately. Configure a working model provider in DSH first.
 
-1. Download `dsh-subagent-hub-0.13.0.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
+1. Download `dsh-subagent-hub-0.14.0.tgz` from [Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest).
 2. Install it from the target profile directory:
 
    ```bash
-   pnpm add /absolute/path/to/dsh-subagent-hub-0.13.0.tgz
+   pnpm add /absolute/path/to/dsh-subagent-hub-0.14.0.tgz
    ```
 
 3. **Append** `"dsh-subagent-hub"` to `dsh.profile.bundles` in that profile's package manifest. Preserve existing bundles and restart DSH to load the plugin code.
@@ -157,7 +161,7 @@ Then simply tell the main agent:
 
 `maxConcurrent` caps how many children run at once, which is the concurrency gate on what this pattern can spend; the official global parallel capacity still applies.
 
-**Choose the tool for the collaboration.** Use `subagent` for independent tasks. Use `hub_spawn_teammate` with an explicit Hub `route` and optional `role` for durable Team members, messages and the shared task board. Native `spawn_teammate` continues to inherit the Lead model.
+**Choose the tool for the runtime.** Use native `subagent` / `subagent_fork` on rc.2. On rc.1, use `hub_spawn_teammate` with an explicit Hub `route` and optional `role` for cross-model Team members.
 
 What this saves is **expensive-model tokens**, not total cost, and it does not fit every task:
 
@@ -168,13 +172,16 @@ What this saves is **expensive-model tokens**, not total cost, and it does not f
 
 ## Behavior to keep in mind
 
-- **Team context selects history.** Both Hub `fresh` and `fork` creations accept an explicit route; native `spawn_teammate` still inherits the Lead. Hub roles apply instructions and route limits, not a different base preset or tool composition. Native roster labels can retain the inherited creation model; inspect member request records for the actual model. See [Team model routing](docs/team-model-routing.md).
+- **rc.2 named and nested delegation.** `name` identifies a member; `agent_preset` selects a role. The standard fork schema inherits its model and role composition. Role presets retain existing base delegation rows without adding permissions, allowlists, or depth. The native default `maxDepth=1` rejects grandchildren; nested roles require sufficient host depth (for example 3) and valid `allowedAgentPresets` authorization in the base preset.
+- **rc.2 effort.** Explicit `provider`/`model` without effort uses the model default, even on the parent route. Hub route defaults require an explicit effort; when inherited effort differs, retry with provider, model and `reasoning_effort` together. Explicit overrides are allowed.
+
+- **rc.1 Team context selects history.** Both Hub `fresh` and `fork` creations accept an explicit route; native `spawn_teammate` still inherits the Lead. Hub roles apply instructions and route limits, not a different base preset or tool composition. Native roster labels can retain the inherited creation model; inspect member request records for the actual model. See [Team model routing](docs/team-model-routing.md).
 - **Global routes also guard inheritance.** A nonempty `routes` list bounds all three creation tools; out-of-list or unconfirmed models are refused. An empty list retains native inheritance. Existing members and later request rewrites are outside this creation check.
 - **Tags guide decisions.** Tags such as `fast`, `reasoning`, or `free` are maintained by you. Use a role's `routes` for a hard route boundary. Tags do not verify pricing or implement automatic fallback.
 - **The guard runs before dispatch.** Model rewrites performed by other plugins during a later child request are outside this guard. Check those plugins when combining route policies.
 - **Fork follows official capabilities.** The target fork provider does not support an independent `agent_preset`; named roles use `subagent`.
 - **Managed settings are opt-in.** `manageOfficialSettings` defaults to `false`. Enabling it synchronizes official allowlists. Disabling it stops syncing and retains settings already written.
-- **Managed writes are upgrade-safe.** The Hub owns only `allowedAgentPresets` on the spawn delegation row (`@deepseek-ai/dsh-tool-subagent` with `provider: spawn`) inside an official preset. Each successful write records a Hub-owned baseline in `cordis.patch.yml.subagent-hub-baseline.json`, and the first write of a run copies the profile patch to `cordis.patch.yml.backup-<timestamp>-subagent-hub` first. After a DSH upgrade, only a preset the Hub wrote and the user has not edited is re-derived wholesale from the new shipped preset; a user-edited preset gets additive repairs only and is marked foreign, so it is never rebased again. A frozen snapshot written by an older version self-heals on the next sync. The primary repair signal is the authoritative preset activation diagnostic (`agentPresets.list()` `broken`): only rows in a line ending exactly `: never started` are removed, and only when the current shipped preset does not declare them; `waiting for` pending rows and base-declared rows are never deleted. Package resolution is a conservative secondary signal: only the running installation's own resolution anchor may decide, a development symlink or profile-local copy can only make the answer ambiguous, and a row neither signal can judge is reported in the log, never deleted. The spawn row is then restored to the current shipped config plus `allowedAgentPresets`, and every other row is left untouched.
+- **rc.1 managed-write upgrade protection.** The Hub owns only `allowedAgentPresets` on the spawn delegation row (`@deepseek-ai/dsh-tool-subagent` with `provider: spawn`) inside an official preset. Each successful write records a Hub-owned baseline in `cordis.patch.yml.subagent-hub-baseline.json`, and the first write of a run copies the profile patch to `cordis.patch.yml.backup-<timestamp>-subagent-hub` first. After a DSH upgrade, only a preset the Hub wrote and the user has not edited is re-derived wholesale from the new shipped preset; a user-edited preset gets additive repairs only and is marked foreign, so it is never rebased again. A frozen snapshot written by an older version self-heals on the next sync. The primary repair signal is the authoritative preset activation diagnostic (`agentPresets.list()` `broken`): only rows in a line ending exactly `: never started` are removed, and only when the current shipped preset does not declare them; `waiting for` pending rows and base-declared rows are never deleted. Package resolution is a conservative secondary signal: only the running installation's own resolution anchor may decide, a development symlink or profile-local copy can only make the answer ambiguous, and a row neither signal can judge is reported in the log, never deleted. The spawn row is then restored to the current shipped config plus `allowedAgentPresets`, and every other row is left untouched.
 - **Existing conversations keep their tool schema.** Saved configuration is live; use a new conversation for newly added roles or tool parameters. Plugin code upgrades require a DSH restart.
 - **Desktop model badges need 0.10.3 or newer.** This fixes the required native list-slot registration field. A component demo is distinct from a reload of the current Desktop window; see the [mounting fix record](docs/model-badge-acceptance.md).
 - **The model badge shows request history.** `lastUsed` identifies the latest request; a different `next` selection is shown separately. A ready empty history says “No request yet”; unavailable data says “Unconfirmed.” A request record does not establish success or billing, and forked history may include inherited requests.
@@ -190,7 +197,7 @@ bash test.sh           # real DSH integration in a temporary DSH_HOME
 npm run pack:check     # inspect the distributable archive
 ```
 
-Verified by **285 unit tests, 97 isolated-SDK runtime assertions**, and the installed-SDK slot regression, with scripted model streams. A separate real Qoder run passed **19 flow checks** with both models as Lead/member, role instructions, fresh/fork contexts and wake-up routing. CI runs unit, documentation and package checks. Desktop installation, HMR and long-history compaction remain unverified. See [settings acceptance](docs/ui-acceptance.md), [model badge acceptance](docs/model-badge-acceptance.md) and [Team routing](docs/team-model-routing.md).
+Development verification passed **316 unit tests**, 26 Settings and 18 overview browser component checks. Earlier isolated-SDK verification included 43+7 rc.2 and 97 rc.1 assertions and both SDK slot checks, with model streams intercepted. The final release archive SDK gate is checked separately. The 19 real Qoder checks are historical 0.13.0 evidence. Browser checks used actual component fixtures; they do not establish acceptance of the user GUI or mobile layout. See [rc.2 compatibility and verification](docs/compatibility-rc2.md).
 
 Issues and PRs are welcome. Read [CONTRIBUTING](CONTRIBUTING.md), the [design notes](docs/design.md), and the [release guide](docs/releasing.md). The previous v0.3.0 architecture remains available at its tag.
 

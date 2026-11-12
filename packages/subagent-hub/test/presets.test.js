@@ -31,6 +31,23 @@ test('named agent preset drops delegation rows and appends instructions to the p
   assert.equal(base[2].config.length, 4, 'input rows are not mutated')
 })
 
+test('native named-tree presets preserve existing delegation limits and tool restrictions', () => {
+  const base = standard()
+  base[2].config[1].config = { provider: 'spawn', maxDepth: 2, allowedAgentPresets: ['foreign-reader'], modelSelection: true }
+  base.push({ id: 'restricted', name: 'tools-restrict', config: { allow: ['read'] } })
+  const snapshot = structuredClone(base)
+  const { plugins, dropped } = deriveAgentPreset(base, 'Review only.', { preserveDelegation: true })
+  assert.deepEqual(dropped, [])
+  assert.deepEqual(plugins.slice(1), snapshot.slice(1), 'all existing rows and authorization limits survive verbatim')
+  assert.equal(plugins[0].config.prefix, 'You are a coding agent.\n\nReview only.')
+  assert.deepEqual(base, snapshot, 'the shared base composition is unchanged')
+  assert.equal(plugins[2].config[1].config.allowedAgentPresets.includes('hub-agent-reviewer'), false, 'no preset authorization is invented')
+})
+test('preserving delegation does not add it to a restricted base', () => {
+  const { plugins } = deriveAgentPreset([{ id: 'read', name: 'read-only' }], '', { preserveDelegation: true })
+  assert.deepEqual(plugins, [{ id: 'read', name: 'read-only' }])
+})
+
 test('a base without a persona row gains one prefixed with the instructions', () => {
   const { plugins } = deriveAgentPreset([{ id: 'tool-fs', name: '@deepseek-ai/dsh-tool-fs' }], 'Be terse.')
   assert.deepEqual(plugins[0], { id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: 'Be terse.' } })

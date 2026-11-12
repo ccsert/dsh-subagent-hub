@@ -21,7 +21,7 @@ import { AGENT_PRESET_PREFIX, buildCatalog } from './catalog.js'
 import { deriveAgentPreset } from './presets.js'
 import { CREATION_TOOLS, GUARD_PREFIX, concurrencyVerdict, creationRouteVerdict, guardVerdict, modelSelectionAvailable, routeEffortVerdict } from './guard.js'
 import { promptSection } from './prompt.js'
-import { MODEL_SETTINGS_ID, officialSettingsPlan, teamRoleEntryIds } from './official-settings.js'
+import { MODEL_SETTINGS_ID, modelSettingsFor, officialSettingsPlan, teamRoleEntryIds } from './official-settings.js'
 import { syncOfficialMirror } from './mirror.js'
 import { parseBrokenPresetRows } from './preset-migration.js'
 import { backupProfilePatch, createBaselineStore, createResolveSpec } from './sidecar.js'
@@ -146,10 +146,7 @@ export default class SubagentHub extends Service {
       order: this.ctx.systemPrompt.getSectionOrder('TOOL_SUBAGENT') + 10,
       text: context => this.sectionText(context.scope),
     }))
-    this.disposers.push(this.ctx.inject(['sessionProjections'], scope => {
-      scope.sessionProjections.register(dispatchProjection)
-      scope.sessionProjections.register(activityProjection)
-    }))
+    this.disposers.push(this.ctx.inject(['sessionProjections'], scope => this.registerProjections(scope.sessionProjections)))
     // The official runtime captures a Session's model allowlist at start and never refreshes it,
     // so a live configuration edit cannot reach an open Session. Say that in the runtime context
     // instead of letting the model discover it through an opaque native rejection.
@@ -185,6 +182,38 @@ export default class SubagentHub extends Service {
     }
   }
 
+  /** Own only Hub projections. Native policy keys remain registered by their owning domain. */
+  async registerProjections(registry) {
+    const handles = new Map()
+    const dispose = async () => {
+      try {
+        for (const handle of [...handles.values()].reverse()) {
+          if (typeof handle?.dispose === 'function') await handle.dispose()
+          else if (typeof handle === 'function') await handle()
+        }
+      } finally {
+        if (this.projectionHandles === handles) this.projectionHandles = undefined
+      }
+    }
+    try {
+      for (const definition of [dispatchProjection, activityProjection]) {
+        handles.set(definition.key, await registry.register(definition))
+      }
+      this.projectionHandles = handles
+      return dispose
+    } catch (error) {
+      await dispose()
+      throw error
+    }
+  }
+
+  /** rc2's public tree identity API distinguishes it from rc1's Team lifecycle. */
+  nativeNamedDelegation() {
+    const runtime = this.ctx.get('subagents')
+    return typeof runtime?.namesOf === 'function' && typeof runtime?.startActivation === 'function'
+      && typeof runtime?.resolveMaxDepth === 'function'
+  }
+
   async waitForPreset(id) {
     const deadline = Date.now() + PRESET_WAIT_MS
     while (Date.now() < deadline) {
@@ -215,7 +244,8 @@ export default class SubagentHub extends Service {
     for (const agent of this.catalog.agents) {
       if (this.disposed) break
       try {
-        const { plugins } = deriveAgentPreset(await this.rowsOf(agent.basePreset), agent.instructions)
+        const { plugins } = deriveAgentPreset(await this.rowsOf(agent.basePreset), agent.instructions,
+          { preserveDelegation: this.nativeNamedDelegation() })
         const dispose = await this.ctx.agentPresets.register({
           id: agent.presetId,
           name: agent.name || `Hub agent · ${agent.id}`,
@@ -373,6 +403,8 @@ export default class SubagentHub extends Service {
         name,
         agentPreset: Object.hasOwn(properties, 'agent_preset'),
         model: Object.hasOwn(properties, 'provider') && Object.hasOwn(properties, 'model'),
+        nameInput: Object.hasOwn(properties, 'name'),
+        effort: Object.hasOwn(properties, 'reasoning_effort'),
       })
     }
     const teamTool = tools.get('spawn_teammate', scope)
@@ -495,6 +527,7 @@ export default class SubagentHub extends Service {
         parent: exec.agent,
         catalog: this.catalog,
         parameters: this.ctx.get('tools')?.get(exec.name, exec.agent)?.parameters,
+        explicitRouteEffortDefault: this.nativeNamedDelegation(),
       })
       if (reason !== undefined) return Promise.resolve({ kind: 'deny', reason })
     } catch {

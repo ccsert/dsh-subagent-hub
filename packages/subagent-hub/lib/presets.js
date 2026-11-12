@@ -28,13 +28,15 @@ function stripDelegation(rows) {
 }
 
 /**
- * A named agent's preset: the base composition without any delegation tool (named-agent
- * children do not delegate) and with the agent's instructions appended to the persona prefix.
+ * A named agent's preset with role instructions appended to the persona prefix.
+ * Legacy hosts strip delegation. On a native named-tree host, preserve only the base's
+ * existing rows, including restrictions and depth configuration; never add capabilities.
  * @param {any[]} baseRows parsed plugin rows of the base preset.
  * @param {string} instructions
+ * @param {{ preserveDelegation?: boolean }} options
  */
-export function deriveAgentPreset(baseRows, instructions) {
-  const { rows, dropped } = stripDelegation(baseRows)
+export function deriveAgentPreset(baseRows, instructions, { preserveDelegation = false } = {}) {
+  const { rows, dropped } = preserveDelegation ? { rows: baseRows, dropped: [] } : stripDelegation(baseRows)
   let personaFound = false
   const withPersona = list => list.map((row) => {
     if (row?.name === PERSONA_PACKAGE && !personaFound) {

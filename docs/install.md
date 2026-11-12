@@ -2,26 +2,26 @@
 
 插件已发布到 [npm](https://www.npmjs.com/package/dsh-subagent-hub)，也通过 [GitHub Releases](https://github.com/ccsert/dsh-subagent-hub/releases/latest) 提供固定归档。Team 与继承路由守卫需要 0.10.2 或更高版本。
 
-已验证：**`@deepseek-ai/dsh` 0.2.2-rc.1**。0.13.0 要求 SDK 0.2.2-rc.1 或更新的 0.2.x 版本；Desktop 实际安装件仍需单独验收。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
+0.14.0 的最低要求是 **`@deepseek-ai/dsh` 0.2.2-rc.1**，本版最终归档已分别通过 rc.1 和 rc.2 隔离 SDK 验收。Desktop rc.2 的本地开发安装件另有实际页面与配置保留验收记录，见 [兼容性说明](compatibility-rc2.md)。插件使用官方 Agent Presets、模型选择和会话投影接口。先在 DSH 中配置并验证要使用的模型供应商。
 
-CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.13.0`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
+CLI 管理的独立 profile 可以使用 `dsh plugin --profile web add dsh-subagent-hub@0.14.0`。Desktop 用户应使用应用自身的插件安装/管理入口；若按下文手动修改 Desktop profile，先退出应用，完成后再启动。
 
 ## 1. 找到目标 profile
 
-插件安装到 profile，不安装到某个普通聊天工作区。以 macOS Desktop 的 `web` profile 为例：
+插件安装到 profile，不安装到某个普通聊天工作区。以 macOS Desktop rc.2 的默认 `desktop` profile 为例：
 
 ```bash
-export DSH_PROFILE_DIR="$HOME/Library/Application Support/dsh-desktop/harness/profiles/web"
+export DSH_PROFILE_DIR="$HOME/.dsh/profiles/desktop"
 ```
 
 其他启动方式请使用自己的 profile 目录；其中应存在用于管理依赖的包清单和 profile patch。以下命令不会由 README 自动执行。
 
 ## 2. 安装插件包
 
-推荐从 [v0.13.0 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.13.0) 的 Assets 下载 `dsh-subagent-hub-0.13.0.tgz`。同页提供 SHA-256 校验文件。
+推荐从 [v0.14.0 Release](https://github.com/ccsert/dsh-subagent-hub/releases/tag/v0.14.0) 的 Assets 下载 `dsh-subagent-hub-0.14.0.tgz`。同页提供 SHA-256 校验文件。
 
 ```bash
-pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.13.0.tgz
+pnpm --dir "${DSH_PROFILE_DIR:?}" add /absolute/path/to/dsh-subagent-hub-0.14.0.tgz
 ```
 
 从仓库检出安装时，包目录位于仓库的 `packages/subagent-hub`，不是仓库根目录：
@@ -67,7 +67,7 @@ JS
 
 新会话保持常用预设，例如 `standard`。主 agent 通过官方 `subagent` 工具派发，具名角色 id 为 `hub-agent-<id>`。
 
-已有会话保留启动时的工具 schema。配置保存是实时的，插件 JavaScript 更新则需要重启。
+已有会话保留启动时的工具 schema。配置保存是实时的；应用内更新后核对组件运行状态，并按宿主反馈重新启用或重启。手工修改 profile 时先退出应用再启动。
 
 ## 手动配置
 
@@ -82,7 +82,7 @@ JS
 
 列表顺序保留在目录中；标签帮助主 agent 做选择。硬性路由限制来自角色的 `routes`，不实现自动模型回退。
 
-托管写入是升级安全的：Hub 只维护 spawn 委派行的 `allowedAgentPresets`，每次成功写入把 `{ baseHash, writtenHash, foreign }` 记到 profile patch 旁的 `cordis.patch.yml.subagent-hub-baseline.json`，并在每轮第一次写入前把 profile patch 备份为 `cordis.patch.yml.backup-<时间戳>-subagent-hub`。DSH 升级后，Hub 自己写过且未被用户修改的预设会自动重接到新官方预设；用户改过的预设只做增量修补、标记 foreign 后不再自动重接。旧版本冻结的坏快照会在下一次同步时自愈：可证明无法加载的子路径行被删除，spawn 行恢复为当前官方默认 config + `allowedAgentPresets`。修复优先使用官方预设的激活诊断（`agentPresets.list()` 的 `broken`：只有 `: never started` 行会被删除，`waiting for` 挂起行只报告不删除）；包解析只作保守的辅助信号，只有运行中安装自己的解析基准能判定，无法确定的行只在日志里报 `unverified`，不删除。
+rc.2 通过能力检测保留基础预设的原生委派行，不向其中注入 rc.1 spawn 专用配置。以下升级修复机制针对 rc.1：Hub 只维护 spawn 委派行的 `allowedAgentPresets`，每次成功写入把 `{ baseHash, writtenHash, foreign }` 记到 profile patch 旁的 `cordis.patch.yml.subagent-hub-baseline.json`，并在每轮第一次写入前把 profile patch 备份为 `cordis.patch.yml.backup-<时间戳>-subagent-hub`。DSH 升级后，Hub 自己写过且未被用户修改的预设会自动重接到新官方预设；用户改过的预设只做增量修补、标记 foreign 后不再自动重接。旧版本冻结的坏快照会在下一次同步时自愈：可证明无法加载的子路径行被删除，spawn 行恢复为当前官方默认 config + `allowedAgentPresets`。修复优先使用官方预设的激活诊断（`agentPresets.list()` 的 `broken`：只有 `: never started` 行会被删除，`waiting for` 挂起行只报告不删除）；包解析只作保守的辅助信号，只有运行中安装自己的解析基准能判定，无法确定的行只在日志里报 `unverified`，不删除。
 
 关闭托管会停止后续同步，**不会撤销之前写入的官方设置**。如果保持托管关闭，请自行维护官方工具的 `allowedAgentPresets` 和模型选择 allowlist；主 agent 只会被引导使用当前工具实际暴露的参数。
 

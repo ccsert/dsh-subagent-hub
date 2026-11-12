@@ -369,6 +369,53 @@ window.__ModuleLoader__.load({
       'template.blank.instructions': '',
     }
 
+    Object.assign(zh, {
+      'settings.clean': '没有未保存的修改', 'settings.loading': '正在读取配置…',
+      'settings.searchModels': '搜索模型、供应商或标签', 'settings.searchRoles': '搜索角色或用途',
+      'settings.view': '模型展示方式', 'settings.order': '配置顺序', 'settings.name': '模型名称',
+      'settings.provider': '供应商分组', 'settings.allProviders': '全部供应商', 'settings.providerFilter': '筛选供应商',
+      'settings.expandAll': '全部展开', 'settings.collapseAll': '全部折叠', 'settings.clear': '清除筛选',
+      'settings.noResults': '没有匹配的条目', 'settings.orderHint': '清除筛选并切回配置顺序后，可调整保存顺序。',
+      'settings.drag': '拖动排序，或用上下方向键调整', 'settings.moved': '已将 {name} 调整到第 {position} 位，保存后生效',
+      'settings.modelColumns': '模型 / 供应商 / 推理强度 / 能力标签', 'settings.configureModels': '配置可用模型',
+      'settings.selectedModels': '已选 {selected} / {total}', 'settings.anyModel': '未限定，可使用全部已配置模型',
+      'settings.advanced': '编辑路由信息',
+    })
+    Object.assign(en, {
+      'settings.clean': 'No unsaved changes', 'settings.loading': 'Loading configuration…',
+      'settings.searchModels': 'Search models, providers or tags', 'settings.searchRoles': 'Search roles or purpose',
+      'settings.view': 'Model view', 'settings.order': 'Configuration order', 'settings.name': 'Model name',
+      'settings.provider': 'Group by provider', 'settings.allProviders': 'All providers', 'settings.providerFilter': 'Filter providers',
+      'settings.expandAll': 'Expand all', 'settings.collapseAll': 'Collapse all', 'settings.clear': 'Clear filters',
+      'settings.noResults': 'No matching entries', 'settings.orderHint': 'Clear filters and use configuration order to reorder saved entries.',
+      'settings.drag': 'Drag to reorder, or use the up and down arrow keys', 'settings.moved': 'Moved {name} to position {position}; save to apply',
+      'settings.modelColumns': 'Model / Provider / Reasoning effort / Capability tags', 'settings.configureModels': 'Configure allowed models',
+      'settings.selectedModels': '{selected} / {total} selected', 'settings.anyModel': 'Unrestricted: all configured models are available',
+      'settings.advanced': 'Edit route details',
+    })
+
+    /** A view retains the original indexes and never mutates saved configuration order. */
+    function settingsRouteRows(routes, groups, { search = '', view = 'order', provider = '' } = {}) {
+      const query = search.trim().toLocaleLowerCase()
+      const rows = routes.map((route, index) => {
+        const group = groups.find(group => group.id === route.provider)
+        const label = group?.models?.find(model => model.id === route.model)?.name || route.model || route.id
+        return { route, index, label, providerLabel: group?.name || route.provider }
+      }).filter(row => (!provider || row.route.provider === provider) && (!query ||
+        [row.label, row.providerLabel, row.route.id, row.route.provider, row.route.model, row.route.note, ...(row.route.tags ?? [])].join(' ').toLocaleLowerCase().includes(query)))
+      if (view === 'name') rows.sort((a, b) => a.label.localeCompare(b.label) || a.index - b.index)
+      if (view === 'provider') rows.sort((a, b) => a.providerLabel.localeCompare(b.providerLabel) || a.index - b.index)
+      return rows
+    }
+
+    function moveSettingsRow(rows, key, target) {
+      const from = rows.findIndex(row => row._key === key)
+      if (from < 0 || target < 0 || target >= rows.length || from === target) return rows
+      const next = [...rows]
+      next.splice(target, 0, next.splice(from, 1)[0])
+      return next
+    }
+
     // ── pure helpers ────────────────────────────────────────────────────────────────────────────
 
     const hasRouteContent = route => Boolean(route.id || route.provider || route.model || route.reasoningEffort || route.note || route.tags.length > 0)
@@ -1088,7 +1135,59 @@ window.__ModuleLoader__.load({
 @media (forced-colors:active){.sah-toggle,.sah-chipbtn[aria-pressed="true"],.sah-pick button[aria-pressed="true"]{border:2px solid Highlight}.sah *:focus-visible{outline:2px solid Highlight;box-shadow:none}}
 @media (max-width:480px){.sah-panel-head{flex-wrap:wrap}.sah-agent-toggle{gap:8px}.sah-avatar{display:none}.sah-preview-head{flex-wrap:wrap}.sah-footer-left{flex-basis:100%}.sah-footer{gap:8px}.sah-btn{padding-inline:10px}.sah-route-main,.sah-route-main-solo{grid-template-columns:20px minmax(0,1fr)}.sah-order{min-width:0}.sah-concurrency{max-width:100%}.sah-setting-control{max-width:100%}}
 @media (max-width:760px){.sah-route-main,.sah-route-main-solo{grid-template-columns:28px minmax(0,1fr)}.sah-route-main .sah-field{grid-column:2}.sah-route-main .sah-row-actions{grid-column:1/-1;justify-content:flex-end;margin-top:0}.sah-route-meta,.sah-grid-2{grid-template-columns:1fr;padding-left:0}.sah-agent-badges{display:none}.sah-setting{flex-direction:column;align-items:flex-start;gap:8px}.sah-footer{flex-wrap:wrap}.sah-footer-keys{display:none}.sah-concurrency{flex-wrap:wrap}}
-.sah-workspace{max-width:960px;width:100%;gap:0;font-size:14px}
+.sah-workspace{box-sizing:border-box;max-width:960px;width:100%;gap:0;font-size:14px;height:min(800px,var(--sah-workspace-height,calc(100dvh - 120px)));min-height:0;overflow:hidden;border:1px solid var(--sah-border);border-radius:12px;background:var(--sah-panel);container-type:inline-size;container-name:sah-settings}
+.sah-workspace-content{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-gutter:stable;padding:16px;scroll-padding-block:16px}
+.sah-workspace>.sah-workspace-header{padding:12px 16px 4px;flex:none}
+.sah-workspace>.sah-workspace-tabs{padding-inline:16px;margin-bottom:0;flex:none}
+.sah-workspace>.sah-notice{margin:8px 16px;flex:none}
+.sah-workspace .sah-footer{position:static;flex:none;margin:0;border:0;border-top:1px solid var(--sah-border);border-radius:0;padding:12px 16px;background:var(--sah-panel);backdrop-filter:none;flex-wrap:wrap}
+.sah-workspace .sah-footer-left{color:var(--sah-sub);min-width:140px}
+.sah-workspace .sah-footer>.sah-btn{min-width:84px;min-height:36px}
+.sah-workspace .sah-role-list-head h3{margin-inline-end:auto}
+.sah-workspace .sah-linkbtn{min-height:32px;padding-inline:6px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center}
+.sah-workspace .sah-linkbtn:disabled{opacity:.4;cursor:default}
+.sah-settings-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.sah-settings-toolbar .sah-input{flex:1;min-width:180px;width:auto}
+.sah-settings-toolbar .sah-select{width:auto;max-width:180px}
+.sah-workspace .sah-btn,.sah-workspace .sah-iconbtn{transition:background-color 150ms,color 150ms,border-color 150ms}
+.sah-workspace .sah-iconbtn{min-width:30px;min-height:30px;flex:none}
+.sah-workspace .sah-btn:hover:not(:disabled),.sah-workspace .sah-iconbtn:hover:not(:disabled){background:var(--sah-hover);color:var(--sah-text)}
+.sah-workspace .sah-btn-primary:hover:not(:disabled){background:color-mix(in srgb,var(--sah-accent) 85%,var(--sah-text))}
+.sah-workspace .sah-btn:active:not(:disabled),.sah-workspace .sah-iconbtn:active:not(:disabled){transform:scale(.96)}
+.sah-workspace .sah-route-card{padding:0;gap:0;background:var(--sah-raised);overflow:hidden}
+.sah-route-summary{display:flex;align-items:center;gap:4px;padding:4px 8px;min-height:54px}
+.sah-route-toggle{display:grid;grid-template-columns:18px minmax(0,1fr) 120px 82px 130px;align-items:center;gap:12px;flex:1;min-width:0;min-height:44px;padding:4px;border:0;background:transparent;color:var(--sah-text);font:inherit;text-align:start;cursor:pointer;border-radius:6px}
+.sah-route-toggle:hover{background:var(--sah-hover)}
+.sah-route-label{display:flex;flex-direction:column;min-width:0;gap:2px}
+.sah-route-label strong{font-size:13px;font-weight:550;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-route-label small,.sah-route-provider{color:var(--sah-sub);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sah-route-effort{font-size:12px;color:var(--sah-sub);overflow-wrap:anywhere}
+.sah-route-tags{display:flex;gap:4px;min-width:0;overflow:hidden}
+.sah-route-tags .sah-chip{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.sah-workspace .sah-route-editor{padding:14px 16px 16px;border-top:1px solid var(--sah-border)}
+.sah-workspace .sah-route-main{grid-template-columns:minmax(0,1fr) minmax(140px,.35fr)}
+.sah-workspace .sah-route-main-solo{grid-template-columns:minmax(0,1fr)}
+.sah-workspace .sah-route-meta{padding:14px 0 0;margin-top:14px;grid-template-columns:minmax(140px,1fr) minmax(180px,1.4fr)}
+.sah-workspace .sah-route-meta>.sah-field:last-child{grid-column:1/-1}
+.sah-row-order{display:flex;align-items:center;gap:2px;flex:none}
+.sah-drag-handle{cursor:grab;color:var(--sah-sub)}
+.sah-drag-handle:active{cursor:grabbing}
+.sah-route-card[data-drop-target=true],.sah-role-accordion[data-drop-target=true]{outline:2px solid var(--sah-accent);outline-offset:-2px}
+.sah-provider-group{border:0;margin:0 0 14px}
+.sah-provider-group>summary{cursor:pointer;font-size:12px;font-weight:600;color:var(--sah-sub);padding:8px 0}
+.sah-model-picker{border:1px solid var(--sah-border);border-radius:8px;padding:8px 10px}
+.sah-model-picker>summary{cursor:pointer;display:list-item;color:var(--sah-sub);font-size:12px}
+.sah-model-picker .sah-pick{margin-top:10px}
+.sah-selected-models{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;color:var(--sah-sub);font-size:12px}
+.sah-workspace .sah-role-accordion-head{padding-inline:8px}
+.sah-workspace .sah-role-toggle{padding-inline:4px}
+.sah-workspace .sah-setting{padding-block:18px;gap:20px}
+.sah-workspace .sah-setting-hint,.sah-workspace .sah-hint{color:var(--sah-sub)}
+.sah-workspace .sah-role-summary{color:var(--sah-sub)}
+.sah-settings-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.sah-route-toggle:focus-visible,.sah-provider-group>summary:focus-visible,.sah-model-picker>summary:focus-visible{outline:2px solid var(--sah-accent);outline-offset:-2px}
+@container sah-settings (max-width:820px){.sah-route-toggle{grid-template-columns:18px minmax(0,1fr) 72px}.sah-route-provider,.sah-route-tags{display:none}.sah-workspace .sah-role-summary{display:none}.sah-workspace .sah-route-meta{grid-template-columns:1fr}.sah-workspace .sah-setting{align-items:flex-start;flex-wrap:wrap}.sah-workspace .sah-setting-control{margin-inline-start:auto}}
+@media(prefers-reduced-motion:reduce){.sah-workspace button{transition:none!important;transform:none!important}}
 .sah-workspace-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 0 14px}
 .sah-workspace-header h2{font-size:18px;line-height:26px;font-weight:600;margin:0;min-width:0}
 .sah-workspace-tabs{display:flex;gap:22px;border-bottom:1px solid var(--sah-border);margin-bottom:20px}
@@ -1137,7 +1236,6 @@ window.__ModuleLoader__.load({
 .sah-role-templates .sah-templates{padding-top:10px}
 .sah-role-templates .sah-templates-label{display:none}
 .sah-role-empty{padding:24px 12px;text-align:center;color:var(--sah-mute);font-size:13px}
-.sah-workspace .sah-footer{margin-top:20px;border:0;border-top:1px solid var(--sah-border);border-radius:0;padding:14px 0;background:var(--dsw-alias-bg-layer-2,var(--sah-panel));backdrop-filter:none}
 .sah-workspace .sah-footer-keys{display:none}
 .sah-workspace .sah-btn-primary{background:var(--sah-accent);color:var(--dsw-alias-label-on-color,#fff)}
 @media(max-width:480px){.sah-role-advanced summary span{display:none}.sah-role-models{max-width:36%}.sah-role-summary{display:none}.sah-role-editor>.sah-field,.sah-role-rename>.sah-field{grid-template-columns:72px minmax(0,1fr);column-gap:8px}.sah-role-accordion-body{padding-inline:12px}}
@@ -1146,7 +1244,9 @@ window.__ModuleLoader__.load({
 
     const style = () => h('style', { key: 'css' }, CSS)
     /** An official icon when the shell supplies one, otherwise a text glyph. */
-    const glyph = (name, fallback, size = 14) => (P[name] === undefined ? fallback : h(P[name], { size }))
+    const glyph = (name, fallback, size = 14) => (P[name] === undefined
+      ? fallback == null ? null : h('span', { 'aria-hidden': true }, fallback)
+      : h(P[name], { size, 'aria-hidden': true }))
 
     /** Bind the visible label, hint and inline error to the actual focusable control. */
     function Field({ label, hint, error, wide, children }) {
@@ -1325,7 +1425,42 @@ window.__ModuleLoader__.load({
     }
 
     /** One model route: the merged model pick and the effort on top, then name, tags and note. */
-    function RouteCard({ route, index, total, groups, catalogReady = true, known, problems = {}, onChange, onRemove, onMove, disabled, t }) {
+    function OrderControls({ index, total, disabled, onMove, dragProps = {}, t }) {
+      return h('div', { className: 'sah-row-order' },
+        h('button', { type: 'button', className: 'sah-iconbtn sah-drag-handle', title: t('settings.drag'), 'aria-label': t('settings.drag'), disabled,
+          ...dragProps, draggable: !disabled && !!dragProps.onDragStart,
+          onKeyDown: event => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return
+            event.preventDefault()
+            if (!disabled) onMove?.(index, event.key === 'ArrowUp' ? -1 : 1)
+          },
+        }, glyph('IconDragHandleOutlineRegular', '⠿')),
+        h(IconButton, { title: t('route.moveUp'), disabled: disabled || index === 0, onClick: () => onMove?.(index, -1) }, glyph('IconChevronUpOutlineRegular', '↑')),
+        h(IconButton, { title: t('route.moveDown'), disabled: disabled || index === total - 1, onClick: () => onMove?.(index, 1) }, glyph('IconChevronDownOutlineRegular', '↓')))
+    }
+
+    function RouteCard({ open = true, onToggle, rowProps = {}, dragProps, reorderDisabled, ...props }) {
+      const { route, index, total, groups, disabled, problems = {}, onRemove, onMove, t } = props
+      const panelId = React.useId()
+      const group = groups.find(group => group.id === route.provider)
+      const name = group?.models?.find(model => model.id === route.model)?.name || route.model || t('route.unnamed')
+      const bad = Object.keys(problems).some(key => key.startsWith(`route:${index}:`))
+      return h('article', { className: 'sah-route-card', 'data-sah-key': route._key, ...rowProps },
+        h('div', { className: 'sah-route-summary' },
+          h('button', { type: 'button', className: 'sah-route-toggle sah-row-toggle', 'aria-expanded': open, 'aria-controls': open ? panelId : undefined,
+            title: `${route.provider}/${route.model}${route.note ? ` · ${route.note}` : ''}`, onClick: onToggle },
+            h('span', { className: `sah-role-caret${open ? ' sah-role-caret-open' : ''}` }, glyph('IconChevronRightOutlineRegular', '›')),
+            h('span', { className: 'sah-route-label' }, h('strong', null, name), h('small', null, `${index + 1}. ${route.id || t('route.unnamed')}`)),
+            h('span', { className: 'sah-route-provider' }, group?.name || route.provider),
+            h('span', { className: 'sah-route-effort' }, route.reasoningEffort || t('route.effortDefault')),
+            h('span', { className: 'sah-route-tags', title: route.tags.join(', ') }, route.tags.slice(0, 2).map(tag => h(Chip, { key: tag, tag })), route.tags.length > 2 ? h(Chip, { tag: `+${route.tags.length - 2}` }) : null),
+            bad ? h('span', { className: 'sah-field-error' }, '!') : null),
+          h(OrderControls, { index, total, disabled: disabled || reorderDisabled, onMove, dragProps, t }),
+          h(IconButton, { title: t('route.remove'), danger: true, disabled, onClick: onRemove }, glyph('IconTrashOutlineRegular', '×'))),
+        open ? h('div', { id: panelId }, h(RouteEditor, props)) : null)
+    }
+
+    function RouteEditor({ route, index, groups, catalogReady = true, known, problems = {}, onChange, disabled, t }) {
       const set = patch => onChange({ ...route, ...patch })
       // Only a loaded catalog can say a stored value is gone.
       const missing = catalogReady ? t('route.missing') : null
@@ -1340,9 +1475,9 @@ window.__ModuleLoader__.load({
         const key = problems[`route:${index}:${field}`]
         return key === undefined ? undefined : t(key)
       }
-      return h('div', { className: 'sah-route-card' },
+      return h('div', { className: 'sah-route-editor' },
+        h('code', { className: 'sah-field-hint', style: { display: 'block', overflowWrap: 'anywhere', marginBottom: '10px' } }, `${route.provider}/${route.model}`),
         h('div', { className: `sah-route-main${efforts.length > 0 ? '' : ' sah-route-main-solo'}` },
-          h('span', { className: 'sah-order' }, String(index + 1)),
           h(Field, { label: t('route.model'), error: errorText('model') },
             h(GroupedSelect, {
               value: modelOptionValue(route.provider, route.model),
@@ -1359,11 +1494,7 @@ window.__ModuleLoader__.load({
                 options: [{ value: '', label: t('route.effortDefault') }, ...efforts],
                 onChange: value => set({ reasoningEffort: value }),
               }))
-            : null,
-          h('div', { className: 'sah-row-actions' },
-            h(IconButton, { title: t('route.moveUp'), disabled: disabled || index === 0, onClick: () => onMove(index, -1) }, glyph('IconChevronUpOutlineRegular', '↑')),
-            h(IconButton, { title: t('route.moveDown'), disabled: disabled || index === total - 1, onClick: () => onMove(index, 1) }, glyph('IconChevronDownOutlineRegular', '↓')),
-            h(IconButton, { title: t('route.remove'), danger: true, disabled, onClick: onRemove }, glyph('IconTrashOutlineRegular', '×')))),
+            : null),
         h('div', { className: 'sah-route-meta' },
           h(Field, { label: t('route.id'), hint: t('route.idHint'), error: errorText('id') },
             h(TextInput, { value: route.id, disabled, placeholder: 'flash', onChange: value => set({ id: value }) })),
@@ -1464,11 +1595,18 @@ window.__ModuleLoader__.load({
       if (!options.some(option => option.value === agent.basePreset)) options.unshift({ value: agent.basePreset, label: `${agent.basePreset} (${t('route.missing')})` })
       return h('div', { className: 'sah-role-editor' },
         h(Field, { label: t('workspace.purpose'), error: error('description') }, h(TextInput, { value: agent.description, disabled, onChange: description => set({ description }) })),
-        h(Field, { label: t('agents.routesLabel'), error: error('routes') },
-          usable.length ? h('div', { className: 'sah-pick', title: t('agents.routesHint') }, usable.map(route => h('button', { key: route.id, type: 'button', disabled, title: `${route.provider}/${route.model}`, 'aria-pressed': agent.routes.includes(route.id),
-            onClick: () => set({ routes: agent.routes.includes(route.id) ? agent.routes.filter(id => id !== route.id) : [...agent.routes, route.id] }),
-          }, route.note || route.id))) : h('span', { className: 'sah-field-hint' }, t('agents.noRoutes'))),
         h(Field, { label: t('agent.instructions') }, h('textarea', { className: 'sah-textarea', rows: 3, value: agent.instructions, disabled, onChange: event => set({ instructions: event.target.value }) })),
+        h(Field, { label: t('agents.routesLabel'), error: error('routes') },
+          usable.length ? h('div', null,
+            h('div', { className: 'sah-selected-models' }, agent.routes.length
+              ? agent.routes.map(id => h(Chip, { key: id, tag: routes.find(route => route.id === id)?.note || id }))
+              : t('settings.anyModel')),
+            h('details', { className: 'sah-model-picker' },
+              h('summary', null, t('settings.configureModels'), ' · ', t('settings.selectedModels', { selected: agent.routes.length, total: usable.length })),
+              h('p', { className: 'sah-field-hint' }, t('agents.routesHint')),
+              h('div', { className: 'sah-pick' }, usable.map(route => h('button', { key: route.id, type: 'button', disabled, title: `${route.provider}/${route.model}`, 'aria-pressed': agent.routes.includes(route.id),
+                onClick: () => set({ routes: agent.routes.includes(route.id) ? agent.routes.filter(id => id !== route.id) : [...agent.routes, route.id] }),
+              }, route.note || route.id))))) : h('span', { className: 'sah-field-hint' }, t('agents.noRoutes'))),
         h('details', { className: 'sah-role-advanced', open: forceAdvanced || undefined },
           h('summary', null, t('workspace.advanced'), h('span', null, t('workspace.advancedHint'))),
           h('div', { className: 'sah-role-advanced-fields' },
@@ -1480,7 +1618,7 @@ window.__ModuleLoader__.load({
     }
 
     /** A single-column accordion. The title is editable in place without a permanent extra row. */
-    function RoleAccordion({ open, onToggle, ...props }) {
+    function RoleAccordion({ open, onToggle, rowProps = {}, dragProps, reorderDisabled, total, onMove, ...props }) {
       const { agent, index, routes, problems, disabled, t, onChange } = props
       const panelId = React.useId()
       const [renaming, setRenaming] = React.useState(agent._fresh === true)
@@ -1491,14 +1629,15 @@ window.__ModuleLoader__.load({
       }, [open, renaming])
       const bad = Object.keys(problems).some(key => key.startsWith(`agent:${index}:`))
       const labels = agent.routes.map(id => routes.find(route => route.id === id)?.note || id)
-      return h('article', { className: 'sah-role-accordion', 'data-open': open ? 'true' : undefined },
+      return h('article', { className: 'sah-role-accordion', 'data-sah-key': agent._key, 'data-open': open ? 'true' : undefined, ...rowProps },
         h('div', { className: 'sah-role-accordion-head' },
-          h('button', { type: 'button', className: 'sah-role-toggle', 'aria-expanded': open, 'aria-controls': open ? panelId : undefined, onClick: () => { setRenaming(false); onToggle() } },
+          h('button', { type: 'button', className: 'sah-role-toggle sah-row-toggle', 'aria-expanded': open, 'aria-controls': open ? panelId : undefined, onClick: () => { setRenaming(false); onToggle() } },
             h('span', { className: `sah-role-caret${open ? ' sah-role-caret-open' : ''}` }, glyph('IconChevronRightOutlineRegular', '›')),
             h('strong', null, roleName(agent, t)),
             !open ? h('span', { className: 'sah-role-summary' }, agent.description || t('agent.noDescription')) : null,
             bad ? h('span', { className: 'sah-flag', title: t('invalid.fields') }) : null,
             h('span', { className: 'sah-role-models' }, h(Chip, { tag: labels[0] || t('agents.anyModel') }), labels.length > 1 ? h(Chip, { tag: `+${labels.length - 1}` }) : null)),
+          h(OrderControls, { index, total, disabled: disabled || reorderDisabled, onMove, dragProps, t }),
           open ? h('button', { type: 'button', className: 'sah-role-rename-trigger', title: t('workspace.renameRole'), 'aria-label': t('workspace.renameRole'), disabled, onClick: () => { originalName.current = agent.name; setRenaming(true) } }, glyph('IconEditOutlineRegular', '✎')) : null),
         open ? h('div', { id: panelId, className: 'sah-role-accordion-body' },
           renaming ? h('div', { className: 'sah-role-rename' }, h(Field, { label: t('workspace.roleName') },
@@ -1532,6 +1671,15 @@ window.__ModuleLoader__.load({
       const [draft, setDraft] = React.useState(initial)
       const [activeTab, setActiveTab] = React.useState('roles')
       const [selectedRole, setSelectedRole] = React.useState(initial.agents[0]?._key)
+      const [openRoutes, setOpenRoutes] = React.useState(() => new Set())
+      const [routeSearch, setRouteSearch] = React.useState('')
+      const [roleSearch, setRoleSearch] = React.useState('')
+      const [routeView, setRouteView] = React.useState('order')
+      const [routeProvider, setRouteProvider] = React.useState('')
+      const [orderNotice, setOrderNotice] = React.useState('')
+      const contentRef = React.useRef(null)
+      const scrollPositions = React.useRef({})
+      const dragging = React.useRef(null)
       const [assistantBusy, setAssistantBusy] = React.useState(false)
       const [catalog, setCatalog] = React.useState({ status: 'loading', groups: [], failures: [] })
       // The official allowlist a new Session would capture. Read-only here: the page only
@@ -1552,6 +1700,30 @@ window.__ModuleLoader__.load({
       const copyTimer = React.useRef(undefined)
       const saving = React.useRef(false)
       const rootRef = React.useRef(null)
+      // Bound this form to the actual native scroll host, without changing shell CSS.
+      React.useEffect(() => {
+        const element = rootRef.current
+        const win = element?.ownerDocument?.defaultView
+        if (!element || !win) return
+        let host = element.parentElement
+        while (host && !['auto', 'scroll'].includes(win.getComputedStyle(host).overflowY)) host = host.parentElement
+        const measure = () => {
+          const rect = element.getBoundingClientRect()
+          const scale = element.offsetHeight ? rect.height / element.offsetHeight : 1
+          const hostRect = host?.getBoundingClientRect()
+          const offset = (rect.top - (hostRect?.top ?? 0)) / (scale || 1) + (host?.scrollTop ?? win.scrollY ?? 0)
+          const available = Math.max(240, (host?.clientHeight ?? win.innerHeight / (scale || 1)) - Math.max(0, offset) - 24)
+          element.style.setProperty('--sah-workspace-height', `${Math.floor(available)}px`)
+        }
+        measure()
+        const observer = typeof win.ResizeObserver === 'function' ? new win.ResizeObserver(measure) : null
+        if (host) observer?.observe(host)
+        win.addEventListener('resize', measure)
+        return () => { observer?.disconnect(); win.removeEventListener('resize', measure) }
+      }, [])
+      React.useEffect(() => {
+        if (contentRef.current) contentRef.current.scrollTop = scrollPositions.current[activeTab] ?? 0
+      }, [activeTab])
       const writable = form !== undefined && form.state?.status !== 'loading' && form.state?.writable !== false
       const hydrated = React.useRef(form?.state?.status !== 'loading')
       // The schema-resolved section lists every field the running Host knows, defaults included.
@@ -1560,6 +1732,10 @@ window.__ModuleLoader__.load({
       const baselineRevision = React.useRef(form?.state?.revision)
       latestRevision.current = form?.state?.revision
       const disposed = React.useRef(false)
+      const retainOpenRoutes = next => setOpenRoutes(current => {
+        const ids = new Set(draft.routes.filter(route => current.has(route._key)).map(route => route.id))
+        return new Set(next.routes.filter(route => ids.has(route.id)).map(route => route._key))
+      })
       React.useEffect(() => {
         disposed.current = false
         return () => {
@@ -1585,7 +1761,10 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         if (hydrated.current || form?.state?.status !== 'ready') return
         hydrated.current = true
-        setDraft(editorDraftsOf(form.state.value))
+        const next = editorDraftsOf(form.state.value)
+        retainOpenRoutes(next)
+        setDraft(next)
+        setSelectedRole(next.agents[0]?._key)
         setBaseline(draftsOf(form.state.value))
         baselineRevision.current = form.state.revision
       }, [form?.state?.status, form?.state?.revision])
@@ -1597,6 +1776,7 @@ window.__ModuleLoader__.load({
         baselineRevision.current = form.state.revision
         const next = editorDraftsOf(form.state.value)
         const selectedId = draft.agents.find(agent => agent._key === selectedRole)?.id
+        retainOpenRoutes(next)
         setDraft(next)
         setBaseline(draftsOf(form.state.value))
         setSelectedRole(next.agents.find(agent => agent.id === selectedId)?._key)
@@ -1678,6 +1858,56 @@ window.__ModuleLoader__.load({
       const problems = fieldProblems(draft)
       const dirty = !sameDraft(draft, baseline)
       const locked = !writable || busy
+      const modelRows = settingsRouteRows(draft.routes, catalog.groups, { search: routeSearch, view: routeView, provider: routeProvider })
+      const roleQuery = roleSearch.trim().toLocaleLowerCase()
+      const roleRows = draft.agents.map((agent, index) => ({ agent, index })).filter(({ agent }) => !roleQuery ||
+        [roleName(agent, t), agent.id, agent.description, ...agent.needs].join(' ').toLocaleLowerCase().includes(roleQuery))
+      const routeReorderDisabled = locked || !!routeSearch.trim() || routeView !== 'order' || !!routeProvider
+      const clearModelFilters = () => { setRouteSearch(''); setRouteView('order'); setRouteProvider('') }
+      const focusRow = key => requestAnimationFrame(() => {
+        const row = [...(rootRef.current?.querySelectorAll('[data-sah-key]') ?? [])].find(row => row.dataset.sahKey === key)
+        const handle = row?.querySelector('.sah-drag-handle')
+        handle?.focus({ preventScroll: true })
+        const content = contentRef.current
+        if (handle && content) {
+          const target = handle.getBoundingClientRect(), visible = content.getBoundingClientRect()
+          if (target.top < visible.top + 12) content.scrollTop -= visible.top + 12 - target.top
+          else if (target.bottom > visible.bottom - 12) content.scrollTop += target.bottom - visible.bottom + 12
+        }
+      })
+      const reorder = (kind, key, target) => {
+        if (locked || target < 0 || target >= draft[kind].length || !key) return
+        setDraft(current => ({ ...current, [kind]: moveSettingsRow(current[kind], key, target) }))
+        const row = draft[kind].find(row => row._key === key)
+        setOrderNotice(t('settings.moved', { name: kind === 'agents' ? roleName(row, t) : row.note || row.id || row.model, position: target + 1 }))
+        focusRow(key)
+      }
+      const rowInteraction = (kind, key, disabled) => ({
+        dragProps: {
+          onDragStart: event => {
+            if (disabled) { event.preventDefault(); return }
+            dragging.current = { kind, key }
+            event.dataTransfer.effectAllowed = 'move'
+            event.dataTransfer.setData('application/x-dsh-hub-row', key)
+          },
+          onDragEnd: () => { dragging.current = null; rootRef.current?.querySelectorAll('[data-drop-target]').forEach(row => row.removeAttribute('data-drop-target')) },
+        },
+        rowProps: {
+          onDragOver: event => {
+            if (disabled || dragging.current?.kind !== kind || dragging.current.key === key) return
+            event.preventDefault(); event.dataTransfer.dropEffect = 'move'; event.currentTarget.dataset.dropTarget = 'true'
+          },
+          onDragLeave: event => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.removeAttribute('data-drop-target') },
+          onDrop: event => {
+            event.currentTarget.removeAttribute('data-drop-target')
+            const from = dragging.current
+            dragging.current = null
+            if (disabled || from?.kind !== kind) return
+            event.preventDefault(); event.stopPropagation()
+            reorder(kind, from.key, draft[kind].findIndex(row => row._key === key))
+          },
+        },
+      })
 
       const updateRoute = (index, route) => setDraft(current => changeRoute(current, index, route))
       const removeRoute = index => {
@@ -1689,15 +1919,19 @@ window.__ModuleLoader__.load({
         setUndo({ kind: 'route', index, item, refs })
         setDraft(current => dropRouteRefs({ ...current, routes: current.routes.filter((_, at) => at !== index) }, id))
       }
-      const moveRoute = (index, delta) => setDraft((current) => {
-        const routes = [...current.routes]
-        const target = index + delta
-        if (target < 0 || target >= routes.length) return current
-        const [row] = routes.splice(index, 1)
-        routes.splice(target, 0, row)
-        return { ...current, routes }
-      })
-      const addRoute = () => setDraft(current => ({ ...current, routes: [...current.routes, { _key: rowKey(), _referenceId: '', id: '', provider: '', model: '', reasoningEffort: '', tags: [], note: '' }] }))
+      const moveRoute = (index, delta) => reorder('routes', draft.routes[index]?._key, index + delta)
+      const moveAgent = (index, delta) => reorder('agents', draft.agents[index]?._key, index + delta)
+      const addRoute = () => {
+        const route = { _key: rowKey(), _referenceId: '', id: '', provider: '', model: '', reasoningEffort: '', tags: [], note: '' }
+        setDraft(current => ({ ...current, routes: [...current.routes, route] }))
+        setOpenRoutes(current => new Set([...current, route._key]))
+        clearModelFilters()
+        setActiveTab('models')
+        requestAnimationFrame(() => {
+          const row = [...(rootRef.current?.querySelectorAll('[data-sah-key]') ?? [])].find(row => row.dataset.sahKey === route._key)
+          row?.querySelector('select')?.focus()
+        })
+      }
       const updateAgent = (index, agent) => setDraft(current => ({ ...current, agents: current.agents.map((item, at) => at === index ? agent : item) }))
       const removeAgent = index => {
         const item = draft.agents[index]
@@ -1720,6 +1954,7 @@ window.__ModuleLoader__.load({
         }
         setDraft(current => ({ ...current, agents: [...current.agents, role] }))
         setSelectedRole(role._key)
+        setRoleSearch('')
         setActiveTab('roles')
       }
 
@@ -1729,7 +1964,8 @@ window.__ModuleLoader__.load({
         const entry = undo
         setUndo(undefined)
         setDraft(current => restoreDeletion(current, entry))
-        if (entry.kind === 'agent') { setActiveTab('roles'); setSelectedRole(entry.item._key) }
+        if (entry.kind === 'agent') { setRoleSearch(''); setActiveTab('roles'); setSelectedRole(entry.item._key) }
+        else { clearModelFilters(); setActiveTab('models'); setOpenRoutes(current => new Set([...current, entry.item._key])) }
       }
 
       const save = async () => {
@@ -1738,8 +1974,12 @@ window.__ModuleLoader__.load({
         if (problem !== undefined) {
           setStatus({ kind: 'error', text: t('invalid.fields') })
           const first = Object.keys(problems)[0]
-          if (first?.startsWith('agent:')) { setActiveTab('roles'); setSelectedRole(draft.agents[Number(first.split(':')[1])]?._key) }
-          else setActiveTab(first?.startsWith('route:') ? 'models' : 'general')
+          if (first?.startsWith('agent:')) { setRoleSearch(''); setActiveTab('roles'); setSelectedRole(draft.agents[Number(first.split(':')[1])]?._key) }
+          else if (first?.startsWith('route:')) {
+            clearModelFilters(); setActiveTab('models')
+            const key = draft.routes[Number(first.split(':')[1])]?._key
+            setOpenRoutes(current => new Set([...current, key]))
+          } else setActiveTab('general')
           requestAnimationFrame(() => rootRef.current?.querySelector('[aria-invalid="true"]')?.focus())
           return
         }
@@ -1760,6 +2000,7 @@ window.__ModuleLoader__.load({
           baselineRevision.current = latestRevision.current
           const nextDraft = editorDraftsOf(values)
           setSelectedRole(nextDraft.agents.find(agent => agent.id === draft.agents.find(agent => agent._key === selectedRole)?.id)?._key)
+          retainOpenRoutes(nextDraft)
           setDraft(nextDraft)
           setSubmitted(false)
           // Route and preset edits only reach Sessions that start afterwards; say so once here
@@ -1782,6 +2023,7 @@ window.__ModuleLoader__.load({
         stopSync.current()
         const latest = form?.state?.status === 'ready' ? form.state.value : baseline
         const next = editorDraftsOf(latest)
+        retainOpenRoutes(next)
         setDraft(next)
         setBaseline(draftsOf(latest))
         baselineRevision.current = form?.state?.revision
@@ -1817,6 +2059,19 @@ window.__ModuleLoader__.load({
         if (dirty && writable && !busy) save()
       }
 
+      const renderModelRow = ({ route, index }) => h(RouteCard, {
+        key: route._key, route, index, total: draft.routes.length, groups: catalog.groups,
+        catalogReady: catalog.status === 'ready', known, problems, disabled: locked, t,
+        open: openRoutes.has(route._key), onToggle: () => setOpenRoutes(current => {
+          const next = new Set(current); if (next.has(route._key)) next.delete(route._key); else next.add(route._key); return next
+        }),
+        reorderDisabled: routeReorderDisabled,
+        ...rowInteraction('routes', route._key, routeReorderDisabled),
+        onChange: next => updateRoute(index, next), onRemove: () => removeRoute(index), onMove: moveRoute,
+      })
+      const providerIds = [...new Set(draft.routes.map(route => route.provider).filter(Boolean))]
+      const providerName = id => catalog.groups.find(group => group.id === id)?.name || id
+      const anyModelOpen = modelRows.some(({ route }) => openRoutes.has(route._key))
       const preview = catalogPreview(draft)
       const undoName = undo === undefined
         ? ''
@@ -1839,7 +2094,7 @@ window.__ModuleLoader__.load({
           ? h('span', { className: 'sah-status-error' }, t('invalid.fields'))
           : dirty
             ? h(React.Fragment, null, h('span', { className: 'sah-dirty-dot' }), h('span', null, t('footer.dirty')))
-            : null
+            : h('span', null, t(form?.state?.status === 'loading' ? 'settings.loading' : 'settings.clean'))
 
       const startAssistant = async () => {
         if (dirty || assistantBusy) return
@@ -1869,15 +2124,22 @@ window.__ModuleLoader__.load({
               const next = event.key === 'ArrowRight' ? tabs[(at + 1) % 3] : event.key === 'ArrowLeft' ? tabs[(at + 2) % 3] : event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[2] : undefined
               if (next) { event.preventDefault(); setActiveTab(next); rootRef.current?.querySelector(`#sah-tab-${next}`)?.focus() }
             } }, t(`workspace.${tab}`)))),
+        h('div', { className: 'sah-workspace-content', ref: contentRef, onScroll: event => { scrollPositions.current[activeTab] = event.currentTarget.scrollTop } },
         h('section', { className: 'sah-tab-panel', id: 'sah-page-roles', role: 'tabpanel', 'aria-labelledby': 'sah-tab-roles', hidden: activeTab !== 'roles' },
           allowlistProblems.length ? h('div', { className: 'sah-notice sah-notice-warn', role: 'status' }, h('div', null,
             h('strong', null, t('agents.allowlist.title')),
             h('ul', null, allowlistProblems.map(problem => h('li', { key: problem.presetId }, t('agents.allowlist.item', { agent: problem.agentId, routes: problem.outside.join(', '), allowed: problem.allowed.join(', ') })))), t('agents.allowlist.hint'))) : null,
           h('div', { className: 'sah-role-list-head' },
-            h('h3', null, t('workspace.roles')),
+            h('h3', null, t('workspace.roles'), ` · ${draft.agents.length}`),
+            h('button', { type: 'button', className: 'sah-linkbtn', disabled: !selectedRole, onClick: () => setSelectedRole(undefined) }, t('settings.collapseAll')),
             h('button', { type: 'button', className: 'sah-linkbtn', disabled: locked, onClick: () => addAgent() }, glyph('IconPlusOutlineRegular', '+'), t('workspace.addRole'))),
-          draft.agents.length ? h('div', { className: 'sah-role-accordions' }, draft.agents.map((agent, index) => h(RoleAccordion, {
-            key: agent._key, agent, index, routes: draft.routes, presets, known, problems, disabled: locked, t,
+          draft.agents.length ? h('div', { className: 'sah-settings-toolbar' },
+            h('input', { type: 'search', className: 'sah-input', value: roleSearch, placeholder: t('settings.searchRoles'), 'aria-label': t('settings.searchRoles'), onChange: event => setRoleSearch(event.target.value) }),
+            roleSearch ? h('button', { type: 'button', className: 'sah-btn sah-btn-outline', onClick: () => setRoleSearch('') }, t('settings.clear')) : null) : null,
+          draft.agents.length && !roleRows.length ? h('p', { className: 'sah-role-empty', role: 'status' }, t('settings.noResults')) : null,
+          draft.agents.length ? h('div', { className: 'sah-role-accordions' }, roleRows.map(({ agent, index }) => h(RoleAccordion, {
+            key: agent._key, agent, index, total: draft.agents.length, routes: draft.routes, presets, known, problems, disabled: locked, t,
+            reorderDisabled: !!roleQuery, onMove: moveAgent, ...rowInteraction('agents', agent._key, locked || !!roleQuery),
             open: selectedRole === agent._key, onToggle: () => setSelectedRole(current => current === agent._key ? undefined : agent._key),
             forceAdvanced: submitted && !!problems[`agent:${index}:id`],
             onChange: next => updateAgent(index, next), onRemove: () => removeAgent(index),
@@ -1904,21 +2166,26 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'sah-empty' },
             h('span', null, t('routes.none')),
             h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: locked, onClick: addRoute }, glyph('IconPlusOutlineRegular', '+'), t('routes.add')))
-          : h('div', { className: 'sah-list' }, draft.routes.map((route, index) => h(RouteCard, {
-            key: route._key,
-            route,
-            index,
-            total: draft.routes.length,
-            groups: catalog.groups,
-            catalogReady: catalog.status === 'ready',
-            known,
-            problems,
-            disabled: locked,
-            t,
-            onChange: next => updateRoute(index, next),
-            onRemove: () => removeRoute(index),
-            onMove: moveRoute,
-          }))))),
+          : h(React.Fragment, null,
+            h('div', { className: 'sah-settings-toolbar' },
+              h('input', { type: 'search', className: 'sah-input', value: routeSearch, placeholder: t('settings.searchModels'), 'aria-label': t('settings.searchModels'), onChange: event => setRouteSearch(event.target.value) }),
+              h(Select, { value: routeView, 'aria-label': t('settings.view'), options: ['order', 'name', 'provider'].map(value => ({ value, label: t(`settings.${value}`) })), onChange: setRouteView }),
+              h(Select, { value: routeProvider, 'aria-label': t('settings.providerFilter'), options: [{ value: '', label: t('settings.allProviders') }, ...providerIds.map(value => ({ value, label: providerName(value) }))], onChange: setRouteProvider }),
+              h('button', { type: 'button', className: 'sah-btn sah-btn-outline', disabled: !modelRows.length, onClick: () => setOpenRoutes(current => {
+                const next = new Set(current)
+                for (const { route } of modelRows) { if (anyModelOpen) next.delete(route._key); else next.add(route._key) }
+                return next
+              }) }, t(anyModelOpen ? 'settings.collapseAll' : 'settings.expandAll'))),
+            routeReorderDisabled && !locked ? h('p', { className: 'sah-field-hint' }, t('settings.orderHint'), ' ',
+              h('button', { type: 'button', className: 'sah-linkbtn', onClick: clearModelFilters }, t('settings.clear'))) : null,
+            !modelRows.length ? h('div', { className: 'sah-role-empty', role: 'status' }, t('settings.noResults'), ' ',
+              h('button', { type: 'button', className: 'sah-linkbtn', onClick: clearModelFilters }, t('settings.clear'))) : null,
+            h('div', { className: 'sah-list', 'aria-label': t('settings.modelColumns') }, routeView === 'provider'
+              ? [...new Set(modelRows.map(row => row.route.provider))].map(id => h('details', { key: id, className: 'sah-provider-group', open: true },
+                h('summary', null, providerName(id), ` · ${modelRows.filter(row => row.route.provider === id).length}`),
+                h('div', { className: 'sah-list' }, modelRows.filter(row => row.route.provider === id).map(renderModelRow))))
+              : modelRows.map(renderModelRow))))),
+
         h('section', { className: 'sah-tab-panel', id: 'sah-page-general', role: 'tabpanel', 'aria-labelledby': 'sah-tab-general', hidden: activeTab !== 'general' },
         h(Panel, { icon: glyph('IconSlidersTwoOutlineRegular', null), title: t('general.title'), hint: t('general.hint') },
           h(SettingRow, {
@@ -1969,7 +2236,8 @@ window.__ModuleLoader__.load({
             preview === ''
               ? h('p', { className: 'sah-notice' }, t('preview.empty'))
               : h('pre', { className: 'sah-preview' }, preview)) : null),
-        copyError ? h('p', { className: 'sah-notice sah-notice-error', role: 'status' }, t('preview.copyFailed')) : null),
+        copyError ? h('p', { className: 'sah-notice sah-notice-error', role: 'status' }, t('preview.copyFailed')) : null)),
+        h('p', { className: 'sah-settings-sr', role: 'status', 'aria-live': 'polite' }, orderNotice),
         h('div', { className: 'sah-footer' },
           h('div', { className: 'sah-footer-left', role: 'status' }, footerText),
           undo === undefined ? null : h('span', { className: 'sah-undo' },
@@ -2224,7 +2492,7 @@ window.__ModuleLoader__.load({
       'overview.noHistory': 'Rejection projection unavailable. Inspect tool results in the parent conversation.',
       'overview.historyCount': 'Showing the latest {shown} of {total} recorded rejections.',
       'overview.reset': 'Clear filters', 'overview.current': 'Current', 'overview.lead': 'Lead',
-      'overview.attention': 'Needs attention', 'overview.settled': 'Finished',
+      'overview.attention': 'Needs attention', 'overview.settled': 'Idle / finished',
       'overview.summary': '{running} running · {attention} need attention · {total} total',
       'overview.summaryQuiet': '{total} agents · none running',
       'overview.task': 'Task', 'overview.doing': 'Now', 'overview.thinking': 'Thinking…',
@@ -2308,7 +2576,7 @@ window.__ModuleLoader__.load({
       'overview.noHistory': '拒绝记录投影不可用，可在父会话工具结果中查看。',
       'overview.historyCount': '显示最近 {shown} 条，共记录 {total} 次拒绝。',
       'overview.reset': '清除筛选', 'overview.current': '当前会话', 'overview.lead': 'Lead',
-      'overview.attention': '需处理', 'overview.settled': '已结束',
+      'overview.attention': '需处理', 'overview.settled': '空闲 / 已结束',
       'overview.summary': '{running} 个运行中 · {attention} 个需处理 · 共 {total} 个',
       'overview.summaryQuiet': '共 {total} 个 · 没有正在运行的',
       'overview.task': '任务', 'overview.doing': '正在', 'overview.thinking': '思考中…',
@@ -2344,6 +2612,44 @@ window.__ModuleLoader__.load({
       'overview.usageEstimated': '{count} 个子智能体（≈）按会话总量估算，计入其最后使用的路线；重启 Harness 后会按每次请求重新统计。',
     })
 
+    Object.assign(en, {
+      'overview.analysis': 'Usage analysis', 'overview.analysisTitle': 'Roles and usage',
+      'overview.analysisScope': '{count} agents · {depth} levels · discovered from this tree',
+      'overview.role': 'Hub role', 'overview.roleUnknown': 'Role unconfirmed', 'overview.roleNone': 'No Hub role',
+      'overview.roleChart': 'Token usage by Hub role', 'overview.roleEvidence': 'Roles come from recorded presets. Usage comes from request records; missing records stay unknown.',
+      'overview.inputBucket': 'Uncached input', 'overview.cacheBucket': 'Cache read / write', 'overview.outputBucket': 'Output',
+      'overview.roleMembers': 'Agents: {count}', 'overview.retryCount': 'Retries', 'overview.partialCount': 'Usage records {known}/{total}', 'overview.retryCoverage': 'Retry records {known}/{total}',
+      'overview.analysisModels': 'Actual model routes', 'overview.routeRequests': 'Settled requests',
+      'overview.comparisons': 'Configuration comparison', 'overview.comparisonNote': 'Recent requests compared with current configuration. Explicit overrides or later configuration changes can explain differences; these are not execution failures.',
+      'overview.compareEffort': 'Route default {expected} → recorded {actual}',
+      'overview.compareRoute': 'Recorded route is outside the current Hub catalog: {actual}',
+      'overview.compareRoleRoute': 'Recorded route {actual}; current role allows {expected}',
+      'overview.needAttention': '{count} agents need attention', 'overview.reviewAgent': 'Open agent',
+      'overview.path': 'Member path', 'overview.preset': 'Recorded preset', 'overview.treeLimit': 'Showing at most 512 agents and 32 levels. Open a nested conversation to inspect a larger tree.',
+      'overview.routeUnknown': 'Route unconfirmed', 'overview.usageBreakdown': 'Agent distribution',
+      'overview.roleNoUsage': 'Usage not reported', 'overview.noComparisons': 'No differences found in the available records.',
+      'overview.navigationError': 'Unable to open this agent. Try again from its parent conversation.',
+      'overview.usageIncomplete': '{count} agents have route records below their Session totals. Only recorded route usage is included.',
+    })
+    Object.assign(zh, {
+      'overview.analysis': '用量分析', 'overview.analysisTitle': '角色与用量',
+      'overview.analysisScope': '{count} 个成员 · {depth} 层 · 来自当前成员树',
+      'overview.role': 'Hub 角色', 'overview.roleUnknown': '角色未确认', 'overview.roleNone': '未使用 Hub 角色',
+      'overview.roleChart': '按角色的 Token 用量', 'overview.roleEvidence': '角色以已记录预设为准，用量来自请求记录；缺失的记录保持未知。',
+      'overview.inputBucket': '未缓存输入', 'overview.cacheBucket': '缓存读取 / 写入', 'overview.outputBucket': '输出',
+      'overview.roleMembers': '{count} 个成员', 'overview.retryCount': '重试', 'overview.partialCount': '用量记录 {known}/{total}', 'overview.retryCoverage': '重试记录 {known}/{total}',
+      'overview.analysisModels': '实际请求路线', 'overview.routeRequests': '已结算请求',
+      'overview.comparisons': '配置对照', 'overview.comparisonNote': '将最近请求与当前配置对照。显式覆盖或后续配置更新均可能造成差异，不代表执行失败。',
+      'overview.compareEffort': '路线默认 {expected} → 记录值 {actual}',
+      'overview.compareRoute': '记录的路线不在当前 Hub 目录中：{actual}',
+      'overview.compareRoleRoute': '记录的路线为 {actual}；当前角色允许 {expected}',
+      'overview.needAttention': '{count} 个成员需要处理', 'overview.reviewAgent': '打开成员会话',
+      'overview.path': '成员路径', 'overview.preset': '已记录预设', 'overview.treeLimit': '最多展示 512 个成员和 32 层。更大的树可打开下级会话继续查看。',
+      'overview.routeUnknown': '路线未确认', 'overview.usageBreakdown': '成员分布',
+      'overview.roleNoUsage': '尚未上报用量', 'overview.noComparisons': '可用记录中未发现差异。',
+      'overview.navigationError': '无法打开成员会话，请从其父会话重试。',
+      'overview.usageIncomplete': '{count} 个成员的分路线记录少于会话总量；这里只计入已记录的路线用量。',
+    })
     const OVERVIEW_CSS = `
 .sah-overview-trigger{display:inline-flex;align-items:center;gap:6px;font:inherit;font-size:12px;font-weight:400;min-height:28px;padding:3px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary,#999);cursor:pointer;white-space:nowrap;-webkit-app-region:no-drag;transition:background-color .12s ease-out,color .12s ease-out}
 .sah-overview-trigger:hover,.sah-overview-trigger:focus-visible,.sah-overview-trigger[aria-expanded=true]{color:var(--dsw-alias-label-primary,#eee);background:var(--dsw-alias-interactive-bg-hover,#ffffff14)}
@@ -2524,6 +2830,20 @@ button.sah-usage-tile{cursor:pointer}
 .sah-overview-tag{flex:none;font-size:11px;line-height:16px;padding:0 6px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);color:var(--dsw-alias-label-tertiary,#999)}
 .sah-overview-foot{font-size:11px;line-height:16px;color:var(--dsw-alias-label-caption,#888);display:grid;gap:2px}
 @media(prefers-reduced-motion:reduce){.sah-overview-dot{animation:none}.sah-overview button,.sah-overview-trigger{transition:none}.sah-overview button:not(:disabled):active{transform:none}}
+.sah-analysis{display:grid;gap:20px;min-width:0;--sah-input:var(--dsw-alias-state-business-primary,#719cff);--sah-cache:var(--dsw-alias-state-success-primary,#4fd1a5);--sah-output:var(--dsw-alias-label-tertiary,#999)}
+.sah-analysis h3{font-size:13px;font-weight:600;line-height:1.5}.sah-analysis p{margin:0}.sah-analysis .sah-overview-foot{color:var(--dsw-alias-label-tertiary,#999)}
+.sah-analysis-metrics{display:flex;flex-wrap:wrap;gap:12px 24px;padding-block:4px 14px;border-bottom:.5px solid var(--dsw-alias-border-l2,#ffffff1f)}
+.sah-analysis-metrics div{display:grid;gap:3px}.sah-analysis-metrics dt{font-size:12px;color:var(--dsw-alias-label-tertiary,#999)}.sah-analysis-metrics dd{margin:0;font-size:23px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.3}
+.sah-analysis-section{display:grid;gap:12px;min-width:0}.sah-analysis-roles{list-style:none;margin:0;padding:0;display:grid;gap:14px}.sah-analysis-role{display:grid;gap:5px}
+.sah-analysis-role-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:13px}.sah-analysis-role-head strong{font-weight:500;overflow-wrap:anywhere}.sah-analysis-role-head span{font-variant-numeric:tabular-nums;font-size:12px;color:var(--dsw-alias-label-secondary,#ccc)}
+.sah-analysis-track{height:12px;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);border-radius:3px;overflow:hidden}.sah-analysis-stack{height:100%;display:flex;min-width:0}.sah-analysis-stack span{display:block;height:100%}.sah-analysis-input{background:var(--sah-input)}.sah-analysis-cache{background:var(--sah-cache)}.sah-analysis-output{background:var(--sah-output)}
+.sah-analysis-legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:11px;color:var(--dsw-alias-label-tertiary,#999)}.sah-analysis-legend span{display:inline-flex;align-items:center;gap:5px}.sah-analysis-legend i{width:8px;height:8px;border-radius:2px}
+.sah-analysis-role-meta{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11px;color:var(--dsw-alias-label-tertiary,#999);font-variant-numeric:tabular-nums}
+.sah-analysis-table{width:100%;border-collapse:collapse;font-size:12px;text-align:start;table-layout:fixed}.sah-analysis-table th{font-weight:500;color:var(--dsw-alias-label-tertiary,#999)}.sah-analysis-table :is(th,td){padding:8px 6px;border-bottom:.5px solid var(--dsw-alias-border-l2,#ffffff1f);vertical-align:top;line-height:1.5;overflow-wrap:anywhere}.sah-analysis-table th:first-child,.sah-analysis-table td:first-child{padding-inline-start:0;width:53%}.sah-analysis-table th:not(:first-child),.sah-analysis-table td:not(:first-child){text-align:end;font-variant-numeric:tabular-nums}.sah-analysis-table small{display:block;color:var(--dsw-alias-label-tertiary,#999);font-size:11px}
+.sah-analysis-attention{padding:10px 12px;border-radius:8px;background:var(--dsw-alias-bg-layer-2,#ffffff0a);box-shadow:inset 2px 0 0 var(--dsw-alias-state-warning-primary,#f5c26b);display:grid;gap:8px}.sah-analysis-attention ul,.sah-analysis-comparisons{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.sah-analysis-attention li{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:12px}.sah-analysis-attention li span{min-width:0;overflow-wrap:anywhere}.sah-analysis-attention button{flex:none;background:var(--dsw-alias-interactive-bg-hover,#ffffff14);min-height:28px}
+.sah-analysis-comparisons li{padding-block:8px;border-bottom:.5px solid var(--dsw-alias-border-l2,#ffffff1f);display:grid;gap:3px;font-size:12px}.sah-analysis-comparisons strong{font-weight:500;overflow-wrap:anywhere}.sah-analysis-comparisons code{font-size:11px}
+.sah-overview-path{font-size:11px;line-height:1.5;color:var(--dsw-alias-label-tertiary,#999);overflow-wrap:anywhere}.sah-overview-card[data-depth]{border-inline-start:2px solid var(--dsw-alias-border-l2,#ffffff1f)}
 `
 
     function overviewDuration(timing, running, now) {
@@ -2560,23 +2880,61 @@ button.sah-usage-tile{cursor:pointer}
       if (value < 1_000_000_000) return `${(value / 1_000_000).toFixed(value < 10_000_000 ? 2 : value < 100_000_000 ? 1 : 0)}M`
       return `${(value / 1_000_000_000).toFixed(2)}B`
     }
-    /** Membership is authoritative only in the parent's catalog/roster, never inferred from global sessions. */
+    const OVERVIEW_LIMIT = 512
+    const OVERVIEW_DEPTH = 32
+    const projectionValues = (state, id) => ({ ...state?.byId?.[id]?.projectionValues, ...state?.projectionsBySession?.[id]?.values })
+    /** Follow only catalog-proven parent links; a global Session's parent hint is not membership. */
+    function overviewRoot(sessionId, directParent, state) {
+      let root = directParent ?? sessionId
+      const seen = new Set([sessionId])
+      for (let depth = 0; depth < OVERVIEW_DEPTH && !seen.has(root); depth++) {
+        seen.add(root)
+        const parent = state?.byId?.[root]?.parentId
+        if (!parent || seen.has(parent) || !projectionValues(state, parent).subagentCatalog?.some(entry => entry.id === root)) break
+        root = parent
+      }
+      return root
+    }
+    /** Discover descendants only through each parent's durable catalog, with exact direct-parent addresses. */
     function overviewData(rootId, state, statuses, now = Date.now()) {
       const snapshots = state?.projectionsBySession ?? {}
       const summaries = state?.byId ?? {}
       const snapshot = snapshots[rootId]
-      const values = { ...summaries[rootId]?.projectionValues, ...snapshot?.values }
+      const values = projectionValues(state, rootId)
       const catalog = values.subagentCatalog
       const team = values.agentTeam
       const members = new Map()
-      for (const entry of catalog ?? []) members.set(entry.id, { ...entry, kind: 'independent', name: entry.label ?? summaries[entry.id]?.displayTitle ?? entry.id })
-      for (const member of team?.members ?? []) {
-        if (member.role === 'lead') continue
-        members.set(member.id, { ...members.get(member.id), ...member, kind: 'team', mode: 'continuable' })
+      const issues = []
+      let treeLimited = false
+      const queue = [{ parentId: rootId, parentPath: '', depth: 1 }]
+      // rc.2 persists Team mode only on the root. Every descendant shares that selection.
+      const teamEnabled = team?.enabled === true
+      while (queue.length) {
+        const { parentId, parentPath, depth } = queue.shift()
+        const parent = projectionValues(state, parentId)
+        const local = new Map()
+        for (const entry of Array.isArray(parent.subagentCatalog) ? parent.subagentCatalog : []) {
+          if (typeof entry?.id !== 'string' || entry.id === rootId || members.has(entry.id)) continue
+          const name = entry.name || entry.label || summaries[entry.id]?.displayTitle || entry.id
+          local.set(entry.id, { ...entry, name, kind: teamEnabled ? 'team' : 'independent' })
+        }
+        // rc.1 owns a separate roster. rc.2 owns all identities in subagentCatalog instead.
+        for (const member of parent.agentTeam?.members ?? []) {
+          if (member.role === 'lead' || member.id === rootId || members.has(member.id)) continue
+          local.set(member.id, { ...local.get(member.id), ...member, kind: 'team', mode: 'continuable' })
+        }
+        for (const member of local.values()) {
+          if (members.has(member.id)) continue
+          if (depth > OVERVIEW_DEPTH) { treeLimited = true; continue }
+          if (members.size >= OVERVIEW_LIMIT) { treeLimited = true; queue.length = 0; break }
+          const path = parentPath ? `${parentPath}/${member.name}` : member.name
+          members.set(member.id, { ...member, parentId, path, depth })
+          if (['one-shot', 'continuable'].includes(member.mode)) queue.push({ parentId: member.id, parentPath: path, depth: depth + 1 })
+        }
       }
       const rows = [...members.values()].map(member => {
         const child = snapshots[member.id]
-        const projected = { ...summaries[member.id]?.projectionValues, ...child?.values }
+        const projected = projectionValues(state, member.id)
         const running = statuses?.get(member.id)?.running ?? summaries[member.id]?.running
         const timing = projected.subagentTiming
         const status = member.phase === 'failed' ? 'failed' : member.phase === 'provisioning' ? 'provisioning'
@@ -2586,26 +2944,26 @@ button.sah-usage-tile{cursor:pointer}
           : timing?.lastTurnCompleted === false ? 'interrupted' : 'inactive'
         const activity = projected[ACTIVITY_PROJECTION] ?? undefined
         const lastActive = activity?.last ?? timing?.active?.through
-        // Waiting for approval always needs someone; a failure only while it is recent, so one
-        // old interruption cannot keep the trigger amber forever. Unknown age counts as old.
         const when = lastActive ?? member.createdAt
         const recent = Number.isFinite(when) && now - when <= ATTENTION_WINDOW_MS
         const stall = status === 'running' ? overviewStall(activity, lastActive, now) : undefined
         const attention = activity?.approval !== undefined || stall !== undefined || ((status === 'failed' || status === 'interrupted') && recent)
         return { ...member, status, attention, stall, activity, model: modelBadgeData({ subagent: true }, projected.modelSelection),
+          presetId: typeof projected.agentPreset === 'string' ? projected.agentPreset : undefined,
+          presetKnown: typeof projected.agentPreset === 'string' || projected.agentPreset === null,
           duration: overviewDuration(timing, running === true, now), tokens: overviewTokens(projected.tokenUsage),
           tokenUsage: projected.tokenUsage, lastActive,
           readState: child?.state, readError: child?.error?.message,
-          address: ['one-shot', 'continuable'].includes(member.mode) ? { parentSessionId: rootId, childSessionId: member.id, mode: member.mode } : undefined }
+          address: ['one-shot', 'continuable'].includes(member.mode) ? { parentSessionId: member.parentId, childSessionId: member.id, mode: member.mode } : undefined }
       })
-      const issues = []
       if (snapshot?.error) issues.push({ id: rootId, message: snapshot.error.message ?? String(snapshot.error) })
       if (team?.failure) issues.push({ id: rootId, message: team.failure })
       for (const row of rows) {
         if (row.error) issues.push({ id: row.id, message: row.error })
         if (row.readError) issues.push({ id: row.id, message: row.readError })
       }
-      return { rows, dispatch: values.subagentHubDispatch, tasks: (team?.tasks ?? []).filter(task => task.status !== 'deleted'), issues,
+      return { rows, dispatch: values.subagentHubDispatch, tasks: (team?.tasks ?? []).filter(task => task.status !== 'deleted'), issues, treeLimited,
+        depth: rows.reduce((max, row) => Math.max(max, row.depth), 0),
         teamAvailable: team !== undefined, catalogAvailable: Array.isArray(catalog),
         readState: snapshot?.state ?? (state?.phase === 'pending' ? 'loading' : 'idle'),
         running: rows.filter(row => row.status === 'running').length,
@@ -2650,7 +3008,7 @@ button.sah-usage-tile{cursor:pointer}
         let item = byRoute.get(key)
         if (item === undefined) {
           const hub = routes.find(route => route?.provider === provider && route?.model === model)
-          byRoute.set(key, item = { provider, model, agents: new Set(), requests: 0, approximate: false,
+          byRoute.set(key, item = { provider, model, agents: new Set(), requests: 0, requestsKnown: false, approximate: false,
             uncachedInputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0,
             ...(hub ? { routeId: hub.id, tags: hub.tags ?? [] } : {}) })
         }
@@ -2661,16 +3019,18 @@ button.sah-usage-tile{cursor:pointer}
       const agents = []
       let missing = 0
       let estimated = 0
+      let incomplete = 0
       for (const row of rows) {
         const split = Array.isArray(row.activity?.usage) ? row.activity.usage.filter(validBuckets) : []
         const tile = (provider, model, usage, isEstimate) => agents.push({ id: `${row.id}\0${provider}\0${model}`, rowId: row.id,
           name: row.name, address: row.address, routeKey: `${provider}\0${model}`, value: sumOf(usage), estimated: isEstimate,
           status: usageStatus(row) })
         if (split.length) {
+          if (validBuckets(row.tokenUsage) && sumOf(row.tokenUsage) > split.reduce((total, item) => total + sumOf(item), 0)) incomplete++
           for (const usage of split) {
             const item = entry(usage.provider, usage.model)
             item.agents.add(row.id)
-            item.requests += Number.isFinite(usage.requests) ? usage.requests : 0
+            if (Number.isFinite(usage.requests) && usage.requests >= 0) { item.requests += usage.requests; item.requestsKnown = true }
             add(item, usage)
             tile(usage.provider, usage.model, usage, false)
           }
@@ -2694,9 +3054,38 @@ button.sah-usage-tile{cursor:pointer}
       const items = [...byRoute.values()].map(item => ({ ...item, key: `${item.provider}\0${item.model}`, agents: item.agents.size, total: sumOf(item) }))
       const total = items.reduce((sum, item) => sum + item.total, 0)
       const totals = Object.fromEntries(USAGE_BUCKETS.map(key => [key, items.reduce((sum, item) => sum + item[key], 0)]))
-      return { total, missing, estimated, ...totals, requests: items.reduce((sum, item) => sum + item.requests, 0),
+      return { total, missing, estimated, incomplete, ...totals, requests: items.reduce((sum, item) => sum + item.requests, 0),
         agents: agents.filter(agent => agent.value > 0 || agent.status === 'running').sort((a, b) => b.value - a.value),
         routes: items.map(item => ({ ...item, share: total ? item.total / total : 0 })).sort((a, b) => b.total - a.total) }
+    }
+    /** Attribute roles only from the native persisted preset projection, never from names or task text. */
+    function overviewAnalytics(rows, routes = [], agents = []) {
+      const groups = new Map()
+      const comparisons = []
+      for (const row of rows) {
+        const roleId = row.presetId?.startsWith('hub-agent-') ? row.presetId.slice('hub-agent-'.length) : undefined
+        const configured = roleId === undefined ? undefined : agents.find(agent => agent.id === roleId)
+        const key = roleId === undefined ? (row.presetId || row.presetKnown ? 'unassigned' : 'unknown') : `role:${roleId}`
+        if (!groups.has(key)) groups.set(key, { key, roleId, name: configured?.name || roleId, rows: [] })
+        groups.get(key).rows.push(row)
+        if (row.model.kind !== 'recorded') continue
+        const last = row.model.last
+        const route = routes.find(route => route.provider === last.provider && route.model === last.model)
+        const actual = last.reasoningEffort ?? row.activity?.effort?.value
+        if (route?.reasoningEffort && actual && route.reasoningEffort !== actual) {
+          comparisons.push({ row, kind: 'effort', expected: route.reasoningEffort, actual, routeId: route.id })
+        }
+        if (routes.length && !route) comparisons.push({ row, kind: 'route', actual: `${last.provider} / ${last.model}` })
+        if (route && configured?.routes?.length && !configured.routes.includes(route.id)) {
+          comparisons.push({ row, kind: 'roleRoute', actual: route.id, expected: configured.routes.join(', ') })
+        }
+      }
+      const roles = [...groups.values()].map(group => {
+        const usage = overviewUsage(group.rows, routes)
+        const known = group.rows.filter(row => Number.isFinite(row.activity?.retries) && row.activity.retries >= 0)
+        return { ...group, usage, retries: known.reduce((total, row) => total + row.activity.retries, 0), retriesKnown: known.length }
+      }).sort((a, b) => b.usage.total - a.usage.total || a.key.localeCompare(b.key))
+      return { roles, comparisons, usage: overviewUsage(rows, routes), attention: rows.filter(row => row.attention) }
     }
     /** An idle continuable member or an unknown status must never imply task completion. */
     function usageStatus(row) {
@@ -2731,7 +3120,7 @@ button.sah-usage-tile{cursor:pointer}
       const prompt = item.uncachedInputTokens + item.cacheReadTokens + item.cacheWriteTokens
       return prompt > 0 ? item.cacheReadTokens / prompt : undefined
     }
-    const SETTLED = new Set(['inactive', 'completed', 'unknown'])
+    const SETTLED = new Set(['inactive', 'completed'])
     function overviewFilter(rows, { search = '', kind = 'all', status = 'all', sort = 'priority' } = {}, groups = [], fresh = new Set()) {
       const query = search.trim().toLocaleLowerCase()
       const rank = { running: 0, provisioning: 1, failed: 2, interrupted: 3, unknown: 4, inactive: 5, completed: 6 }
@@ -2739,7 +3128,7 @@ button.sah-usage-tile{cursor:pointer}
         || (status === 'attention' && row.attention)
         || (status === 'settled' && !row.attention && (SETTLED.has(row.status) || row.status === 'failed' || row.status === 'interrupted'))
       return rows.filter(row => (kind === 'all' || row.kind === kind) && statusMatch(row)
-        && (!query || [row.name, row.id, row.model.last?.provider, row.model.last?.model, routeModelName(groups, row.model.last), row.error, row.activity?.task?.text].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
+        && (!query || [row.name, row.path, row.label, row.presetId, row.id, row.model.last?.provider, row.model.last?.model, routeModelName(groups, row.model.last), row.error, row.activity?.task?.text].filter(Boolean).join(' ').toLocaleLowerCase().includes(query)))
         .sort((a, b) => {
           const primary = sort === 'name' ? a.name.localeCompare(b.name)
             : sort === 'newest' ? (b.createdAt ?? -1) - (a.createdAt ?? -1)
@@ -2750,18 +3139,33 @@ button.sah-usage-tile{cursor:pointer}
           return primary || a.name.localeCompare(b.name) || a.id.localeCompare(b.id)
         })
     }
-    /** Bound read pressure and let closing the panel stop scheduling further work. */
-    async function refreshOverview(sessions, rootId, ids, cancelled = () => false) {
-      const queue = [...new Set([rootId, ...ids].filter(Boolean))]
+    /** Read exactly the displayed catalog selection, rediscovering after each bounded batch. */
+    async function refreshOverview(sessions, rootId, ids = [], cancelled = () => false) {
+      const automatic = rootId !== undefined && typeof sessions.list?.getSnapshot === 'function'
+      const initial = automatic ? [rootId] : [...new Set([rootId, ...ids].filter(Boolean))]
+      let queue = [...initial]
+      const seen = new Set()
       const failures = []
-      async function worker() {
-        while (queue.length && !cancelled()) {
-          const id = queue.shift()
+      while (queue.length && !cancelled() && seen.size < OVERVIEW_LIMIT + 1) {
+        const batch = queue.filter(id => !seen.has(id)).slice(0, Math.min(4, OVERVIEW_LIMIT + 1 - seen.size))
+        if (!batch.length) break
+        for (const id of batch) seen.add(id)
+        await Promise.all(batch.map(async id => {
+          if (cancelled()) return
           try { await sessions.refreshProjections(id) }
           catch (error) { failures.push({ id, message: String(error?.message ?? error) }) }
-        }
+        }))
+        if (cancelled()) break
+        const snapshot = automatic ? sessions.list.getSnapshot() : undefined
+        // Finish a whole parent depth before scheduling deeper cached catalogs. Otherwise a
+        // newly read earlier sibling could displace descendants whose reads consumed the cap.
+        const discovered = snapshot ? overviewData(rootId, snapshot, new Map()).rows.filter(row => row.address && !seen.has(row.id)) : []
+        const depth = Math.min(...discovered.map(row => row.depth))
+        queue = snapshot ? discovered.filter(row => row.depth === depth).map(row => row.id) : initial.filter(id => !seen.has(id))
       }
-      await Promise.all([worker(), worker(), worker(), worker()])
+      if (!cancelled() && automatic && overviewData(rootId, sessions.list.getSnapshot(), new Map()).rows.some(row => row.address && !seen.has(row.id))) {
+        failures.push({ id: rootId, message: 'The member catalog changed while refreshing. Refresh again to read the remaining members.' })
+      }
       return failures
     }
     /** The child's own plan: done count and the item it is on. */
@@ -2790,15 +3194,17 @@ button.sah-usage-tile{cursor:pointer}
       const voice = overviewVoice(activity)
       const field = (label, value, extra = {}) => h(React.Fragment, null, h('dt', null, label), h('dd', extra, value))
       const stateText = [t(`overview.${row.status}`), Number.isFinite(row.duration) ? overviewTime(row.duration) : undefined].filter(Boolean).join(' · ')
-      return h('li', { className: 'sah-overview-card', 'data-attention': row.attention ? 'true' : undefined },
+      return h('li', { className: 'sah-overview-card', 'data-attention': row.attention ? 'true' : undefined, 'data-depth': row.depth > 1 ? row.depth : undefined },
         h('div', { className: 'sah-overview-card-head' },
           h('span', { className: 'sah-overview-dot', 'data-state': row.status, 'data-attention': activity?.approval || row.stall ? 'true' : undefined, 'aria-hidden': true }),
-          h('h3', { title: row.name }, row.name),
+          h('h3', { title: row.path || row.name }, row.name),
           fresh ? h('span', { className: 'sah-overview-fresh' }, t('overview.fresh')) : null,
           h('span', { className: 'sah-overview-state' }, stateText),
           h('button', { type: 'button', disabled: !row.address || row.id === currentId,
             title: !row.address ? t('overview.noNavigation') : undefined,
             onClick: () => openChild(row.address) }, t(row.id === currentId ? 'overview.current' : 'overview.open'))),
+        row.depth > 1 ? h('p', { className: 'sah-overview-path' }, h('code', null, row.path)) : null,
+        row.label && row.label !== row.name ? h('p', { className: 'sah-overview-path' }, row.label) : null,
         h('p', { className: 'sah-overview-model' }, row.model.kind === 'recorded'
           ? `${modelLabel(row.model.last)}${row.kind === 'team' ? ` · ${t('overview.team')}` : ''}`
           : t(row.model.kind === 'waiting' ? 'overview.noRequest' : 'overview.noModel')),
@@ -2832,6 +3238,8 @@ button.sah-usage-tile{cursor:pointer}
               h('code', null, step.name), h('span', null, step.hint ?? ''), h('span', null, overviewSpan(step.ms)))))
             : h('p', { className: 'sah-overview-muted', style: { fontSize: 12, marginTop: 6 } }, t('overview.noSteps'))) : null,
           h('dl', { className: 'sah-overview-evidence' }, h('dt', null, 'Session ID'), h('dd', null, h('code', null, row.id)),
+            h('dt', null, t('overview.path')), h('dd', null, row.path || row.name),
+            row.presetId ? h(React.Fragment, null, h('dt', null, t('overview.preset')), h('dd', null, h('code', null, row.presetId))) : null,
             h('dt', null, t('overview.kind')), h('dd', null, row.mode),
             Number.isFinite(row.createdAt) ? h(React.Fragment, null, h('dt', null, t('overview.created')), h('dd', null, new Date(row.createdAt).toLocaleString())) : null,
             row.model.kind === 'recorded' ? h(React.Fragment, null, h('dt', null, t('overview.model')), h('dd', null, raw(row.model.last))) : null,
@@ -2848,6 +3256,7 @@ button.sah-usage-tile{cursor:pointer}
       return task.ready === true ? 'ready' : task.ready === false ? 'blocked' : 'pending'
     }
     function taskBoardOwnerKey(task) {
+      if (typeof task.ownerId === 'string' && task.ownerId) return `owner-id:${task.ownerId}`
       return typeof task.ownerName === 'string' && task.ownerName !== '' ? `owner:${task.ownerName}` : 'unassigned'
     }
     function taskBoardFilter(tasks, { status = 'all', owner = 'all' } = {}) {
@@ -2855,10 +3264,12 @@ button.sah-usage-tile{cursor:pointer}
         && (status === 'all' || (status === 'pending' ? task.status === 'pending' : taskBoardState(task) === status))
         && (owner === 'all' || taskBoardOwnerKey(task) === owner))
     }
-    /** Team task views name owners; only an exact, unique authoritative roster match is navigable. */
+    /** rc.2 owner IDs are authoritative; old name-only tasks require an unambiguous proven roster. */
     function taskBoardOwner(task, rows = []) {
       if (taskBoardOwnerKey(task) === 'unassigned') return undefined
-      const matches = rows.filter(row => row.kind === 'team' && row.name === task.ownerName)
+      const matches = typeof task.ownerId === 'string' && task.ownerId
+        ? rows.filter(row => row.id === task.ownerId)
+        : rows.filter(row => row.kind === 'team' && (row.path === task.ownerName || row.name === task.ownerName))
       return matches.length === 1 && matches[0].address ? matches[0] : undefined
     }
     function taskBoardDependencies(task, tasks) {
@@ -2885,6 +3296,12 @@ button.sah-usage-tile{cursor:pointer}
       const visible = taskBoardFilter(all, filters)
       // Keep an emptied selection visible after live reassignment instead of displaying “All” for a still-active filter.
       const ownerKeys = [...new Set([...all.map(taskBoardOwnerKey), ...(filters.owner === 'all' ? [] : [filters.owner])])]
+      const ownerLabel = key => {
+        if (key === 'unassigned') return t('overview.unowned')
+        const task = all.find(task => taskBoardOwnerKey(task) === key)
+        const member = task && taskBoardOwner(task, rows)
+        return member?.path || task?.ownerName || task?.ownerId || key.replace(/^owner(?:-id)?:/, '')
+      }
       const isFiltered = filters.status !== 'all' || filters.owner !== 'all'
       const labelOfState = state => t(`overview.${state}`)
       const reset = () => { setFilters({ status: 'all', owner: 'all' }); setFocus(undefined) }
@@ -2906,7 +3323,7 @@ button.sah-usage-tile{cursor:pointer}
               `${status === 'all' ? t('overview.all') : status === 'pending' ? t('overview.boardPending') : labelOfState(status)} (${taskBoardFilter(all, { status }).length})`)))),
           h('label', null, t('overview.boardOwner'), h('select', { value: filters.owner, onChange: event => { setFilters(old => ({ ...old, owner: event.target.value })); setFocus(undefined) } },
             h('option', { value: 'all' }, t('overview.all')),
-            ...ownerKeys.map(key => h('option', { key, value: key }, `${key === 'unassigned' ? t('overview.unowned') : key.slice('owner:'.length)} (${taskBoardFilter(all, { owner: key }).length})`))))),
+            ...ownerKeys.map(key => h('option', { key, value: key }, `${ownerLabel(key)} (${taskBoardFilter(all, { owner: key }).length})`))))),
         h('div', { className: 'sah-task-summary' },
           h('p', { role: 'status' }, t('overview.boardShown', { shown: visible.length, total: all.length })),
           isFiltered ? h('button', { type: 'button', onClick: reset }, t('overview.reset')) : null),
@@ -2926,8 +3343,8 @@ button.sah-usage-tile{cursor:pointer}
               h('span', { className: 'sah-task-status', 'data-state': state }, labelOfState(state))),
             h('div', { className: 'sah-task-owner' }, h('span', { className: 'sah-task-id' }, task.id), h('span', { 'aria-hidden': true }, '·'), h('span', null, `${t('overview.owner')}：`),
               owner && openChild ? h('button', { type: 'button', className: 'sah-task-owner-link', disabled: opening === owner.id,
-                title: t('overview.boardOpenOwner', { name: task.ownerName }), onClick: () => navigate(owner) }, task.ownerName)
-                : h('span', { title: task.ownerName ? t('overview.boardNoOwnerNavigation') : undefined }, task.ownerName || t('overview.unowned'))),
+                title: t('overview.boardOpenOwner', { name: owner.path || owner.name }), onClick: () => navigate(owner) }, owner.path || owner.name)
+                : h('span', { title: task.ownerName || task.ownerId ? t('overview.boardNoOwnerNavigation') : undefined }, task.ownerName || task.ownerId || t('overview.unowned'))),
             task.description ? h('p', { className: 'sah-task-description' }, task.description) : null,
             shownDependencies.length ? h('div', { className: 'sah-task-dependencies' },
               h('span', null, t(state === 'blocked' && unresolved.length ? 'overview.boardWaiting' : 'overview.boardPrerequisites')),
@@ -3114,11 +3531,81 @@ button.sah-usage-tile{cursor:pointer}
           t(expanded ? 'overview.usageLess' : 'overview.usageAll', { count: filtered.length })) : null,
         h('div', { className: 'sah-overview-foot' },
           usage.estimated ? h('p', null, t('overview.usageEstimated', { count: usage.estimated })) : null,
+          usage.incomplete ? h('p', null, t('overview.usageIncomplete', { count: usage.incomplete })) : null,
           usage.missing ? h('p', null, t('overview.usageMissing', { count: usage.missing })) : null,
           h('p', null, t('overview.usageNote'))))
     }
-    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now(), fresh = new Set(), routes = [] }) {
-      const [tab, setTab] = React.useState('members')
+    function OverviewAnalysis({ data, routes = [], agents = [], groups = [], t, openChild }) {
+      const [opening, setOpening] = React.useState(undefined)
+      const [navigationError, setNavigationError] = React.useState(undefined)
+      const navigate = async row => {
+        setOpening(row.id)
+        setNavigationError(undefined)
+        try { await openChild(row.address) }
+        catch { setNavigationError(t('overview.navigationError')) }
+        finally { setOpening(undefined) }
+      }
+      const analysis = overviewAnalytics(data.rows, routes, agents)
+      const usage = analysis.usage
+      const rate = overviewCacheRate(usage)
+      const max = Math.max(1, ...analysis.roles.map(role => role.usage.total))
+      const roleLabel = role => role.name || t(role.key === 'unassigned' ? 'overview.roleNone' : 'overview.roleUnknown')
+      const countLabel = role => `${t('overview.retryCount')} ${role.retriesKnown ? role.retries : '—'}${role.retriesKnown < role.rows.length ? ` · ${t('overview.retryCoverage', { known: role.retriesKnown, total: role.rows.length })}` : ''}`
+      const attentionLabel = row => row.activity?.approval ? t('overview.approval', { tool: row.activity.approval.tool })
+        : row.stall ? (row.stall.kind === 'call' ? t('overview.stallCall', { tool: row.stall.tool, time: overviewSpan(row.stall.ms) }) : t('overview.stallQuiet', { time: overviewSpan(row.stall.ms) }))
+        : t(`overview.${row.status}`)
+      return h('section', { className: 'sah-analysis', 'aria-label': t('overview.analysisTitle') },
+        navigationError ? h('p', { role: 'alert', className: 'sah-overview-error' }, navigationError) : null,
+        h('div', { className: 'sah-analysis-section' },
+          h('h3', null, t('overview.analysisTitle')),
+          h('p', { className: 'sah-usage-sub' }, t('overview.analysisScope', { count: data.rows.length, depth: data.depth ?? 1 })),
+          h('dl', { className: 'sah-analysis-metrics' },
+            h('div', null, h('dt', null, t('overview.tokens')), h('dd', null, usage.routes.length ? overviewCount(usage.total) : '—')),
+            h('div', null, h('dt', null, t('overview.usageCache')), h('dd', null, rate === undefined ? '—' : `${Math.round(rate * 100)}%`)),
+            h('div', null, h('dt', null, t('overview.running')), h('dd', null, data.running)))),
+        analysis.attention.length ? h('section', { className: 'sah-analysis-attention', 'aria-label': t('overview.needAttention', { count: analysis.attention.length }) },
+          h('h3', null, `⚠ ${t('overview.needAttention', { count: analysis.attention.length })}`),
+          h('ul', null, ...analysis.attention.map(row => h('li', { key: row.id },
+            h('span', null, h('strong', null, row.path || row.name), ` · ${attentionLabel(row)}`),
+            row.address && openChild ? h('button', { type: 'button', disabled: opening !== undefined, onClick: () => navigate(row) }, t('overview.reviewAgent')) : null)))) : null,
+        !data.catalogAvailable ? h('p', { role: 'status', className: 'sah-overview-muted' }, t(data.readState === 'loading' ? 'overview.loading' : data.readState === 'migration-required' ? 'overview.migration' : 'overview.unavailable'))
+          : data.rows.length === 0 ? h('p', { role: 'status', className: 'sah-overview-muted' }, t('overview.empty')) : null,
+        analysis.roles.length ? h('section', { className: 'sah-analysis-section', 'aria-label': t('overview.roleChart') },
+          h('h3', null, t('overview.roleChart')),
+          h('ul', { className: 'sah-analysis-roles' }, ...analysis.roles.map(role => {
+            const total = role.usage.total
+            const known = role.rows.length - role.usage.missing
+            const parts = [role.usage.uncachedInputTokens, role.usage.cacheReadTokens + role.usage.cacheWriteTokens, role.usage.outputTokens]
+            return h('li', { key: role.key, className: 'sah-analysis-role' },
+              h('div', { className: 'sah-analysis-role-head' }, h('strong', null, roleLabel(role)), h('span', null, known ? overviewCount(total) : t('overview.roleNoUsage'))),
+              h('div', { className: 'sah-analysis-track', role: 'img', 'aria-label': `${roleLabel(role)} · ${parts.map((value, index) => `${t(['overview.inputBucket', 'overview.cacheBucket', 'overview.outputBucket'][index])} ${known ? overviewCount(value) : '—'}`).join(' · ')}` },
+                h('div', { className: 'sah-analysis-stack', style: { width: `${total / max * 100}%` } },
+                  ...parts.map((value, index) => h('span', { key: index, className: ['sah-analysis-input', 'sah-analysis-cache', 'sah-analysis-output'][index], style: { width: `${total ? value / total * 100 : 0}%` } })))),
+              h('div', { className: 'sah-analysis-role-meta' }, h('span', null, t('overview.roleMembers', { count: role.rows.length })),
+                h('span', null, countLabel(role)), known < role.rows.length ? h('span', null, t('overview.partialCount', { known, total: role.rows.length })) : null))
+          })),
+          h('div', { className: 'sah-analysis-legend', 'aria-hidden': true }, ...['overview.inputBucket', 'overview.cacheBucket', 'overview.outputBucket'].map((key, index) => h('span', { key }, h('i', { className: ['sah-analysis-input', 'sah-analysis-cache', 'sah-analysis-output'][index] }), t(key)))),
+          h('p', { className: 'sah-overview-foot' }, t('overview.roleEvidence'))) : null,
+        usage.routes.length ? h('section', { className: 'sah-analysis-section' }, h('h3', null, t('overview.analysisModels')),
+          h('table', { className: 'sah-analysis-table' }, h('thead', null, h('tr', null, h('th', { scope: 'col' }, t('overview.model')), h('th', { scope: 'col' }, 'Token'), h('th', { scope: 'col' }, t('overview.routeRequests')))),
+            h('tbody', null, ...usage.routes.map(route => h('tr', { key: route.key },
+              h('td', { title: `${route.provider} / ${route.model}` }, routeLabel(groups, route).value, h('small', null, route.routeId || t('overview.usageUnrouted'))),
+              h('td', null, overviewCount(route.total), route.approximate ? h('small', null, '≈') : null), h('td', null, route.requestsKnown ? `${route.approximate ? '≥' : ''}${route.requests}` : '—')))))) : null,
+        h('details', null, h('summary', null, `${t('overview.comparisons')}${analysis.comparisons.length ? ` (${analysis.comparisons.length})` : ''}`),
+          h('p', { className: 'sah-overview-foot', style: { marginBlock: 8 } }, t('overview.comparisonNote')),
+          analysis.comparisons.length ? h('ul', { className: 'sah-analysis-comparisons' }, ...analysis.comparisons.map((item, index) => h('li', { key: `${item.row.id}-${index}` },
+            h('strong', null, item.row.path || item.row.name), h('p', null, t(`overview.${item.kind === 'effort' ? 'compareEffort' : item.kind === 'route' ? 'compareRoute' : 'compareRoleRoute'}`, item)),
+            h('code', null, `${item.row.model.last.provider} / ${item.row.model.last.model}`),
+            item.row.address && openChild ? h('button', { type: 'button', disabled: opening !== undefined, onClick: () => navigate(item.row) }, t('overview.reviewAgent')) : null)))
+            : h('p', { className: 'sah-overview-muted' }, t('overview.noComparisons'))),
+        h('div', { className: 'sah-overview-foot' },
+          usage.missing ? h('p', null, t('overview.usageMissing', { count: usage.missing })) : null,
+          usage.estimated ? h('p', null, t('overview.usageEstimated', { count: usage.estimated })) : null,
+          usage.incomplete ? h('p', null, t('overview.usageIncomplete', { count: usage.incomplete })) : null,
+          h('p', null, t('overview.usageNote'))))
+    }
+    function OverviewContent({ data, currentId, openChild, t, errors = [], groups = [], now = Date.now(), fresh = new Set(), routes = [], agents = [], initialTab = 'analysis' }) {
+      const [tab, setTab] = React.useState(initialTab)
       const [filters, setFilters] = React.useState({ search: '', status: 'all' })
       const [usageFilters, setUsageFilters] = React.useState({ hiddenStatuses: [], hiddenRoutes: [] })
       const rows = overviewFilter(data.rows, filters, groups, fresh)
@@ -3126,17 +3613,18 @@ button.sah-usage-tile{cursor:pointer}
       const issues = [...data.issues, ...errors]
       const count = status => overviewFilter(data.rows, { status }).length
       // The task board only exists for Agent Team work; an empty board is noise, not information.
-      const tabs = ['members', ...(usage.routes.length ? ['usage'] : []), ...(data.teamAvailable && data.tasks.length > 0 ? ['tasks'] : []), 'diagnostics']
-      const shown = tabs.includes(tab) ? tab : 'members'
+      const tabs = ['analysis', 'members', ...(usage.routes.length ? ['usage'] : []), ...(data.teamAvailable && data.tasks.length > 0 ? ['tasks'] : []), 'diagnostics']
+      const shown = tabs.includes(tab) ? tab : 'analysis'
       return h('div', { className: 'sah-overview-body' },
         issues.length ? h('p', { className: 'sah-overview-notice sah-overview-error', role: 'status' }, t('overview.stale')) : null,
+        data.treeLimited ? h('p', { className: 'sah-overview-notice', role: 'status' }, t('overview.treeLimit')) : null,
         h('div', { className: 'sah-overview-tabs', role: 'group', 'aria-label': t('overview.title') },
           ...tabs.map(value => h('button', { type: 'button', key: value, 'aria-pressed': shown === value, onClick: () => setTab(value) },
-            t(`overview.${value}`),
+            t(value === 'usage' ? 'overview.usageBreakdown' : `overview.${value}`),
             value === 'members' && data.rows.length ? h('span', { className: 'sah-overview-badge' }, data.rows.length) : null,
             value === 'tasks' && data.tasks.length ? h('span', { className: 'sah-overview-badge' }, data.tasks.length) : null,
             value === 'diagnostics' && issues.length ? h('span', { className: 'sah-overview-badge' }, issues.length) : null))),
-        shown === 'members' ? h(React.Fragment, null,
+        shown === 'analysis' ? h(OverviewAnalysis, { data, routes, agents, groups, t, openChild }) : shown === 'members' ? h(React.Fragment, null,
           data.rows.length >= FILTERS_FROM ? h(React.Fragment, null,
             h('input', { type: 'search', placeholder: t('overview.search'), 'aria-label': t('overview.search'), value: filters.search, onChange: event => setFilters(old => ({ ...old, search: event.target.value })) }),
             h('div', { className: 'sah-overview-filters', role: 'group', 'aria-label': t('overview.state') },
@@ -3205,8 +3693,9 @@ button.sah-usage-tile{cursor:pointer}
       return time
     }
     function useAgentOverview({ sessionId, useSession, useSessions, useSessionStatus, sessions, openSession, names, remote, t, routes = [], visibility, tab }) {
-      const rootId = useSession(value => value.subagent?.address.parentSessionId) ?? sessionId
+      const directParent = useSession(value => value.subagent?.address.parentSessionId)
       const state = useSessions(value => value)
+      const rootId = overviewRoot(sessionId, directParent, state)
       const statuses = useSessionStatus(value => value)
       const catalog = useSnapshot(names, NO_CATALOG)
       const shown = useSnapshot(visibility, EMPTY_VISIBILITY)
@@ -3247,10 +3736,8 @@ button.sah-usage-tile{cursor:pointer}
         const cancelled = () => generation.current !== run
         setBusy(true)
         setErrors([])
-        // Read the parent first so newly discovered members are included in this refresh.
+        // Each successful parent read discovers its descendants in the same bounded refresh.
         const failures = await refreshOverview(sessions, rootId, [], cancelled)
-        const refreshed = overviewData(rootId, sessions.list.getSnapshot(), new Map())
-        if (!cancelled()) failures.push(...await refreshOverview(sessions, undefined, refreshed.rows.map(row => row.id), cancelled))
         if (!cancelled()) { setErrors(failures); setBusy(false) }
       }, [sessions, rootId])
       React.useEffect(() => {
@@ -3259,16 +3746,16 @@ button.sah-usage-tile{cursor:pointer}
         return () => { generation.current++ }
       }, [open, refresh, tab?.id])
       // Closed: keep the trigger honest about stalls and new results at a gentler pace.
-      const backgroundIds = data.rows.filter(row => row.status === 'running').map(row => row.id).join('\n')
+      const backgroundIds = data.rows.filter(row => row.address && row.status === 'running').map(row => row.id).join('\n')
       React.useEffect(() => {
         if (tab !== undefined || open || backgroundIds === '') return
         let stopped = false
         const timer = setInterval(() => {
           setNow(Date.now())
-          if (!stopped) refreshOverview(sessions, undefined, backgroundIds.split('\n'), () => stopped).catch(() => {})
+          if (!stopped) refreshOverview(sessions, rootId, backgroundIds.split('\n'), () => stopped).catch(() => {})
         }, BACKGROUND_REFRESH_MS)
         return () => { stopped = true; clearInterval(timer) }
-      }, [open, tab?.id, backgroundIds, sessions])
+      }, [open, tab?.id, backgroundIds, sessions, rootId])
       // Live while open: tick elapsed times every second, re-read running agents every few.
       const runningIds = data.rows.filter(row => row.status === 'running' || row.status === 'provisioning').map(row => row.id).join('\n')
       React.useEffect(() => {
@@ -3328,7 +3815,7 @@ button.sah-usage-tile{cursor:pointer}
             : t('overview.summaryQuiet', { total: data.rows.length }),
             usageTotal ? ` · ${t('overview.tokens')} ${overviewCount(usageTotal)}` : ''),
           h('button', { type: 'button', disabled: busy, onClick: refresh }, t(busy ? 'overview.refreshing' : 'overview.refresh'))),
-        h(OverviewContent, { key: rootId, data, currentId: props.sessionId, openChild, t, errors, groups: catalog.groups, now, fresh, routes: props.routes }))
+        h(OverviewContent, { key: rootId, data, currentId: props.sessionId, openChild, t, errors, groups: catalog.groups, now, fresh, routes: props.routes, agents: props.agents }))
     }
 
     function OverviewSidebar(props) {
@@ -3344,7 +3831,7 @@ button.sah-usage-tile{cursor:pointer}
         return dispose
       }, [overviewForm])
       return snapshot?.status === 'ready' && snapshot.value?.showAgentOverview === true
-        ? h(props.tab === undefined ? AgentOverview : OverviewPanel, { ...props, routes: Array.isArray(snapshot.value.routes) ? snapshot.value.routes : [] })
+        ? h(props.tab === undefined ? AgentOverview : OverviewPanel, { ...props, routes: Array.isArray(snapshot.value.routes) ? snapshot.value.routes : [], agents: Array.isArray(snapshot.value.agents) ? snapshot.value.agents : [] })
         : props.tab === undefined ? null : h('p', { style: { padding: 16 }, role: 'status' }, props.t('overview.disabled'))
     }
     function registerOverview(ctx, t, names = createModelNames()) {
@@ -3394,7 +3881,7 @@ button.sah-usage-tile{cursor:pointer}
       apply,
       // Pure helpers, exported for tests only.
       AgentOverview, OverviewPanel, OverviewSidebar, OverviewGate, OverviewContent, OverviewMember, OverviewTasks, taskBoardState, taskBoardOwnerKey, taskBoardFilter, taskBoardOwner, taskBoardDependencies, overviewData, overviewFilter,
-      overviewDuration, overviewTokens, overviewTime, refreshOverview, registerOverview, OVERVIEW_SLOT, OVERVIEW_KIND, OVERVIEW_BODY_SLOT, createOverviewVisibility,
+      overviewDuration, overviewTokens, overviewTime, overviewRoot, overviewAnalytics, OverviewAnalysis, OVERVIEW_LIMIT, refreshOverview, registerOverview, OVERVIEW_SLOT, OVERVIEW_KIND, OVERVIEW_BODY_SLOT, createOverviewVisibility,
       overviewSpan, overviewCount, ATTENTION_WINDOW_MS, overviewTreemap, usageTiles, usageStatus, usageVisible, STALL_MS, LONG_CALL_MS, overviewStall, overviewNews, overviewFresh, overviewUsage, overviewCacheRate, OverviewUsage, overviewPlan, overviewVoice, ACTIVITY_PROJECTION,
       overviewLocales: { en, zh }, OVERVIEW_CSS,
       ModelBadge,
@@ -3405,6 +3892,8 @@ button.sah-usage-tile{cursor:pointer}
       ConfigPage,
       SectionPage,
       RouteCard,
+      settingsRouteRows,
+      moveSettingsRow,
       AgentCard, AgentEditor, RoleAccordion, roleName, CONFIGURATION_PRESET_ID,
       providerChoices,
       modelChoices,

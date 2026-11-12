@@ -188,7 +188,7 @@ test('settings separate roles, models and general, with the selected role ready 
   const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx }))
   for (const needle of [
     'workspace.title', 'general.title', 'concurrency.limit', 'official.switch', 'routes.title', 'sah-route-card',
-    'value="flash"', 'value="pro"', 'value="high"', 'value="Flash"',
+    '1. flash', '2. pro', 'sah-route-effort', 'sah-workspace-content',
     'workspace.roles', 'hub-agent-reviewer', 'Reviews diffs', 'preview.title', 'save', 'discard',
   ]) assert.ok(html.includes(needle), `missing ${needle}`)
   // Route identity is chosen from dropdowns; the concurrency cap is a stepper; the switch is a switch.
@@ -203,9 +203,10 @@ test('settings separate roles, models and general, with the selected role ready 
 })
 
 test('provider and model are one select, grouped per provider', () => {
-  const { ConfigPage, modelOptionValue } = loadClient()
-  const form = { state: { status: 'ready', writable: true, revision: 7, value: saved() }, mutate: async () => true }
-  const html = renderToStaticMarkup(React.createElement(ConfigPage, { view: 'page', form, t, ctx: { remote: undefined } }))
+  const { RouteCard, draftsOf, modelOptionValue } = loadClient()
+  const html = draftsOf(saved()).routes.map((route, index) => renderToStaticMarkup(React.createElement(RouteCard, {
+    route, index, total: 2, groups: [], known: [], disabled: false, t,
+  }))).join('')
   // The merged value carries the provider and the model.
   assert.ok(html.includes(`value="${modelOptionValue('p', 'flash')}"`), 'merged model value missing')
   assert.ok(html.includes(`value="${modelOptionValue('p', 'pro')}"`), 'merged model value missing')
@@ -229,12 +230,12 @@ test('the reasoning effort appears only for a model that advertises efforts', ()
     route: draft.routes[0], index: 0, total: 2, groups, catalogReady: true, known: [],
     disabled: false, t, onChange() {}, onRemove() {}, onMove() {},
   }))
-  assert.ok(!withoutEffort.includes('route.effort'), 'a model without efforts must not offer an effort select')
+  assert.ok(!withoutEffort.includes('>route.effort</label>'), 'a model without efforts must not offer an effort select')
   const withEffort = renderToStaticMarkup(React.createElement(RouteCard, {
     route: draft.routes[1], index: 1, total: 2, groups, catalogReady: true, known: [],
     disabled: false, t, onChange() {}, onRemove() {}, onMove() {},
   }))
-  assert.ok(withEffort.includes('route.effort'), 'a model with efforts offers the effort select')
+  assert.ok(withEffort.includes('>route.effort</label>'), 'a model with efforts offers the effort select')
   assert.ok(withEffort.includes('value="high"'), 'the stored effort stays selected')
 })
 
